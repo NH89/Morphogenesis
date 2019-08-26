@@ -1,11 +1,11 @@
 
 #include <assert.h>
-#include <stdio.h>
+#include <iostream>//<stdio.h>
 #include <cuda.h>	
 #include "cutil_math.h"
 #include "fluid_system.h"
 
-#include <GL/glew.h>
+//#include <GL/glew.h>
 
 extern bool gProfileRend;
 
@@ -13,7 +13,7 @@ extern bool gProfileRend;
 
 #define SCAN_BLOCKSIZE		512				// must match value in fluid_system_cuda.cu
 
-bool cuCheck (CUresult launch_stat, char* method, char* apicall, char* arg, bool bDebug)
+bool cuCheck (CUresult launch_stat, const char* method, const char* apicall, const char* arg, bool bDebug)
 {
 	CUresult kern_stat = CUDA_SUCCESS;
 
@@ -31,18 +31,13 @@ bool cuCheck (CUresult launch_stat, char* method, char* apicall, char* arg, bool
         std::cout << " Caller: FluidSystem::"<<  method <<"\t";
         std::cout << " Call:   "<< apicall <<"\t";
         std::cout << " Args:   "<< arg <<"\n";
-		//nvprintf("FLUID SYSTEM, CUDA ERROR:\n");
-		//nvprintf("  Launch status: %s\n", launch_statmsg);
-		//nvprintf("  Kernel status: %s\n", kern_statmsg);
-		//nvprintf("  Caller: FluidSystem::%s\n", method);
-		//nvprintf("  Call:   %s\n", apicall);
-		//nvprintf("  Args:   %s\n", arg);
 
 		if (bDebug) {
-			//nvprintf("  Generating assert to examine call stack.\n");
+            std::cout << "  Generating assert to examine call stack.\n" ;
 			assert(0);		// debug - trigger break (see call stack)
 		}
 		else {
+            std::cout << "fluid_system.cpp line 40, 'nverror()' ";
 			//nverror();		// exit - return 0
 		}
 		return false;
