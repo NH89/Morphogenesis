@@ -1,16 +1,17 @@
-#include "allocator.h"
+#include "allocator.cuh"
 #if defined(_WIN32)
 #	include <windows.h>
 #endif
 #include <iostream>
 #include <cstdlib>
-#include <cuda_runtime.h>
-#include <cuda.h>
+#include <cuda_runtime.h>   //cuda_device_runtime_api.h
+
+//#include <cuda.h>           // CUDA-C includes 
 #include <assert.h>
 
 bool cudaCheck ( CUresult launch_stat, const char* obj, const char* method, const char* apicall, const char* arg, bool bDebug)
 {
-	CUresult kern_stat = CUDA_SUCCESS;
+	CUresult kern_stat = CUDA_SUCCESS;  
 	
 	if ( bDebug ) {
 		kern_stat = cuCtxSynchronize();	

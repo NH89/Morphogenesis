@@ -32,7 +32,7 @@
 cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 project(cmake_and_cuda LANGUAGES CXX CUDA)
 
-include(CTest)
+#include(CTest)
 
 add_library(fluid_system STATIC
   fluid_system_cuda.cu
@@ -53,12 +53,10 @@ set_target_properties( fluid_system
                        PROPERTIES CUDA_SEPARABLE_COMPILATION ON
                       )
 
-if(BUILD_TESTING)
-
-  add_executable(fluids_v4 
+add_executable(fluids_v4 
         main.cpp 
-        allocator.cpp
-        allocator.h
+        allocator.cu
+        allocator.cuh
         fluid.cpp
         fluid.h
         matrix.cpp 
@@ -70,16 +68,12 @@ if(BUILD_TESTING)
         vector.h
         vector_inline.h)
 
-  set_target_properties(fluids_v4 PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-  target_link_libraries(fluids_v4 PRIVATE fluid_system)
+set_target_properties(fluids_v4 PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+target_link_libraries(fluids_v4 PRIVATE fluid_system)
 
 #   add_test(NAME particles_10k COMMAND fluids_v4 10000 )
 #   add_test(NAME particles_256k COMMAND fluids_v4 256000 )
 
-  if(APPLE)
-    # We need to add the default path to the driver (libcuda.dylib) as an rpath,
-    # so that the static cuda runtime can find it at runtime.
-    set_property(TARGET fluids_v4 PROPERTY BUILD_RPATH ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
-  endif()
-endif()
+
+
 
