@@ -1,58 +1,39 @@
-# cmake_minimum_required(VERSION 2.8)
-# project(fluids_v4)
-# 
-# find_package(CUDA REQUIRED)
-# 
-# set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3 -gencode arch=compute_60,code=sm_60)# nb Quadro k4000 is a 'Fermi' card and has compute capability 2.0
-# set(CUDA_SEPARABLE_COMPILATION ON)
-# set(BUILD_SHARED_LIBS OFF)
-# 
-# include_directories(.)
-# 
-# 
-# _add_package_CUDA()
-# 
-# _add_package_CUDPP()
-# 
-# cuda_add_executable(fluids_v4     
-#     main.cpp   
-#     allocator.cpp
-#     fluid.cpp   
-#     matrix.cpp  
-#     fluid_system.cpp     
-#     vector.cpp
-# )
-# 
-# cuda_add_library(fluid_system_host   fluid_system_cuda.cu)
-#     
-# target_link_libraries(fluids_v4 cuda)
-# target_link_libraries(fluids_v4 fluid_system_host)
+cmake_minimum_required(VERSION 3.8  FATAL_ERROR)  
+project(fluids_v4 LANGUAGES CXX CUDA)
 
-#############################################################################
-cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
-project(cmake_and_cuda LANGUAGES CXX CUDA)
+find_package(CUDA 9.1 REQUIRED)
+include_directories(${CUDA_INCLUDE_DIRS} "/home/hoc041/Programming/Cuda/fluids_v4/")
+###
 
-#include(CTest)
+add_library(fluid_systemPTX OBJECT  fluid_system_cuda.cu  fluid_system_cuda.cuh)
+#target_compile_features(fluid_systemPTX PUBLIC cxx_std_11)
+#set_target_properties( fluid_system  PROPERTIES CUDA_SEPARABLE_COMPILATION ON )
+set_property(TARGET fluid_systemPTX PROPERTY CUDA_PTX_COMPILATION ON)
+set(output_file ${CMAKE_CURRENT_BINARY_DIR}/embedded_objs.h)
 
-add_library(fluid_system STATIC
-  fluid_system_cuda.cu
-  fluid_system_cuda.cuh
-  fluid.cpp
-  fluid.h
+get_filename_component(cuda_compiler_bin "${CMAKE_CUDA_COMPILER}" DIRECTORY)
+find_program(bin_to_c  NAMES bin2c  PATHS ${cuda_compiler_bin}  )
+if(NOT bin_to_c)
+  message(FATAL_ERROR
+    "bin2c not found:\n"
+    "  CMAKE_CUDA_COMPILER='${CMAKE_CUDA_COMPILER}'\n"
+    "  cuda_compiler_bin='${cuda_compiler_bin}'\n"
+    )
+endif()
+
+add_custom_command(
+  OUTPUT "${output_file}"
+  COMMAND ${CMAKE_COMMAND}
+    "-DBIN_TO_C_COMMAND=${bin_to_c}"
+    "-DOBJECTS=$<TARGET_OBJECTS:fluid_systemPTX>"
+    "-DOUTPUT=${output_file}"
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/bin2c_wrapper.cmake
+  VERBATIM
+  DEPENDS $<TARGET_OBJECTS:fluid_systemPTX>
+  COMMENT "Converting Object files to a C header"
   )
 
-# Request that particles be built with -std=c++11
-# As this is a public compile feature anything that links to particles
-# will also build with -std=c++11
-target_compile_features(fluid_system PUBLIC cxx_std_11)
-
-# We need to explicitly state that we need all CUDA files in the particle
-# library to be built with -dc as the member functions could be called by
-# other libraries and executables
-set_target_properties( fluid_system
-                       PROPERTIES CUDA_SEPARABLE_COMPILATION ON
-                      )
-
+#######
 add_executable(fluids_v4 
         main.cpp 
         allocator.cu
@@ -66,14 +47,25 @@ add_executable(fluids_v4
         fluid_system.h
         vector.cpp
         vector.h
-        vector_inline.h)
+        vector_inline.h
+        ${output_file}
+        )
+add_dependencies(fluids_v4 fluid_systemPTX)
+target_include_directories(fluids_v4 PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 
-set_target_properties(fluids_v4 PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(fluids_v4 PRIVATE fluid_system)
+target_compile_features(fluids_v4 PUBLIC cxx_std_11)  
+#set_property(TARGET fluids_v4 PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
-#   add_test(NAME particles_10k COMMAND fluids_v4 10000 )
-#   add_test(NAME particles_256k COMMAND fluids_v4 256000 )
+target_link_libraries(fluids_v4 PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda)
+#target_link_libraries(fluids_v4 PRIVATE fluid_systemPTX)
 
-
-
+###
+#nb edit code so that installed binary looks for ptx in correct location             
+install(TARGETS fluid_systemPTX fluids_v4
+   EXPORT fluid_systemPTX
+   RUNTIME DESTINATION bin
+   LIBRARY DESTINATION lib
+   OBJECTS DESTINATION ptx
+   )
+install(EXPORT fluid_systemPTX DESTINATION lib/fluid_systemPTX)
 

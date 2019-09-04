@@ -384,7 +384,7 @@ void FluidSystem::EmitParticles ()
 ///////////////////////////////////////////////////////////////////
 void FluidSystem::Run ()
 {
-    std::cout << " FluidSystem::Run () /n";
+    std::cout << " FluidSystem::Run () \n";
 	//case RUN_GPU_FULL:					// Full CUDA pathway, GRID-accelerted GPU, /w deep copy sort		
 		InsertParticlesCUDA ( 0x0, 0x0, 0x0 );		
 		PrefixSumCellsCUDA ( 0x0, 1 );		
@@ -400,8 +400,8 @@ void FluidSystem::Run ()
 
 void FluidSystem::AdvanceTime ()
 {
-    std::cout << "FluidSystem::AdvanceTime (),  m_Time = "<< m_Time <<"/n";
-    std::cout << " /n";
+    std::cout << "FluidSystem::AdvanceTime (),  m_Time = "<< m_Time <<"\n";
+    std::cout << " \n";
 	m_Time += m_DT;
 	
 	m_Frame += m_FrameRange.z;
