@@ -3,7 +3,7 @@ Test system info
 #:~/Programming/Cuda/fluids_v4> module list
 Currently Loaded Modulefiles:
   1) SC                    4) intel-cc/16.0.4.258   7) xfce/4.12            10) cuda/9.1.85
-  2) slurm/current         5) intel-fc/16.0.4.258   8) ninja/1.8.2
+  2) slurm/current         5) intel-fc/16.0.4.258   8) ninja/1.8.2          11) hdf5/1.8.16
   3) cuda-driver/current   6) realvnc/6.1.1         9) cmake/3.11.1
 
 
