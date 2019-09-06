@@ -25,7 +25,7 @@ int main ( int argc, const char** argv )
 
 	fluid.TransferFromCUDA ();	// retrieve outcome
     int filenum = 0;
-    fluid.SavePoints(filenum);
+    //fluid.SavePoints(filenum);
 	// NB fluid.m_Fluid.bufC(FPOS) returns a char* for fluid.m_Fluid.mcpu[n]
 
 	//fluid.SaveResults ();
