@@ -1140,6 +1140,65 @@ void FluidSystem::SavePoints ( int frame )
 	fflush ( fp );
 }
 
+////////////////////////
+#include <hdf5/serial/hdf5.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define FILE            "particle_positions_"
+#define FILE_SUFFIX     ".h5"
+#define DATASET         "DS1_particle_positions"
+
+int FluidSystem::WriteParticlesToHDF5File(int filenum){
+    hid_t       file, filetype, memtype, space, dset; /* Handles */
+    herr_t      status;
+    hsize_t     numpnt = NumPoints();
+    hsize_t     dims[1] = {numpnt},//num dimensions ?
+                adims[1] = {3} ; /*floats x,y,z if Vector3DF, but these are named members of a class, not elements of an array.*/
+                //i, j, k;
+
+    //float wdata[mNumPoints][3];// Write buffer
+    //wdata = m_Fluid.bufV3(FPOS); // assign pointer to existing fluid[FPOS] buffer
+    
+    // edit filename
+    char filename[20] = FILE; 
+    char suffix[5] = FILE_SUFFIX;
+    char i_num[7]="000000";
+    filenum += 100000;
+    sprintf(i_num, "%d", filenum);
+    strcat(i_num, filename);
+    strcat(suffix, filename);
+    
+    /* Create a new file using the default properties.*/
+    file = H5Fcreate (filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    //hid_t H5Fcreate( const char *name, unsigned flags, hid_t fcpl_id, hid_t fapl_id ) 
+    
+    /* Create array datatypes for file and memory.*/
+    filetype = H5Tarray_create (H5T_IEEE_F64LE, 2, adims);
+    memtype = H5Tarray_create (H5T_NATIVE_FLOAT, 2, adims);
+    //#define H5Tarray_create H5Tarray_create2  // defines datatype 
+    
+    /* Create dataspace.  Setting maximum size to NULL sets the maximum size to be the current size.*/
+    space = H5Screate_simple (1, dims, NULL);
+    //H5_DLL hid_t H5Screate_simple(int rank, const hsize_t dims[],  const hsize_t maxdims[]);
+    
+    /* Create the dataset and write the array data to it.*/
+    dset = H5Dcreate (file, DATASET, filetype, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    status = H5Dwrite (dset, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_Fluid.bufV3(FPOS) /*wdata[0]*/ /*pointer to start of data */);
+
+    /* Close and release resources.*/
+    status = H5Dclose (dset);
+    status = H5Sclose (space);
+    status = H5Tclose (filetype);
+    status = H5Tclose (memtype);
+    status = H5Fclose (file);
+
+    return 0;
+}
+
+
+
+
 
 /////////////////////////////////////////////////////////////
 

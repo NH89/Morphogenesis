@@ -49,7 +49,7 @@ int main ( int argc, const char** argv )
 	// use h5ex_t_array.c example
     
     //int stride = sizeof(Vector3DF);
-	//fluid.WriteParticlePositionsToHDF5File(filenum);
+	fluid.WriteParticlesToHDF5File(filenum);
 	
 	
 	
