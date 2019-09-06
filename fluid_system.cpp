@@ -1141,24 +1141,33 @@ void FluidSystem::SavePoints ( int frame )
 }
 
 ////////////////////////
-#include <hdf5/serial/hdf5.h>
+#include <hdf5.h>	//hdf5/serial/
 #include <stdio.h>
 #include <stdlib.h>
 
-#define FILE            "particle_positions_"
+//#define FILE            "particle_positions_"
 #define FILE_SUFFIX     ".h5"
-#define DATASET         "DS1_particle_positions"
+//#define DATASET         "DS1_particle_positions"
+
+#define FILE            "h5ex_t_array.h5"
+#define DATASET         "DS1"
+#define DIM0            4
+#define ADIM0           3
+#define ADIM1           5
 
 int FluidSystem::WriteParticlesToHDF5File(int filenum){
     hid_t       file, filetype, memtype, space, dset; /* Handles */
     herr_t      status;
     hsize_t     numpnt = NumPoints();
     hsize_t     dims[1] = {numpnt},//num dimensions ?
-                adims[1] = {3} ; /*floats x,y,z if Vector3DF, but these are named members of a class, not elements of an array.*/
-                //i, j, k;
+                adims[1] = {3};  /*floats x,y,z if Vector3DF, but these are named members of a class, not elements of an array.*/
+    
+    float       wdata[numpnt][3];      /* Write buffer */
+    int         i, j, k;
 
-    //float wdata[mNumPoints][3];// Write buffer
-    //wdata = m_Fluid.bufV3(FPOS); // assign pointer to existing fluid[FPOS] buffer
+    for (i=0; i<numpnt; i++)
+        for (j=0; j<3; j++)
+                wdata[i][j] = i * j - j  + i ;
     
     // edit filename
     char filename[20] = FILE; 
@@ -1169,11 +1178,11 @@ int FluidSystem::WriteParticlesToHDF5File(int filenum){
     strcat(i_num, filename);
     strcat(suffix, filename);
     
-    std::cout << "\nchk0"<<std::flush;
+    std::cout << "\nchk0 "<<std::flush;
     /* Create a new file using the default properties.*/
     file = H5Fcreate (filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     //hid_t H5Fcreate( const char *name, unsigned flags, hid_t fcpl_id, hid_t fapl_id ) 
-    std::cout << "\nchk1"<<std::flush;
+    std::cout << "\nchk1 "<< file <<std::flush;
     
     /* Create array datatypes for file and memory.*/
     filetype = H5Tarray_create (H5T_IEEE_F64LE, 2, adims);
@@ -1181,24 +1190,29 @@ int FluidSystem::WriteParticlesToHDF5File(int filenum){
     
     memtype = H5Tarray_create (H5T_NATIVE_FLOAT, 2, adims);
     //#define H5Tarray_create H5Tarray_create2  // defines datatype 
-    std::cout << "\nchk3"<<std::flush;
+    std::cout << "\nchk3 "<< memtype <<std::flush;
     
     /* Create dataspace.  Setting maximum size to NULL sets the maximum size to be the current size.*/
     space = H5Screate_simple (1, dims, NULL);
     //H5_DLL hid_t H5Screate_simple(int rank, const hsize_t dims[],  const hsize_t maxdims[]);
-    std::cout << "\nchk4"<<std::flush;
-    
+    std::cout << "\nchk4 "<< space <<std::flush;
+
+    //hid_t datatype = H5Tcopy(H5T_IEEE_F64LE);
+    hid_t datatype = H5Tcopy(H5T_NATIVE_FLOAT);
+    std::cout << "\nchk4.5 "<< datatype <<std::flush;
+
     /* Create the dataset and write the array data to it.*/
-    dset = H5Dcreate (file, DATASET, filetype, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    std::cout << "\nchk5"<<std::flush;
+    dset = H5Dcreate (file, DATASET, /*datatype*/ filetype, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    std::cout << "\nchk5 "<< dset << "\n" <<std::flush;
     
-    status = H5Dwrite (dset, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_Fluid.bufV3(FPOS) /*wdata[0]*/ /*pointer to start of data */);
-    std::cout << "\nchk6"<<std::flush;
+    status = H5Dwrite (dset, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, /*m_Fluid.bufV3(FPOS)*/ wdata[0] /*pointer to start of data */);
+    std::cout << "\nchk6 "<< status <<std::flush;
 
     /* Close and release resources.*/
     status = H5Dclose (dset);
     status = H5Sclose (space);
-    status = H5Tclose (filetype);
+    status = H5Tclose (datatype);
+    //status = H5Tclose (filetype);
     status = H5Tclose (memtype);
     status = H5Fclose (file);
     
@@ -1208,6 +1222,136 @@ int FluidSystem::WriteParticlesToHDF5File(int filenum){
 }
 
 
+/////////////////////////////////////////////////////////////
+
+
+
+
+int FluidSystem::WriteFileTest ()
+{
+    hid_t       file, filetype, memtype, space, dset; /* Handles */
+    herr_t      status;
+    hsize_t     dims[1] = {DIM0},
+                adims[2] = {ADIM0, ADIM1};
+    float       wdata[DIM0][ADIM0][ADIM1],      /* Write buffer */
+                ***rdata;                       /* Read buffer */
+    int            ndims,
+                i, j, k;
+
+    /* Initialize data.  i is the element in the dataspace, j and k the
+     * elements within the array datatype.*/
+    for (i=0; i<DIM0; i++)
+        for (j=0; j<ADIM0; j++)
+            for (k=0; k<ADIM1; k++)
+                wdata[i][j][k] = (float)(i * j - j * k + i * k);  
+		// the array filled with data (would be fluid.m_fluid.mcpu[n])
+
+    /* Create a new file using the default properties.*/
+    file = H5Fcreate (FILE, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    /* Create array datatypes for file and memory.*/
+    filetype = H5Tarray_create (H5T_IEEE_F64LE, 2, adims);
+    memtype = H5Tarray_create (H5T_IEEE_F64LE, 2, adims);
+
+    /* Create dataspace.  Setting maximum size to NULL sets the maximum
+     * size to be the current size.*/
+    space = H5Screate_simple (1, dims, NULL);
+
+    /* Create the dataset and write the array data to it.*/
+    dset = H5Dcreate (file, DATASET, filetype, space, H5P_DEFAULT, H5P_DEFAULT,
+                H5P_DEFAULT);
+    status = H5Dwrite (dset, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+                wdata[0][0]);
+
+    /* Close and release resources.*/
+    status = H5Dclose (dset);
+    status = H5Sclose (space);
+    status = H5Tclose (filetype);
+    status = H5Tclose (memtype);
+    status = H5Fclose (file);
+ 
+}
+
+#define FILE2        "SDS.h5"
+#define DATASETNAME "Vec3DF_Array" 
+//#define NX     5                      /* dataset dimensions */
+#define NY     3
+#define RANK   2
+
+int FluidSystem::WriteFileTest2 (const int filenum)     
+{
+    hid_t       file, dataset;         /* file and dataset handles */
+    hid_t       datatype, dataspace;   /* handles */
+    hsize_t     dimsf[2];              /* dataset dimensions */
+    herr_t      status;
+
+    const int NX =  NumPoints();                 
+
+    int         i, j;
+    float **    data = new float*[NX];  /* allocate data to write */
+    for(i=0; i<NX; ++i) 
+	data[i] =  new float[NY];          
+
+    if (data == nullptr) {
+	std::cout << "Error: memory could not be allocated";
+	return -1;
+    }
+        
+    /* 
+     * Data  and output buffer initialization. 
+     */
+    for (j = 0; j < NX; j++) {
+	for (i = 0; i < NY; i++)
+	    data[j][i] = (float)(i + j);
+    }     
+
+    /*
+     * Create a new file using H5F_ACC_TRUNC access,
+     * default file creation properties, and default file
+     * access properties.
+     */
+    file = H5Fcreate(FILE2, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    /*
+     * Describe the size of the array and create the data space for fixed
+     * size dataset. 
+     */
+    dimsf[0] = NX;
+    dimsf[1] = NY;
+    dataspace = H5Screate_simple(RANK, dimsf, NULL); 
+
+    /* 
+     * Define datatype for the data in the file.
+     * We will store little endian INT numbers.
+     */
+    datatype = H5Tcopy(H5T_IEEE_F64LE/*H5T_NATIVE_INT*/);
+    status = H5Tset_order(datatype, H5T_ORDER_LE);
+
+    /*
+     * Create a new dataset within the file using defined dataspace and
+     * datatype and default dataset creation properties.
+     */
+    dataset = H5Dcreate(file, DATASETNAME, datatype, dataspace,
+			H5P_DEFAULT,
+			H5P_DEFAULT,
+			H5P_DEFAULT);
+
+    /*
+     * Write the data to the dataset using default transfer properties.
+     */
+    status = H5Dwrite(dataset, H5T_IEEE_F64LE/*H5T_NATIVE_INT*/, H5S_ALL, H5S_ALL,
+		      H5P_DEFAULT, m_Fluid.bufV3(FPOS) /*data*/);
+
+    /*
+     * Close/release resources.
+     */
+    H5Sclose(dataspace);
+    H5Tclose(datatype);
+    H5Dclose(dataset);
+    H5Fclose(file);
+ 
+    return 0;
+}  
 
 
 

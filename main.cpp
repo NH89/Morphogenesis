@@ -24,8 +24,8 @@ int main ( int argc, const char** argv )
     	}
 
 	fluid.TransferFromCUDA ();	// retrieve outcome
-    int filenum = 0;
-    //fluid.SavePoints(filenum);
+    	int filenum = 0;
+    	//fluid.SavePoints(filenum);
 	// NB fluid.m_Fluid.bufC(FPOS) returns a char* for fluid.m_Fluid.mcpu[n]
 
 	//fluid.SaveResults ();
@@ -48,8 +48,9 @@ int main ( int argc, const char** argv )
 	// write HDF5 data to store fluid.m_Fluid.mcpu[FPOS][numParticles][Vector3DF]
 	// use h5ex_t_array.c example
     
-    //int stride = sizeof(Vector3DF);
-	fluid.WriteParticlesToHDF5File(filenum);
+    	//int stride = sizeof(Vector3DF);
+	fluid.WriteFileTest2(m_numpnts);
+	//fluid.WriteParticlesToHDF5File(filenum);
 	
 	
 	

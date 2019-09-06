@@ -56,7 +56,7 @@ target_include_directories(fluids_v4 PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_compile_features(fluids_v4 PUBLIC cxx_std_11)  
 #set_property(TARGET fluids_v4 PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
-target_link_libraries(fluids_v4 PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda)
+target_link_libraries(fluids_v4 PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda -lhdf5)
 #target_link_libraries(fluids_v4 PRIVATE fluid_systemPTX)
 
 ###

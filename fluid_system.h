@@ -310,6 +310,8 @@
         
         // I/O Files
         int WriteParticlesToHDF5File(int filenum);
+	int WriteFileTest ();
+	int WriteFileTest2 (const int NX);    
 
 		// Parameters			
 		void UpdateParams ();
