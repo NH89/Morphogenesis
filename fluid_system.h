@@ -307,6 +307,9 @@
 		int getMode ()		{ return (int) m_Param[PMODE]; }
 		std::string getModeStr ();
 		void getModeClr ();
+        
+        // I/O Files
+        int WriteParticlesToHDF5File(int filenum);
 
 		// Parameters			
 		void UpdateParams ();
