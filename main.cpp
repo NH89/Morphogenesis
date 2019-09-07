@@ -3,7 +3,7 @@
 
 int main ( int argc, const char** argv ) 
 {
-	cuInit(0);			// Initialize
+	cuInit(0);				// Initialize
 	int deviceCount = 0;
 	cuDeviceGetCount(&deviceCount);
 	if (deviceCount == 0) {printf("There is no device supporting CUDA.\n"); exit (0);}
@@ -15,16 +15,18 @@ int main ( int argc, const char** argv )
 
     	FluidSystem fluid;
     	fluid.SetDebug ( false );
-    	int m_numpnts = 150000;   	// number of particles
+    	int m_numpnts = 150000;   		// number of particles
     
     	fluid.Initialize ();
-    	fluid.Start ( m_numpnts );	// transfers data to gpu
-    	for(int i=0;i<20;i++){    	
-		fluid.Run ();  		// run the simulation
+    	fluid.Start ( m_numpnts );		// transfers data to gpu
+    	for(int i=0;i<20;i++){
+		for(int y=0;y<50;y++)  fluid.Run ();  	// run the simulation
+		//fluid.TransferFromCUDA ();	// included in Run() //retrieve outcome
+		fluid.SavePointsCSV (i);
     	}
 
-	fluid.TransferFromCUDA ();	// retrieve outcome
-	int filenum = 0;
+	//fluid.TransferFromCUDA ();	// retrieve outcome
+	//int filenum = 0;
     	//fluid.SavePoints(filenum);
 	// NB fluid.m_Fluid.bufC(FPOS) returns a char* for fluid.m_Fluid.mcpu[n]
 
@@ -49,7 +51,7 @@ int main ( int argc, const char** argv )
 	// use h5ex_t_array.c example
     
     	//int stride = sizeof(Vector3DF);
-    fluid.SavePointsCSV (filenum);
+    	//fluid.SavePointsCSV (filenum);
 	//fluid.WriteFileTest2(m_numpnts);
 	//fluid.WriteParticlesToHDF5File(filenum);
 	
