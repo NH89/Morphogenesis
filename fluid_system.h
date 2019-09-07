@@ -197,8 +197,8 @@
 		int AddParticle ();
 		void AddEmit ( float spacing );
 		int NumPoints ()				{ return mNumPoints; }
-		//nvdb::Vector3DF* getPos ( int n )	{ return &m_Fluid.bufV3(FPOS)[n]; }
-		//nvdb::Vector3DF* getVel ( int n )	{ return &m_Fluid.bufV3(FVEL)[n]; }
+		Vector3DF* getPos ( int n )	{ return &m_Fluid.bufV3(FPOS)[n]; }
+		Vector3DF* getVel ( int n )	{ return &m_Fluid.bufV3(FVEL)[n]; }
 		uint* getClr ( int n )			{ return &m_Fluid.bufI(FCLR)[n]; }
 		
 		// Setup

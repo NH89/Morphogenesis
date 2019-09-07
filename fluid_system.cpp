@@ -1153,12 +1153,15 @@ void FluidSystem::SavePointsCSV ( int frame )
 	int ftype;         // 0=char, 1=int, 2=float, 3=double
 	int fcnt;
     
+    Vector3DF* Pos;
+    Vector3DF* Vel;
+    uint* Clr;
+    
     for(int i=0;i<numpnt;i++){
-        fprinf (fp, "%f,%f,%f,,%f,%f,%f,, %f,%f,%f \n",
-            m_Fluid.bufC(FPOS).[i].[0], m_Fluid.bufC(FPOS).[i].[1], m_Fluid.bufC(FPOS).[i].[2], 
-            m_Fluid.bufC(FVEL).[i].[0], m_Fluid.bufC(FVEL).[i].[1], m_Fluid.bufC(FVEL).[i].[2],
-            m_Fluid.bufC(FCLR).[i].[0], m_Fluid.bufC(FCLR).[i].[1], m_Fluid.bufC(FCLR).[i].[2]
-        );              // position x,y,z ,, vel x,y,z ,, colour x,y,z
+        Pos = getPos(i);
+        Vel = getVel(i);
+        Clr = getClr(i);
+        fprintf(fp, "%f,%f,%f,,%f,%f,%f,, %u \n", Pos->x, Pos->y,Pos->z, Vel->x,Vel->y,Vel->z, *Clr); 
     }
 	fclose ( fp );
 	fflush ( fp );
