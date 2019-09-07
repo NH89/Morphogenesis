@@ -1140,6 +1140,30 @@ void FluidSystem::SavePoints ( int frame )
 	fflush ( fp );
 }
 
+
+void FluidSystem::SavePointsCSV ( int frame )
+{
+	char buf[256];
+    frame += 100000;    // ensures numerical and alphabetic order match
+	sprintf ( buf, "particles_pos_vel_color%04d.csv", frame );
+	FILE* fp = fopen ( buf, "w" );
+
+	int numpnt = NumPoints();
+	int numfield = 3;
+	int ftype;         // 0=char, 1=int, 2=float, 3=double
+	int fcnt;
+    
+    for(int i=0;i<numpnt;i++){
+        fprinf (fp, "%f,%f,%f,,%f,%f,%f,, %f,%f,%f \n",
+            m_Fluid.bufC(FPOS).[i].[0], m_Fluid.bufC(FPOS).[i].[1], m_Fluid.bufC(FPOS).[i].[2], 
+            m_Fluid.bufC(FVEL).[i].[0], m_Fluid.bufC(FVEL).[i].[1], m_Fluid.bufC(FVEL).[i].[2],
+            m_Fluid.bufC(FCLR).[i].[0], m_Fluid.bufC(FCLR).[i].[1], m_Fluid.bufC(FCLR).[i].[2]
+        );              // position x,y,z ,, vel x,y,z ,, colour x,y,z
+    }
+	fclose ( fp );
+	fflush ( fp );
+}
+
 ////////////////////////
 #include <hdf5.h>	//hdf5/serial/
 #include <stdio.h>
@@ -1353,7 +1377,7 @@ int FluidSystem::WriteFileTest2 (const int filenum)
     return 0;
 }  
 
-
+ 
 
 /////////////////////////////////////////////////////////////
 
