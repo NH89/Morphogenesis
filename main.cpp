@@ -15,17 +15,20 @@ int main ( int argc, const char** argv )
 
     	FluidSystem fluid;
     	fluid.SetDebug ( false );
-    	int m_numpnts = 150000;   		// number of particles
+    	int m_numpnts = 150000;   		           // number of particles
     
     	fluid.Initialize ();
-    	fluid.Start ( m_numpnts );		// transfers data to gpu
-    	for(int i=0;i<20;i++){
-		for(int y=0;y<50;y++)  fluid.Run ();  	// run the simulation
-		//fluid.TransferFromCUDA ();	// included in Run() //retrieve outcome
-		fluid.SavePointsCSV (i);
+    	fluid.Start ( m_numpnts );		           // transfers data to gpu
+    	for(int i=0;i<5;i++){
+            for(int j=0;j<10;j++)  fluid.Run ();  	   // run the simulation
+		
+		//fluid.SavePoints (i);
+        //fluid.SavePointsCSV (i);
+        fluid.WriteParticlesToHDF5File(i);
+        printf("\t i=%i frame number =%i \n",i, i*20);
     	}
 
-	//fluid.TransferFromCUDA ();	// retrieve outcome
+	/*//fluid.TransferFromCUDA ();	// retrieve outcome
 	//int filenum = 0;
     	//fluid.SavePoints(filenum);
 	// NB fluid.m_Fluid.bufC(FPOS) returns a char* for fluid.m_Fluid.mcpu[n]
@@ -53,7 +56,7 @@ int main ( int argc, const char** argv )
     	//int stride = sizeof(Vector3DF);
     	//fluid.SavePointsCSV (filenum);
 	//fluid.WriteFileTest2(m_numpnts);
-	//fluid.WriteParticlesToHDF5File(filenum);
+	//fluid.WriteParticlesToHDF5File(filenum);*/  
 	
 	
 	

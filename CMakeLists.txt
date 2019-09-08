@@ -1,8 +1,13 @@
 cmake_minimum_required(VERSION 3.8  FATAL_ERROR)  
-project(fluids_v4 LANGUAGES CXX CUDA)
+project(fluids_v4 LANGUAGES C CXX CUDA)
 
 find_package(CUDA 9.1 REQUIRED)
+find_package(HDF5 REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS} "/home/hoc041/Programming/Cuda/fluids_v4/")
+
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "./install" CACHE PATH "..." FORCE)
+endif()
 ###
 
 add_library(fluid_systemPTX OBJECT  fluid_system_cuda.cu  fluid_system_cuda.cuh)
@@ -56,7 +61,7 @@ target_include_directories(fluids_v4 PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_compile_features(fluids_v4 PUBLIC cxx_std_11)  
 #set_property(TARGET fluids_v4 PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
-target_link_libraries(fluids_v4 PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda -lhdf5)
+target_link_libraries(fluids_v4 PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES} ${HDF5_CXX_LIBRARIES} )
 #target_link_libraries(fluids_v4 PRIVATE fluid_systemPTX)
 
 ###
@@ -69,3 +74,4 @@ install(TARGETS fluid_systemPTX fluids_v4
    )
 install(EXPORT fluid_systemPTX DESTINATION lib/fluid_systemPTX)
 
+#How to set default CMAKE_INSTALL_PREFIX ?
