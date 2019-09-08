@@ -15,14 +15,14 @@ int main ( int argc, const char** argv )
 
     	FluidSystem fluid;
     	fluid.SetDebug ( false );
-    	int m_numpnts = 150000;   		           // number of particles
+    	int m_numpnts = 150000;                            // number of particles
     
     	fluid.Initialize ();
-    	fluid.Start ( m_numpnts );		           // transfers data to gpu
+    	fluid.Start ( m_numpnts );                         // transfers data to gpu
     	for(int i=0;i<5;i++){
-            for(int j=0;j<10;j++)  fluid.Run ();  	   // run the simulation
+            for(int j=0;j<10;j++)  fluid.Run ();            // run the simulation
 		
-		//fluid.SavePoints (i);
+		//fluid.SavePoints (i);                               // alternate file formats to write
         //fluid.SavePointsCSV (i);
         fluid.WriteParticlesToHDF5File(i);
         printf("\t i=%i frame number =%i \n",i, i*20);

@@ -3,7 +3,7 @@ project(fluids_v4 LANGUAGES C CXX CUDA)
 
 find_package(CUDA 9.1 REQUIRED)
 find_package(HDF5 REQUIRED)
-include_directories(${CUDA_INCLUDE_DIRS} "/home/hoc041/Programming/Cuda/fluids_v4/")
+include_directories(${CUDA_INCLUDE_DIRS} )#"/home/hoc041/Programming/Cuda/fluids_v4/"
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "./install" CACHE PATH "..." FORCE)
