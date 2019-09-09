@@ -1,8 +1,31 @@
 // Fluid System
+#include <stdio.h>
+#include <inttypes.h>
+#include <errno.h>
+#include <string.h>
+
 #include "fluid_system.h"
 
 int main ( int argc, const char** argv ) 
 {
+	int m_numpnts = 150000;					// number of particles
+
+	char* endptr;
+
+	if ( argc != 2 ){
+	    printf("usage: fluid_system  number_of_particles\n");
+	    return 0;
+	}else {
+	    m_numpnts = strtoimax(argv[1],&endptr,10);
+	    if (m_numpnts<1) { 
+		printf("number_of_particles must be >= 1\n");
+		return 0;
+	    }else if (m_numpnts>10000000){
+		printf("number_of_particles must be < 10,000,000 , or edit main.cpp\n");
+		return 0;
+	    }
+	}	
+	
 	cuInit(0);				// Initialize
 	int deviceCount = 0;
 	cuDeviceGetCount(&deviceCount);
@@ -15,16 +38,16 @@ int main ( int argc, const char** argv )
 
     	FluidSystem fluid;
     	fluid.SetDebug ( false );
-    	int m_numpnts = 150000;                            // number of particles
     
     	fluid.Initialize ();
     	fluid.Start ( m_numpnts );                         // transfers data to gpu
-    	for(int i=0;i<5;i++){
-            for(int j=0;j<10;j++)  fluid.Run ();            // run the simulation
+    	for(int i=0;i<10;i++){
+            for(int j=0;j<30;j++)  fluid.Run ();            // run the simulation
 		
-		//fluid.SavePoints (i);                               // alternate file formats to write
+	//fluid.SavePoints (i);                               // alternate file formats to write
         //fluid.SavePointsCSV (i);
-        fluid.WriteParticlesToHDF5File(i);
+        fluid.SavePoints_asciiPLY (i);
+        //fluid.WriteParticlesToHDF5File(i);
         printf("\t i=%i frame number =%i \n",i, i*20);
     	}
 

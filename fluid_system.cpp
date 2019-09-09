@@ -384,7 +384,7 @@ void FluidSystem::EmitParticles ()
 ///////////////////////////////////////////////////////////////////
 void FluidSystem::Run ()
 {
-    std::cout << " FluidSystem::Run () \n";
+    //std::cout << " FluidSystem::Run () \n";
 	//case RUN_GPU_FULL:					// Full CUDA pathway, GRID-accelerted GPU, /w deep copy sort		
 		InsertParticlesCUDA ( 0x0, 0x0, 0x0 );		
 		PrefixSumCellsCUDA ( 0x0, 1 );		
@@ -400,8 +400,8 @@ void FluidSystem::Run ()
 
 void FluidSystem::AdvanceTime ()
 {
-    std::cout << "FluidSystem::AdvanceTime (),  m_Time = "<< m_Time <<"\n";
-    std::cout << " \n";
+    //std::cout << "FluidSystem::AdvanceTime (),  m_Time = "<< m_Time <<"\n";
+    //std::cout << " \n";
 	m_Time += m_DT;
 	
 	m_Frame += m_FrameRange.z;
@@ -1168,6 +1168,40 @@ void FluidSystem::SavePointsCSV ( int frame )
 	fclose ( fp );
 	fflush ( fp );
 }
+
+void FluidSystem::SavePoints_asciiPLY ( int frame )
+{
+	char buf[256];
+    frame += 100000;    // ensures numerical and alphabetic order match
+	sprintf ( buf, "particles_pos%04d.ply", frame );
+	FILE* fp = fopen ( buf, "w" );
+
+	int numpnt = NumPoints();
+	int numfield = 3;
+	int ftype;         // 0=char, 1=int, 2=float, 3=double
+	int fcnt;
+    
+    Vector3DF* Pos;
+    Vector3DF* Vel;
+    uint* Clr;
+
+    fprintf(fp, "ply \n format ascii 1.0\n comment particle cloud from Fluids_v4\n element vertex %i\n", numpnt );
+    fprintf(fp, "property float x\nproperty float y\nproperty float z\n");
+    fprintf(fp, "end_header\n");
+    
+    for(int i=0;i<numpnt;i++){
+        Pos = getPos(i);
+        Vel = getVel(i);
+        Clr = getClr(i);
+        fprintf(fp, "%f %f %f\n", Pos->x, Pos->y,Pos->z); 
+    }
+	fclose ( fp );
+	fflush ( fp );
+}
+
+
+
+
 ////////////////////////
 // adapted from Example 1 of http://web.mit.edu/fwtools_v3.1.0/www/Intro/IntroExamples.html#CreateExample
 #include <hdf5.h>	//hdf5/serial/
