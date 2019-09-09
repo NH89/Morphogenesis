@@ -1170,7 +1170,7 @@ void FluidSystem::SavePointsCSV ( int frame )
 }
 ////////////////////////
 // adapted from Example 1 of http://web.mit.edu/fwtools_v3.1.0/www/Intro/IntroExamples.html#CreateExample
-#include <hdf5/serial/hdf5.h>	//hdf5/serial/
+#include <hdf5.h>	//hdf5/serial/
 #include <stdio.h>
 #include <stdlib.h>
 
