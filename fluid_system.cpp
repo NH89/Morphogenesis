@@ -75,10 +75,10 @@ void FluidSystem::LoadKernel ( int fid, std::string func )
 }
 
 // Must have a CUDA context to initialize
-void FluidSystem::Initialize ()
+void FluidSystem::Initialize ()     // sets up simulation parameters etc.
 {
     std::cout << "FluidSystem::Initialize () \n";
-	cuCheck ( cuModuleLoad ( &m_Module, "fluid_system_cuda.ptx" ), "LoadKernel", "cuModuleLoad", "fluid_system_cuda.ptx", mbDebug);
+	cuCheck ( cuModuleLoad ( &m_Module, "fluid_system_cuda.ptx" ), "LoadKernel", "cuModuleLoad", "fluid_system_cuda.ptx", mbDebug);  // loads the file "fluid_system_cuda.ptx" as a module with pointer  m_Module.
 
     std::cout << "Chk1.1 \n";
     
@@ -97,10 +97,11 @@ void FluidSystem::Initialize ()
     std::cout << "Chk1.2 \n";
     
 	size_t len = 0;
-	cuCheck ( cuModuleGetGlobal ( &cuFBuf, &len,		m_Module, "fbuf" ),		"LoadKernel", "cuModuleGetGlobal", "cuFBuf", mbDebug);
-	cuCheck ( cuModuleGetGlobal ( &cuFTemp, &len,		m_Module, "ftemp" ),	"LoadKernel", "cuModuleGetGlobal", "cuFTemp", mbDebug);
-	cuCheck ( cuModuleGetGlobal ( &cuFParams, &len,	m_Module, "fparam" ),		"LoadKernel", "cuModuleGetGlobal", "cuFParams", mbDebug);
-
+	cuCheck ( cuModuleGetGlobal ( &cuFBuf, &len,		m_Module, "fbuf" ),		"LoadKernel", "cuModuleGetGlobal", "cuFBuf", mbDebug);      // Returns a global pointer (cuFBuf) from a module  (m_Module), see line 81.
+	cuCheck ( cuModuleGetGlobal ( &cuFTemp, &len,		m_Module, "ftemp" ),	"LoadKernel", "cuModuleGetGlobal", "cuFTemp", mbDebug);     // fbuf, ftemp, fparam are defined in fluid_system_cuda.cu,
+	cuCheck ( cuModuleGetGlobal ( &cuFParams, &len,	m_Module, "fparam" ),		"LoadKernel", "cuModuleGetGlobal", "cuFParams", mbDebug);   // based on structs defined in fluid.h 
+                                                                                                                                            // NB defined differently in kernel vs cpu code.
+                                                                                                                                            // An FBufs struct holds an array of pointers. 
     std::cout << "Chk1.3 \n";
     
 	// Clear all buffers
@@ -112,7 +113,8 @@ void FluidSystem::Initialize ()
     
 	//m_Param [ PMODE ]		= RUN_VALIDATE;			// debugging
 	m_Param [ PMODE ]		= RUN_GPU_FULL;		
-	m_Param [ PEXAMPLE ]	= 2;
+	m_Param [ PEXAMPLE ]	= 2;            //0=Regression test. N x N x N static grid, 1=Tower , 
+                                            //2=Wave pool , 3=Small dam break , 4=Dual-Wave pool , 5=Microgravity . See  FluidSystem::SetupExampleParams ().
 	m_Param [ PGRID_DENSITY ] = 2.0;
 	m_Param [ PNUM ]		= 65536 * 128;
 
@@ -123,7 +125,7 @@ void FluidSystem::Initialize ()
     std::cout << "Chk1.6 \n";
 }
 
-void FluidSystem::Start ( int num )
+void FluidSystem::Start ( int num )     // #### creates the particles ####
 {
     std::cout << "FluidSystem::Start ( "<< num <<" ) \n";
     
@@ -204,11 +206,11 @@ void FluidSystem::Exit ()
 	//cudaExit ();
 }
 
-void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode )
+void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode )   // mallocs a buffer
 {
 	if (cpumode == CPU_YES) {
 		char* src_buf = m_Fluid.bufC(buf_id);
-		char* dest_buf = (char*) malloc(cpucnt*stride);
+		char* dest_buf = (char*) malloc(cpucnt*stride);                   //  ####  malloc the buffer   ####
 		if (src_buf != 0x0) {
 			memcpy(dest_buf, src_buf, cpucnt*stride);
 			free(src_buf);
@@ -226,7 +228,7 @@ void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucn
 }
 
 // Allocate particle memory
-void FluidSystem::AllocateParticles ( int cnt )
+void FluidSystem::AllocateParticles ( int cnt )                         // calls AllocateBuffer(..) for each buffer.  Called by FluidSystem::Start(..), cnt = mMaxPoints.
 {
 	AllocateBuffer ( FPOS,		sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
 	AllocateBuffer ( FCLR,		sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
@@ -243,6 +245,12 @@ void FluidSystem::AllocateParticles ( int cnt )
 	AllocateBuffer ( FNBRNDX,	sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
 	AllocateBuffer ( FNBRCNT,	sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
 	AllocateBuffer ( FSTATE,	sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
+    // extra buffers for morphogenesis
+    AllocateBuffer ( FELASTIDX,	sizeof(uint[BONDS_PER_PARTICLE +1]), cnt,   m_FParams.szPnts,	GPU_DUAL, CPU_YES );
+    AllocateBuffer ( FNERVEIDX,	sizeof(uint),		                 cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
+    AllocateBuffer ( FCONC,	    sizeof(uint[NUM_TF]),		         cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
+    AllocateBuffer ( FEPIGEN,	sizeof(uint[NUM_GENES]),	         cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
+    
 	
 	// Update GPU access pointers
 	cuCheck( cuMemcpyHtoD(cuFBuf, &m_Fluid, sizeof(FBufs)),			"AllocateParticles", "cuMemcpyHtoD", "cuFBuf", mbDebug);
@@ -259,9 +267,9 @@ void FluidSystem::AllocateParticles ( int cnt )
 	int numElem3 = int ( numElem2 / blockSize ) + 1;
 
 	AllocateBuffer ( FAUXARRAY1,	sizeof(uint),		0,	numElem2, GPU_SINGLE, CPU_OFF );
-	AllocateBuffer ( FAUXSCAN1,	sizeof(uint),		0,	numElem2, GPU_SINGLE, CPU_OFF );
+	AllocateBuffer ( FAUXSCAN1,	    sizeof(uint),		0,	numElem2, GPU_SINGLE, CPU_OFF );
 	AllocateBuffer ( FAUXARRAY2,	sizeof(uint),		0,	numElem3, GPU_SINGLE, CPU_OFF );
-	AllocateBuffer ( FAUXSCAN2,	sizeof(uint),		0,	numElem3, GPU_SINGLE, CPU_OFF );
+	AllocateBuffer ( FAUXSCAN2,	    sizeof(uint),		0,	numElem3, GPU_SINGLE, CPU_OFF );
 }
 
 void FluidSystem::AllocateGrid()
@@ -1204,7 +1212,7 @@ void FluidSystem::SavePoints_asciiPLY ( int frame )
 
 ////////////////////////
 // adapted from Example 1 of http://web.mit.edu/fwtools_v3.1.0/www/Intro/IntroExamples.html#CreateExample
-#include <hdf5.h>	//hdf5/serial/
+#include <hdf5/serial/hdf5.h>	//hdf5/serial/
 #include <stdio.h>
 #include <stdlib.h>
 

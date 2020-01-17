@@ -365,7 +365,7 @@
 		CUfunction					m_Func[ FUNC_MAX ];
 
 		// Simulation Parameters
-		float						m_Param [ MAX_PARAM ];			// see defines above
+		float						m_Param [ MAX_PARAM ];			// see defines above. NB m_Param[1] = maximum number of points.
 		Vector3DF					m_Vec [ MAX_PARAM ];
 		bool						m_Toggle [ MAX_PARAM ];		
 

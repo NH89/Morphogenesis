@@ -36,7 +36,7 @@
 #include <curand_kernel.h>
 
 __constant__ FParams		fparam;			// CPU Fluid params
-__constant__ FBufs			fbuf;			// GPU Particle buffers (unsorted)
+__constant__ FBufs			fbuf;			// GPU Particle buffers (unsorted). An FBufs struct holds an array of pointers. 
 __constant__ FBufs			ftemp;			// GPU Particle buffers (sorted)
 __constant__ uint			gridActive;
 
