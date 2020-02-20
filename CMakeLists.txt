@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.8  FATAL_ERROR)
 project(fluids_v4 LANGUAGES C CXX CUDA)
 
 find_package(CUDA 9.1 REQUIRED)
-find_package(HDF5 REQUIRED)
+#find_package(HDF5 REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS} )#"/home/hoc041/Programming/Cuda/fluids_v4/"
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -122,10 +122,10 @@ target_compile_features(make_demo PUBLIC cxx_std_11)
 target_compile_features(fluids_v4 PUBLIC cxx_std_11)  
 #set_property(TARGET fluids_v4 PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
-target_link_libraries(load_sim PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES} ${HDF5_CXX_LIBRARIES} )
-target_link_libraries(check_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES} ${HDF5_CXX_LIBRARIES} )
-target_link_libraries(make_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES} ${HDF5_CXX_LIBRARIES} )
-target_link_libraries(fluids_v4 PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES} ${HDF5_CXX_LIBRARIES} )
+target_link_libraries(load_sim PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES}  ) # ${HDF5_CXX_LIBRARIES}
+target_link_libraries(check_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES}  ) # ${HDF5_CXX_LIBRARIES}
+target_link_libraries(make_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES}  ) # ${HDF5_CXX_LIBRARIES}
+target_link_libraries(fluids_v4 PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES}  ) # ${HDF5_CXX_LIBRARIES}
 #target_link_libraries(fluids_v4 PRIVATE fluid_systemPTX)
 
 ###

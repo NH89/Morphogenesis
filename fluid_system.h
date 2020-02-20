@@ -336,7 +336,7 @@
         void WriteSimParams ( const char * relativePath );
         void ReadPointsCSV ( const char * relativePath, int gpu_mode, int cpu_mode);
 		void SavePoints_asciiPLY ( const char * relativePath, int frame );
-		int WriteParticlesToHDF5File(int filenum);
+		//int WriteParticlesToHDF5File(int filenum);
 
         // Genome
         void UpdateGenome ();
