@@ -1,0 +1,221 @@
+
+NB the main, up to date notes are in the comments of the code, especially in fluid.h 
+
+Copied from notebook.
+
+Extensions to Fluids_v4 for the 'Morphogenesis' branch:
+
+Page 1
+
+New way to do solid forces (tensile) => rewrite 'compute_pressure' kernel ? or maybe ... kernel
+
+
+1) Each particle carries an ID number + material type
+2) "        "       "   a list of particles to which it has tensile connections
+3) The list also holds - rest_length, stiffness
+
+When processing- consider only particles in range
+
+No double processing:
+If ID is in list, then compute solid force
+Else compute fluid force
+For all particles on list, not in range - delete from list, i.e. broken bond.
+
+
+Diffusion:
+- Each particle has list of Morphogens - (ID, concentration)
+- For particles in range - Gain some from each, reduce own
+(i) outward diffusion, (ii) breakdown of morphogen.
+
+
+Automata behaviour:
+Globally there is a genome (>1 iff multi-species simulation).
+Each cell carries 
+(i) Eipgenetic state (Trans regulators + inactivaton)
+(ii) Force history (integrator - could be a morphogen or a trans regulator) 
+For each gene 
+- If inactivated - skip
+- Read state
+- Compute gene's response to stimuli (Morphogens, Forces, Trans-regulators)
+-> Secrete Trans-regulators
+-> change particle - material properties, mass
+-> Divide/die - growth
+    -> Depend on simulation resolution rules -> gradient of tissue properties/strain
+    
+A morphogen is a gene product that can diffuse. => number by gene.
+Diffusion parameter for a morphogen may be tissue specific. Expensive in processing and total information.
+If zero, skip diffusion for that cell.
+If zero diffusion and regulatory activity then that gene product is an intracellular trans factor for that cell type.
+
+
+Particle splitting/combining:
+Would elipsoidal particles be better?
+Do they need direction and connections?
+Can they provide const vol contraction for muscles ? 
+
+
+Page 2 
+
+Sensorimotor activity:
+
+Particles (may) contain nerve input/output.
+-Input may cause contraction of "muscle" fibres - Reads from CNS
+-Output - Not uniformly distributed 
+        - ? How to sample & identify 
+        => particle "sensor" cell type + ID -> writes to CNS
+        
+Nervous system simulation in parrallel with physics 
+- non-flowing space, smaller space, different connectivity
+- read many, write to self.
+
+CNS morphogenesis
+Cell migration of axons
+Axon - cell body pair of particles, connected via electrical simulation of CNS
+while particles move in mechanical simulation.
+
+
+Elipsoid particles:  complicated
+NB have (i) orientation, (ii) rotational inertia => bonds have direction
+Each particle has 3 axis orientation, 3axis radii, - but const vol.
+Bonds roduce torque on rotational inertia of the particle.
+
+
+Page 3 
+
+Automata behaviour - clarified  ###################################################################################
+
+Each cell has 
+(1) list of concentrations of gene products (morphogens, trans regulators)
+by gene ID, diffusion rate, & breakdown rate - are global.
+
+(2) list of active genes, (removed if inactivated)
+
+For each active gene 
+(i) Read conc. of gene products relevant to this gene.
+(ii) Secrete ?
+(iii) Change partice params - mass, stiffness, radius
+
+
+Muscle fibre syncytia formation:
+Need to propagate nerve connection when forming fibre -> whole fibre concentraction, i.e. selective stiff, contractile connections
+
+
+SPH multi-physics:
+- rewrite of "compute pressure" for fluid + solid, i.e. viscous + elastic
+Specifically it is "contribute pressure" - rather add to "contribute force" (PTO)
+if (particle ID is on list) then => c = solid pressure
+i.e, c = (restlen - current len) * d2
+and mark particle as present 
+
+
+In "compute pressure" - loop through solid connections for particle & delete if absent.
+
+First ID holds number of IDs => minimize loops
+for (particle ID in list){if(ID ==listID) {solid force calc; break} ....
+
+
+
+Page 4 
+
+
+Tracing "Force Calc" in "Contibute Force"
+
+force +=  pterm*dist + elasticterm + fparam.vterm*(jveVal - iveVal)*c*idens*jdens
+
+            pressure + elastic      + viscosity
+            
+Where  pterm = simscale * c * spikykern * (ipress + jpress) / (-2 * dsq)
+
+
+Elastic term = 0 
+for (k=1; k<=elasticID[0] ; k++){
+    if(elasticID[k] == particleID){
+        elasticterm = (restlen[k] - dist) * modulus[k] * simscale
+        break;
+    }}
+
+Allow elasticID[16], restlen[16], modulus[16], hx[16] , where hx is force memory integrator.
+Or is [8] enough, probably use 16.
+
+================
+
+For Automata
+
+NB also need  NerveID (bit), muscleID (bit), particleID (Int)   -> store in [0] of rest len modulus hx.
+
+Gene products conc [32],  diffusability [], decay[] 
+
+Where Gene products[0] = number of products,  Conc[0] 
+
+NB keeping nondiffusable products separate, eliminates need for diffusion rates
+But would still want decay rates.
+
+---------------
+
+For each gene: 
+Epigenetics in each cell:
+Activity (calculate),  available/silenced (boolean), spread/stop (boolean). 
+
+Could use sign of float for boolean, zero/or max for stop.
+Rather use bit shift on uint, to pack extra data.
+
+Genome Mutability (only if mutating), 
+Delay/insulator,
+Sensitivity to regulatory inputs
+Cell actions -
+        Secrete morphogens - diffuse
+        move, - force
+        adhere, - connect elastically?
+        divide - split
+        secrete/resorb - mass, radius, rest lengths  ->-> fluid pressures -> turgidity.
+
+
+Page 5 
+
+Turn on/off morphogenesis / major timesteps only
+to reduce data & processing demands.
+NB if cell IDs are recorded then can relate reduced & full simulations
+
+"Fast sim" 
+- Nerves, muscles, force history integrator
+- Environment
+- Particle combining
+
+----------
+
+Visualization
+- select grid cells & camera
+- particle splat to z-stack with transparency & colour rules
+        Active genes, tissue properties,
+        Morphogen conc
+        force history
+        cell ancestry
+        
+- Animate or move in frozen time
+- live or pre-recorded.
+
+
+===========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

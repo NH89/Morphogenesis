@@ -1,0 +1,18 @@
+
+
+0) Allocate buffers (might be automatic, check)
+    (i)  particles   FELASTIDX, FNERVEIDX, FCONC, FEPIGEN
+    (ii) genome
+    
+
+1) Initalize correct UID for each particle
+
+2) Initialize Buffer[FELASTIDX],   FNERVEIDX   , FCONC , FEPIGEN
+
+3) UpdateGenome(); //  sends genome to device. // NB need to initialize genome from file, or something.
+
+4) Need script to generate simulations + functions to read them from file. ? what are the available i/o functions ? currently FluidSystem::SavePoints* () 
+Also see how files are read in OpenCL-SPH, and how I planned to use Json, Yaml, hdf5 etc...
+Probably use a folder with named csv files.
+
+5) 

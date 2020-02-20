@@ -1,4 +1,4 @@
-// Fluid System
+
 #include <stdio.h>
 #include <inttypes.h>
 #include <errno.h>
@@ -8,23 +8,17 @@
 
 int main ( int argc, const char** argv ) 
 {
-	int m_numpnts = 150000;					// number of particles
-	char path[6] = "./run";
-
-	char* endptr;
-
+	char paramsPath[256];
+    char pointsPath[256];
 	if ( argc != 2 ){
-	    printf("usage: fluid_system  number_of_particles\n");
+	    printf("usage: fluid_system  simulation_data_folder\n");
 	    return 0;
 	}else {
-	    m_numpnts = strtoimax(argv[1],&endptr,10);
-	    if (m_numpnts<1) { 
-		printf("number_of_particles must be >= 1\n");
-		return 0;
-	    }else if (m_numpnts>10000000){
-		printf("number_of_particles must be < 10,000,000 , or edit main.cpp\n");
-		return 0;
-	    }
+        sprintf ( paramsPath, "%s/SimParams.txt", argv[1] );
+        printf("simulation parameters file = %s\n", paramsPath);
+        
+        sprintf ( pointsPath, "%s/particles_pos_vel_color100001.csv", argv[1] );
+        printf("simulation points file = %s\n", pointsPath);
 	}	
 	
 	cuInit(0);				// Initialize
@@ -37,11 +31,15 @@ int main ( int argc, const char** argv )
 	CUcontext cuContext;
 	cuCtxCreate(&cuContext, 0, cuDevice);
 
-    	FluidSystem fluid;
-    	fluid.SetDebug ( false );
-    
-    	fluid.Initialize ();
-    	fluid.Start ( m_numpnts );                         // transfers data to gpu
+    FluidSystem fluid;
+    fluid.SetDebug ( false );
+    //fluid.Initialize ();
+    //fluid.Start ( m_numpnts );                         // transfers data to gpu
+    fluid.ReadSimParams(paramsPath);
+    fluid.ReadPointsCSV(pointsPath, GPU_OFF, CPU_YES);  // change these. 
+        
+        /*
+        
     	for(int i=0;i<10;i++){
             for(int j=0;j<30;j++) { fluid.Run (); }        // run the simulation
             
@@ -52,6 +50,8 @@ int main ( int argc, const char** argv )
             printf("\t i=%i frame number =%i \n",i, i*20);
     	}
 
+    	*/
+    	
 	/*//fluid.TransferFromCUDA ();	// retrieve outcome
 	//int filenum = 0;
     	//fluid.SavePoints(filenum);

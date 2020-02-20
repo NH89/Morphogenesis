@@ -45,16 +45,19 @@
 //	#include "gvdb_camera.h"
 //	using namespace nvdb;
 
-	#define MAX_PARAM			50
-	#define GRID_UCHAR			0xFF
+    
+	#define MAX_PARAM			50             // used for m_Param[], m_Vec[], m_Toggle[]
+	#define GRID_UCHAR			0xFF           // used in void FluidSystem::InsertParticles (){.. memset(..); ...}
 	#define GRID_UNDEF			4294967295	
 
+	// not used, remnant of gvdb-voxels
 	#define CMD_SIM				0
 	#define CMD_PLAYBACK		1
 	#define CMD_WRITEPTS		2
 	#define CMD_WRITEVOL		3	
 	#define CMD_WRITEIMG		4
 
+    // Run params : values for m_Param[PMODE]
 	#define RUN_PAUSE			0
 	#define RUN_SEARCH			1
 	#define RUN_VALIDATE		2
@@ -63,10 +66,10 @@
 	#define RUN_GPU_FULL		5
 	#define RUN_PLAYBACK		6
 
-	// Scalar params
+	// Scalar params   "m_Param[]"
 	#define PMODE				0
 	#define PNUM				1
-	#define PEXAMPLE			2
+	#define PEXAMPLE			2   // 0=Regression test. N x N x N static grid, 1=Tower , 2=Wave pool , 3=Small dam break , 4=Dual-Wave pool , 5=Microgravity . See  FluidSystem::SetupExampleParams (). Used in void FluidSystem::Initialize ()  
 	#define PSIMSIZE			3
 	#define PSIMSCALE			4
 	#define PGRID_DENSITY		5
@@ -113,7 +116,7 @@
 	#define PTIME_FROMGPU		46
 	#define PFORCE_FREQ			47	
 
-	// Vector params
+	// Vector params   "m_Vec[]" 
 	#define PVOLMIN				0
 	#define PVOLMAX				1
 	#define PBOUNDMIN			2
@@ -128,10 +131,10 @@
 	#define PPOINT_GRAV_POS		11	
 	#define PPLANE_GRAV_DIR		12	
 
-	// Booleans
+	// Booleans        "m_Toggle[]"
 	#define PRUN				0
 	#define PDEBUG				1	
-	#define PUSE_CUDA			2	
+	#define PUSE_CUDA			2	//not used?
 	#define	PUSE_GRID			3
 	#define PWRAP_X				4
 	#define PWALL_BARRIER		5
@@ -141,8 +144,9 @@
 	#define PPROFILE			12
 	#define PCAPTURE			13
 
-	#define BFLUID				2
+	#define BFLUID				2    // not used ?
 
+	// kernel function   "m_Func[]"
 	#define FUNC_INSERT			0
 	#define	FUNC_COUNTING_SORT	1
 	#define FUNC_QUERY			2
@@ -164,6 +168,7 @@
 	#define GRN(c)			(float(((c)>>8)  & 0xFF)/255.0f)
 	#define RED(c)			(float( (c)      & 0xFF)/255.0f)	*/
 
+    //  used for AllocateBuffer(  .... )
 	#define GPU_OFF				0
 	#define GPU_SINGLE			1
 	#define GPU_TEMP			2
@@ -177,6 +182,7 @@
 		
 		void LoadKernel ( int id, std::string kname );
 		void Initialize ();
+        void LoadSimulation (const char * relativePath); // start sim from a folder of data
 
 // 		// Rendering
 // 		void Draw ( int frame, Camera3D& cam, float rad );
@@ -194,12 +200,25 @@
 		void AllocateBuffer(int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode);		
 		void TransferToTempCUDA ( int buf_id, int sz );
 		void AllocateParticles ( int cnt );
+        void AllocateParticles ( int cnt, int gpu_mode, int cpu_mode );
 		int AddParticle ();
+        int AddParticle (Vector3DF* Pos, Vector3DF* Vel);
+        int AddParticleMorphogenesis ();
+        int AddParticleMorphogenesis (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint *ElastIdx, uint NerveIdx, uint* Conc, uint* EpiGen);
+        
 		void AddEmit ( float spacing );
 		int NumPoints ()				{ return mNumPoints; }
 		Vector3DF* getPos ( int n )	{ return &m_Fluid.bufV3(FPOS)[n]; }
 		Vector3DF* getVel ( int n )	{ return &m_Fluid.bufV3(FVEL)[n]; }
+		uint* getAge ( int n )			{ return &m_Fluid.bufI(FAGE)[n]; }
 		uint* getClr ( int n )			{ return &m_Fluid.bufI(FCLR)[n]; }
+//#define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
+        uint* getElastIdx( int n ){ return &m_Fluid.bufI(FELASTIDX)[n*(BONDS_PER_PARTICLE +1)]; } 
+        uint* getNerveIdx( int n ){ return &m_Fluid.bufI(FNERVEIDX)[n]; }   //#define FNERVEIDX   15      //# uint
+//#define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
+        uint* getConc(int n){return &m_Fluid.bufI(FCONC)[n*NUM_TF];}
+//#define FEPIGEN     17      //# uint[NUM_GENES]		
+        uint* getEpiGen(int n){return &m_Fluid.bufI(FEPIGEN)[n*NUM_GENES];}
 		
 		// Setup
 		void Start ( int num );
@@ -209,8 +228,10 @@
 		void SetupExampleParams ();
 		void SetupSpacing ();
 		void SetupAddVolume ( Vector3DF min, Vector3DF max, float spacing, float offs, int total );
+        void SetupAddVolumeMorphogenesis(Vector3DF min, Vector3DF max, float spacing, float offs, int total );
 		void SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, float cell_size, float border );		
 		void AllocateGrid ();
+        void AllocateGrid(int gpu_mode, int cpu_mode);
 		void IntegrityCheck();
 
 		// Neighbor Search
@@ -297,7 +318,7 @@
 		//void SPH_ComputeForceSlow ();				// O(n^2)
 		//void SPH_ComputeForceGrid ();				// O(kn) - spatial grid
 
-		// Recording
+		// Recording  -  not used 
 		void StartRecord ();
 		void StartRecordBricks ();
 		void StartPlayback ();
@@ -309,13 +330,19 @@
 		void getModeClr ();
         
 		// I/O Files
-		void SavePointsCSV ( int frame );
-		void SavePoints_asciiPLY ( int frame );
+		void SavePointsCSV ( const char * relativePath, int frame );
+        void ReadSimParams ( const char * relativePath );    // path to folder containing simparams and .csv files
+        void WriteDemoSimParams ( const char * relativePath ); // Write standard demo to file, as demonstration of file format. 
+        void WriteSimParams ( const char * relativePath );
+        void ReadPointsCSV ( const char * relativePath, int gpu_mode, int cpu_mode);
+		void SavePoints_asciiPLY ( const char * relativePath, int frame );
 		int WriteParticlesToHDF5File(int filenum);
-		int WriteFileTest ();
-		int WriteFileTest2 (const int NX);    
 
-		// Parameters			
+        // Genome
+        void UpdateGenome ();
+        void SetGenome (FGenome newGenome );
+        
+		// Parameters
 		void UpdateParams ();
 		void SetParam (int p, float v );
 		void SetParam (int p, int v )		{ m_Param[p] = (float) v; }
@@ -343,7 +370,7 @@
 		void SetDebug(bool b) { mbDebug = b; }
 	
 	private:
-		bool						m_Cmds[10];
+	//	bool						m_Cmds[10];  /*not used*/
 		Vector3DI					m_FrameRange;
 		Vector3DI					m_VolRes;
 		int							m_BrkRes;
@@ -363,11 +390,11 @@
 		// CUDA Kernels
 		CUmodule					m_Module;
 		CUfunction					m_Func[ FUNC_MAX ];
-
-		// Simulation Parameters
-		float						m_Param [ MAX_PARAM ];			// see defines above. NB m_Param[1] = maximum number of points.
-		Vector3DF					m_Vec [ MAX_PARAM ];
-		bool						m_Toggle [ MAX_PARAM ];		
+        
+		// Simulation Parameters                                //  NB MAX_PARAM = 50 
+		float						m_Param [ MAX_PARAM ];	    // 0-47 used.  see defines above. NB m_Param[1] = maximum number of points.
+		Vector3DF					m_Vec [ MAX_PARAM ];        // 0-12 used 
+		bool						m_Toggle [ MAX_PARAM ];		// 0-13 used. 
 
 		// SPH Kernel functions
 		float						m_R2, m_Poly6Kern, m_LapKern, m_SpikyKern;		
@@ -376,13 +403,15 @@
 		int						mNumPoints;
 		int						mMaxPoints;
 		int						mGoodPoints;
-		FBufs					m_Fluid;				// Fluid buffers
+		FBufs					m_Fluid;				// Fluid buffers - NB this is an array of pointers (in mPackBuf ?)
 		FBufs					m_FluidTemp;			// Fluid buffers (temporary)
-		FParams					m_FParams;				// Fluid parameters
+		FParams					m_FParams;				// Fluid parameters struct - that apply to all particles 
+		FGenome					m_FGenome;				// Genome struct of arrays for genne params
 
 		CUdeviceptr				cuFBuf;					// GPU pointer containers
 		CUdeviceptr				cuFTemp;
 		CUdeviceptr				cuFParams;
+		CUdeviceptr				cuFGenome;
 
 		// Acceleration Grid		
 		int						m_GridTotal;			// total # cells
@@ -401,7 +430,7 @@
 		int*					m_NeighborTable;
 		float*					m_NeighborDist;
 
-		char*					mPackBuf;
+		char*					mPackBuf;               // pointer to array holding the particles ?  - not used ? 
 		int*					mPackGrid;
 
 		int						mVBO[3];

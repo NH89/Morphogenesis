@@ -38,6 +38,7 @@
 __constant__ FParams		fparam;			// CPU Fluid params
 __constant__ FBufs			fbuf;			// GPU Particle buffers (unsorted). An FBufs struct holds an array of pointers. 
 __constant__ FBufs			ftemp;			// GPU Particle buffers (sorted)
+__constant__ FGenome		fgenome;		// GPU Genome for particle automata behaviour. Also holds morphogen diffusability.
 __constant__ uint			gridActive;
 
 #define SCAN_BLOCKSIZE		512
