@@ -1761,30 +1761,30 @@ void FluidSystem::SavePoints_asciiPLY ( const char * relativePath, int frame )
 	fflush ( fp );
 }
 
-
-////////////////////////
+// Commented out hdf5 due to library path clashes for <hdf5.h> between Ubuntu and SUSE.
+//////////////////////// 
 // adapted from Example 1 of http://web.mit.edu/fwtools_v3.1.0/www/Intro/IntroExamples.html#CreateExample
-#include <hdf5/serial/hdf5.h>	//hdf5/serial/
+/*#include <hdf5/serial/hdf5.h>	//hdf5/serial/
 #include <stdio.h>
 #include <stdlib.h>
 
 #define DATASETNAME "Vec3DF_Array" 
-//#define NX     5                      /* dataset dimensions */
+#define NX     5                      /* dataset dimensions * /
 #define NY     3
 #define RANK   2
 
 int FluidSystem::WriteParticlesToHDF5File (int filenum)     
 {
     std::cout << "WriteParticlesToHDF5File \n" << std::flush;
-    hid_t       file, dataset;         /* file and dataset handles */
-    hid_t       datatype, dataspace;   /* handles */
-    hsize_t     dimsf[2];              /* dataset dimensions */
+    hid_t       file, dataset;         /* file and dataset handles * /
+    hid_t       datatype, dataspace;   /* handles * /
+    hsize_t     dimsf[2];              /* dataset dimensions * /
     herr_t      status;
 
     const int NX =  NumPoints();                 
 
     int         i, j;
-    float **    data = new float*[NX];  /* allocate data to write */
+    float **    data = new float*[NX];  /* allocate data to write * /
     for(i=0; i<NX; ++i) 
 	data[i] =  new float[NY];          
 
@@ -1793,52 +1793,52 @@ int FluidSystem::WriteParticlesToHDF5File (int filenum)
 	return -1;
     }
         
-    /* Data  and output buffer initialization.  */
+    /* Data  and output buffer initialization.  * /
     for (j = 0; j < NX; j++) {
 	for (i = 0; i < NY; i++)
 	    data[j][i] = (float)(i + j);
     }
     
-    // edit filename
+    edit filename
     char filename[256];
     filenum += 100000;    // ensures numerical and alphabetic order match
 	sprintf ( filename, "particles_pos_%04d.h5", filenum );
 
     /* Create a new file using H5F_ACC_TRUNC access,
      * default file creation properties, and default file
-     * access properties. */
-    file = H5Fcreate(/*FILE2*/filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+     * access properties. * /
+    file = H5Fcreate(/*FILE2 * /filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
     /* Describe the size of the array and create the data space for fixed
-     * size dataset. */
+     * size dataset. * /
     dimsf[0] = NX;
     dimsf[1] = NY;
     dataspace = H5Screate_simple(RANK, dimsf, NULL); 
 
     /* Define datatype for the data in the file.
-     * We will store little endian INT numbers.*/
-    datatype = H5Tcopy(H5T_IEEE_F64LE/*H5T_NATIVE_INT*/);
+     * We will store little endian INT numbers.* /
+    datatype = H5Tcopy(H5T_IEEE_F64LE/*H5T_NATIVE_INT   * /);
     status = H5Tset_order(datatype, H5T_ORDER_LE);
 
     /* Create a new dataset within the file using defined dataspace and
-     * datatype and default dataset creation properties. */
+     * datatype and default dataset creation properties. * /
     dataset = H5Dcreate(file, DATASETNAME, datatype, dataspace,
 			H5P_DEFAULT,
 			H5P_DEFAULT,
 			H5P_DEFAULT);
 
-    /* Write the data to the dataset using default transfer properties. */
-    status = H5Dwrite(dataset, H5T_IEEE_F64LE/*H5T_NATIVE_INT*/, H5S_ALL, H5S_ALL,
-		      H5P_DEFAULT, m_Fluid.bufV3(FPOS) /*data*/);
+    /* Write the data to the dataset using default transfer properties.   * /
+    status = H5Dwrite(dataset, H5T_IEEE_F64LE/*H5T_NATIVE_INT  * /, H5S_ALL, H5S_ALL,
+		      H5P_DEFAULT, m_Fluid.bufV3(FPOS) /*data  * /);
 
-    /* Close/release resources. */
+    /* Close/release resources. * /
     H5Sclose(dataspace);
     H5Tclose(datatype);
     H5Dclose(dataset);
     H5Fclose(file);
  
     return 0;
-}  
+} */  
 
 /* hdf5 notes
 // #include <iostream>

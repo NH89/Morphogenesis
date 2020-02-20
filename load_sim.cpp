@@ -10,8 +10,9 @@ int main ( int argc, const char** argv )
 {
 	char paramsPath[256];
     char pointsPath[256];
-	if ( argc != 2 ){
-	    printf("usage: fluid_system  simulation_data_folder\n");
+    char outPath[256];
+	if ( argc != 3 ){
+	    printf("usage: fluid_system  simulation_data_folder output_folder\n");
 	    return 0;
 	}else {
         sprintf ( paramsPath, "%s/SimParams.txt", argv[1] );
@@ -19,6 +20,9 @@ int main ( int argc, const char** argv )
         
         sprintf ( pointsPath, "%s/particles_pos_vel_color100001.csv", argv[1] );
         printf("simulation points file = %s\n", pointsPath);
+        
+        sprintf ( outPath, "%s/", argv[2] );
+        printf("output folder = %s\n", outPath);
 	}	
 	
 	cuInit(0);				// Initialize
@@ -38,19 +42,16 @@ int main ( int argc, const char** argv )
     fluid.ReadSimParams(paramsPath);
     fluid.ReadPointsCSV(pointsPath, GPU_OFF, CPU_YES);  // change these. 
         
-        /*
-        
     	for(int i=0;i<10;i++){
             for(int j=0;j<30;j++) { fluid.Run (); }        // run the simulation
             
             //fluid.SavePoints (i);                        // alternate file formats to write
             //fluid.SavePointsCSV (i);
-            fluid.SavePoints_asciiPLY (path, i);
+            fluid.SavePoints_asciiPLY (outPath, i);
             //fluid.WriteParticlesToHDF5File(i);
             printf("\t i=%i frame number =%i \n",i, i*20);
     	}
 
-    	*/
     	
 	/*//fluid.TransferFromCUDA ();	// retrieve outcome
 	//int filenum = 0;
