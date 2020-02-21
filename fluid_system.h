@@ -182,7 +182,8 @@
 		
 		void LoadKernel ( int id, std::string kname );
 		void Initialize ();
-        void LoadSimulation (const char * relativePath); // start sim from a folder of data
+        void InitializeCuda ();                             // used for load_sim
+        void LoadSimulation (const char * relativePath);    // start sim from a folder of data
 
 // 		// Rendering
 // 		void Draw ( int frame, Camera3D& cam, float rad );
@@ -226,6 +227,7 @@
 		void SetupKernels ();
 		void SetupDefaultParams ();
 		void SetupExampleParams ();
+        void SetupExampleGenome();
 		void SetupSpacing ();
 		void SetupAddVolume ( Vector3DF min, Vector3DF max, float spacing, float offs, int total );
         void SetupAddVolumeMorphogenesis(Vector3DF min, Vector3DF max, float spacing, float offs, int total );
@@ -337,10 +339,13 @@
         void ReadPointsCSV ( const char * relativePath, int gpu_mode, int cpu_mode);
 		void SavePoints_asciiPLY ( const char * relativePath, int frame );
 		//int WriteParticlesToHDF5File(int filenum);
-
+        
         // Genome
         void UpdateGenome ();
         void SetGenome (FGenome newGenome );
+        void ReadGenome( const char * relativePath, int gpu_mode, int cpu_mode);
+        void WriteGenome( const char * relativePath);
+        
         
 		// Parameters
 		void UpdateParams ();

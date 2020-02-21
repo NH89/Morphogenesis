@@ -297,7 +297,7 @@
     //      (e)secrete/resorb material   - change mass, radius, modulus, viscosity of particle. 
     // NB we don't have a particle-wise viscosity param ...yet 
     
-    struct FGenome{
+    struct FGenome{   // ## currently using fixed size genome for efficiency. NB Particle data size depends on genome size.
         uint mutability[NUM_GENES];
         uint delay[NUM_GENES];
         uint sensitivity[NUM_GENES][NUM_GENES]; // for each gene, its sensitivity to each TF or morphogen

@@ -10,6 +10,7 @@ int main ( int argc, const char** argv )
 {
 	char paramsPath[256];
     char pointsPath[256];
+    char genomePath[256];
     char outPath[256];
 	if ( argc != 3 ){
 	    printf("usage: fluid_system  simulation_data_folder output_folder\n");
@@ -20,6 +21,9 @@ int main ( int argc, const char** argv )
         
         sprintf ( pointsPath, "%s/particles_pos_vel_color100001.csv", argv[1] );
         printf("simulation points file = %s\n", pointsPath);
+        
+        sprintf ( genomePath, "%s/genome.csv", argv[1] );
+        printf("simulation genome file = %s\n", genomePath);
         
         sprintf ( outPath, "%s/", argv[2] );
         printf("output folder = %s\n", outPath);
@@ -37,10 +41,12 @@ int main ( int argc, const char** argv )
 
     FluidSystem fluid;
     fluid.SetDebug ( false );
-    //fluid.Initialize ();
-    //fluid.Start ( m_numpnts );                         // transfers data to gpu
+    fluid.InitializeCuda ();
+    
     fluid.ReadSimParams(paramsPath);
-    fluid.ReadPointsCSV(pointsPath, GPU_OFF, CPU_YES);  // change these. 
+    fluid.ReadGenome(genomePath, GPU_DUAL, CPU_YES);  
+    // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
+    fluid.ReadPointsCSV(pointsPath, GPU_DUAL, CPU_YES);
         
     	for(int i=0;i<10;i++){
             for(int j=0;j<30;j++) { fluid.Run (); }        // run the simulation

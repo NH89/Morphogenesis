@@ -120,6 +120,49 @@ void FluidSystem::Initialize (/*int _pnum = 65536*128, int _pmode = RUN_GPU_FULL
     std::cout << "Chk1.6 \n";
 }
 
+void FluidSystem::InitializeCuda ()         // used for load_sim
+{
+    std::cout << "FluidSystem::Initialize () \n";
+	cuCheck ( cuModuleLoad ( &m_Module, "fluid_system_cuda.ptx" ), "LoadKernel", "cuModuleLoad", "fluid_system_cuda.ptx", mbDebug);  // loads the file "fluid_system_cuda.ptx" as a module with pointer  m_Module.
+
+    std::cout << "Chk1.1 \n";
+	LoadKernel ( FUNC_INSERT,			"insertParticles" );
+	LoadKernel ( FUNC_COUNTING_SORT,	"countingSortFull" );
+	LoadKernel ( FUNC_QUERY,			"computeQuery" );
+	LoadKernel ( FUNC_COMPUTE_PRESS,	"computePressure" );
+	LoadKernel ( FUNC_COMPUTE_FORCE,	"computeForce" );
+	LoadKernel ( FUNC_ADVANCE,			"advanceParticles" );
+	LoadKernel ( FUNC_EMIT,				"emitParticles" );
+	LoadKernel ( FUNC_RANDOMIZE,		"randomInit" );
+	LoadKernel ( FUNC_SAMPLE,			"sampleParticles" );
+	LoadKernel ( FUNC_FPREFIXSUM,		"prefixSum" );
+	LoadKernel ( FUNC_FPREFIXFIXUP,		"prefixFixup" );
+
+    std::cout << "Chk1.2 \n";
+	size_t len = 0;
+	cuCheck ( cuModuleGetGlobal ( &cuFBuf, &len,		m_Module, "fbuf" ),		"LoadKernel", "cuModuleGetGlobal", "cuFBuf", mbDebug);      // Returns a global pointer (cuFBuf) from a module  (m_Module), see line 81.
+	cuCheck ( cuModuleGetGlobal ( &cuFTemp, &len,		m_Module, "ftemp" ),	"LoadKernel", "cuModuleGetGlobal", "cuFTemp", mbDebug);     // fbuf, ftemp, fparam are defined at top of fluid_system_cuda.cu,
+	cuCheck ( cuModuleGetGlobal ( &cuFParams, &len,	m_Module, "fparam" ),		"LoadKernel", "cuModuleGetGlobal", "cuFParams", mbDebug);   // based on structs "FParams", "FBufs", "FGenome" defined in fluid.h 
+    cuCheck ( cuModuleGetGlobal ( &cuFGenome, &len,	m_Module, "fgenome" ),		"LoadKernel", "cuModuleGetGlobal", "cuFGenome", mbDebug);   // NB defined differently in kernel vs cpu code.
+                                                                                                                                            // An FBufs struct holds an array of pointers. 
+    std::cout << "Chk1.3 \n";
+	// Clear all buffers
+	memset ( &m_Fluid, 0,		sizeof(FBufs) );
+	memset ( &m_FluidTemp, 0,	sizeof(FBufs) );
+	memset ( &m_FParams, 0,		sizeof(FParams) );
+    memset ( &m_FGenome, 0,		sizeof(FGenome) );
+    
+    std::cout << "Chk1.4 \n";
+	// Allocate the sim parameters
+	AllocateBuffer ( FPARAMS,		sizeof(FParams),	0,	1,	 GPU_SINGLE,     CPU_OFF );//AllocateBuffer ( int buf_id, int stride,     int cpucnt, int gpucnt,    int gpumode,    int cpumode )
+    std::cout << "Chk1.5 \n";
+    m_Time = 0;
+	ClearNeighborTable ();
+	mNumPoints = 0;			// reset count
+	std::cout << "Chk1.6 \n";
+}
+
+
 
 
 void FluidSystem::Start ( int num )     // #### creates the particles ####
@@ -1355,6 +1398,93 @@ void FluidSystem::StartRecordBricks ()
 	mbRecordBricks = !mbRecordBricks;
 }
 
+void FluidSystem::ReadGenome( const char * relativePath, int gpu_mode, int cpu_mode)
+// NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
+{
+    const char * genes_file_path = relativePath;
+	printf("\n## opening file %s \n", genes_file_path);
+    FILE * genes_file = fopen(genes_file_path, "rb");
+    if (genes_file == NULL) {
+        std::cout << "\nvoid FluidSystem::ReadGenome( const char * relativePath, int gpu_mode, int cpu_mode)  Could not read file "<< genes_file_path <<"\n"<< std::flush;
+        assert(0);
+    }
+    // find number of lines = number of particles
+    int ch, number_of_lines = 0;
+    while (EOF != (ch=getc(genes_file)))   if ('\n' == ch)  ++number_of_lines;
+
+    std::fseek(genes_file, 0, SEEK_SET);
+    /*if (gpu_mode != GPU_OFF){
+        FluidSetupCUDA ( mMaxPoints, m_GridSrch, *(int3*)& m_GridRes, *(float3*)& m_GridSize, *(float3*)& m_GridDelta, *(float3*)& m_GridMin, *(float3*)& m_GridMax, m_GridTotal, 0 );
+        UpdateParams();            //  sends simulation params to device.
+        UpdateGenome();            //  sends genome to device.              // NB need to initialize genome from file, or something.
+    }*/
+    //AllocateParticles ( mMaxPoints, gpu_mode, cpu_mode );  // allocates only cpu buffer for particles
+    int num_genes;
+    std::fscanf(genes_file, "mutability,\tdelay,\tsensitivity[%i],\tdifusability[2] \n", &num_genes );
+    
+    if ((num_genes != number_of_lines-1) || (num_genes != NUM_GENES) )
+    {
+        std::cout << "\n! Miss-match of parameters ! ((num_genes != number_of_lines-1 || (num_genes != NUM_GENES) )\n";
+        std::cout << "num_genes = " << num_genes <<"\tnumber_of_lines = "<<number_of_lines<<"\tNUM_GENES = "<<NUM_GENES<<"\n";
+    }
+    int i; 
+    for (i=0; i<number_of_lines-1; i++ ){
+        int ret = std::fscanf(genes_file,"%i,",&m_FGenome.mutability[i] );
+        ret += std::fscanf(genes_file,"%i,",&m_FGenome.delay[i] );
+        for(int j=0;j<NUM_GENES;j++){
+           ret += std::fscanf(genes_file,"%i,", &m_FGenome.sensitivity[i][j] );
+        }
+        ret += std::fscanf(genes_file,"%i,",&m_FGenome.difusability[i][0] );
+        ret += std::fscanf(genes_file,"%i,",&m_FGenome.difusability[i][1] );
+        ret += std::fscanf(genes_file, " \n");
+        
+        if (ret != (2 + NUM_GENES + 2) ) {
+            std::cout << "\nvoid FluidSystem::ReadGenome, read failure !  gene number = " << i;
+            std::cout << "\n " << std::flush;
+            fclose(genes_file);
+            return;
+        }
+        std::cout << m_FGenome.mutability[i] <<",\t";
+        std::cout << m_FGenome.delay[i] <<",\t\t";
+        for(int j=0;j<NUM_GENES;j++){
+            std::cout << m_FGenome.sensitivity[i][j] <<",\t";
+        }
+        std::cout <<"\t"<< m_FGenome.difusability[i][0] <<",\t";
+        std::cout << m_FGenome.difusability[i][1] <<",\t";
+        std::cout <<"\n";
+    }
+    std::cout << "\n" << i-1 << " genes read.\n" << std::flush;
+    fclose(genes_file);
+}
+
+void FluidSystem::WriteGenome( const char * relativePath)
+{
+    std::cout << "\n  FluidSystem::WriteGenome( const char * relativePath)  started \n" << std::flush;
+	char buf[256];
+	sprintf ( buf, "%s/genome.csv", relativePath );
+	FILE* fp = fopen ( buf, "w" );
+    if (fp == NULL) {
+        std::cout << "\nvoid FluidSystem::WriteGenome( const char * relativePath)  Could not open file "<< fp <<"\n"<< std::flush;
+        assert(0);
+    }
+
+   fprintf(fp, "mutability,\tdelay,\tsensitivity[%i],\tdifusability[2] \n", NUM_GENES ); 
+   
+   for(int i=0;i<NUM_GENES;i++){
+       
+       fprintf(fp, "%i,\t", m_FGenome.mutability[i] ); 
+       fprintf(fp, "%i,\t\t", m_FGenome.delay[i] );
+       
+       for(int j=0;j<NUM_GENES;j++){
+           fprintf(fp, "%i,\t", m_FGenome.sensitivity[i][j] );
+       }
+       fprintf(fp, "\t%i,\t", m_FGenome.difusability[i][0] );
+       fprintf(fp, "%i,\t", m_FGenome.difusability[i][1] );
+       fprintf(fp, " \n" );
+   }
+}
+
+
 void FluidSystem::SavePoints ( int frame )
 {
 	char buf[256];
@@ -1394,7 +1524,7 @@ void FluidSystem::SavePoints ( int frame )
 
 void FluidSystem::SavePointsCSV ( const char * relativePath, int frame )
 {
-    std::cout << "\n  SavePoints_asciiPLY ( relativePath, 1 );  started \n" << std::flush;
+    std::cout << "\n  SavePointsCSV ( const char * relativePath, int frame );  started \n" << std::flush;
 	char buf[256];
     frame += 100000;    // ensures numerical and alphabetic order match
 	sprintf ( buf, "%s/particles_pos_vel_color%04d.csv", relativePath, frame );
@@ -1447,7 +1577,7 @@ void FluidSystem::ReadPointsCSV ( const char * relativePath , int gpu_mode, int 
 	printf("\n## opening file %s ", points_file_path);
     FILE * points_file = fopen(points_file_path, "rb");
     if (points_file == NULL) {
-        std::cout << "\nvoid FluidSystem::ReadPointsCSV ( const char * relativePath )  Could not read file "<< points_file_path <<"\n"<< std::flush;
+        std::cout << "\nvoid FluidSystem::ReadPointsCSV ( const char * relativePath, int gpu_mode, int cpu_mode )  Could not read file "<< points_file_path <<"\n"<< std::flush;
         assert(0);
     }
     // find number of lines = number of particles
@@ -1924,6 +2054,7 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath )
     // set up the standard demo
     SetupDefaultParams ();
     SetupExampleParams ();
+    SetupExampleGenome();
     
 	mMaxPoints = m_Param [PNUM];
 	m_Param [PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];	
@@ -1939,6 +2070,8 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath )
     // write data to file 
     WriteSimParams ( relativePath ); 
     std::cout << "\n WriteSimParams ( relativePath );  completed \n" << std::flush ;
+    WriteGenome ( relativePath);
+    std::cout << "\n WriteGenome ( relativePath );  completed \n" << std::flush ;
     SavePointsCSV ( relativePath, 1 );
     std::cout << "\n SavePointsCSV ( relativePath, 1 );  completed \n" << std::flush ;
     SavePoints_asciiPLY ( relativePath, 1 );
@@ -2116,6 +2249,20 @@ void FluidSystem::SetupExampleParams ()
 
 }
 
+void FluidSystem::SetupExampleGenome()  // need to set up a demo genome 
+{
+    // Null genome 
+    for(int i=0; i< NUM_GENES; i++) m_FGenome.mutability[i] = 0;
+    for(int i=0; i< NUM_GENES; i++) m_FGenome.delay[i] = 1;
+    for(int i=0; i< NUM_GENES; i++) for(int j=0; j< NUM_GENES; j++)
+    {  
+        m_FGenome.sensitivity[i][j] = j;
+    }
+    for(int i=0; i< NUM_GENES; i++) {
+        m_FGenome.difusability[i][0] = 0;
+        m_FGenome.difusability[i][1] = 1;
+    }
+}
 
 //////////////////////////////////////////////////////
 
