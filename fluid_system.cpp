@@ -229,10 +229,6 @@ void FluidSystem::LoadSimulation (const char * relativePath)  // start sim from 
 
 
 
-
-
-
-
 /////////////////////////////////////////////////////////////////
 void FluidSystem::UpdateGenome ()   // Update Genome on GPU
 {
@@ -1453,7 +1449,7 @@ void FluidSystem::ReadGenome( const char * relativePath, int gpu_mode, int cpu_m
         std::cout << m_FGenome.difusability[i][1] <<",\t";
         std::cout <<"\n";
     }
-    std::cout << "\n" << i-1 << " genes read.\n" << std::flush;
+    std::cout << "\n" << i << " genes read.\n" << std::flush;
     fclose(genes_file);
 }
 
