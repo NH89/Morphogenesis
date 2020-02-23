@@ -8,6 +8,8 @@ Morphogenesis started as a minimal variant of Rama Hoetzlein's Fluids SPH, cut d
 https://github.com/ramakarl/gvdb-voxels, 
 which was in turn developed from Fluids-v3.
 
+## Master branch
+This is the cut down version of gFluidSurface.
 Dependence on gvdb-voxels library has been removed, and CMakeLists.txt has been rewritten.
 New output has been written to provide ascii .ply files for viewing in MeshLab.
 
