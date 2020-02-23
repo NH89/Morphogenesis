@@ -1,6 +1,12 @@
-# fluids_v4
-A minimal variant of Rama Hoetzlein's Fluids SPH, cut down from gFluidSurface in gvdb-voxels, 
-https://github.com/ramakarl/gvdb-voxels.
+# Morphogenesis
+
+# Acknowledgement
+
+"2014, Hoetzlein, Rama Karl. Fast Fixed-Radius Nearest Neighbors: Interactive Million-Particle Fluids. GPU Technology Conference, 2014. San Jose, CA. 2010-2014. Online at http://fluids3.com"
+ 
+Morphogenesis started as a minimal variant of Rama Hoetzlein's Fluids SPH, cut down from gFluidSurface in gvdb-voxels, 
+https://github.com/ramakarl/gvdb-voxels, 
+which was in turn developed from Fluids-v3.
 
 Dependence on gvdb-voxels library has been removed, and CMakeLists.txt has been rewritten.
 New output has been written to provide ascii .ply files for viewing in MeshLab.
@@ -15,7 +21,7 @@ The notes below are rough working notes, and will change with development.
 
 ### Within Morphogenesis branch executables (so far) include:
 
-#### fluids_v4
+#### fluids_m
 The hacked remnant of the original.
 
 #### make_demo
