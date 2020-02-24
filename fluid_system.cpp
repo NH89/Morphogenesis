@@ -206,9 +206,9 @@ void FluidSystem::Start ( int num )     // #### creates the particles ####
 
 
 
-void FluidSystem::LoadSimulation (const char * relativePath)  // start sim from a folder of data
+/* void FluidSystem::LoadSimulation (const char * relativePath)  // start sim from a folder of data
 {
-    /* data required.
+    / * data required.
     //
     // nb Initialize()  loads cuModule from .ptx , sets up kernels, memsets buffers (fluid, tem, params, genome),   // fixed
     //                  sets m_param[mode, example, grid_density, pnum],   allocates  m_Fluid.mgpu[FPARAMS] buffer.
@@ -222,11 +222,11 @@ void FluidSystem::LoadSimulation (const char * relativePath)  // start sim from 
     // NB need to load the particles, before TransferToCUDA()
     // SetupAddVolume() defines a fixed array of particles
     // Use ReadPointsCSV()
-    */
+    * /
     ReadSimParams ( relativePath );
     ReadPointsCSV ( relativePath, GPU_OFF, CPU_YES);    // !! change these !!
     TransferToCUDA ();                                              // Initial transfer
-}
+}*/
 
 
 
@@ -498,7 +498,8 @@ int FluidSystem::AddParticleMorphogenesis ()
     *(m_Fluid.bufI(FCLR) + n) = 0;
 
     uint* ElastIdx = (m_Fluid.bufI(FELASTIDX) + n*(BONDS_PER_PARTICLE +1));
-    for(int j=0; j<(BONDS_PER_PARTICLE +1); j++) {
+    ElastIdx[0] = n;                                        // ElastIdx[0] = particle ID
+    for(int j=1; j<(BONDS_PER_PARTICLE +1); j++) {
         ElastIdx[j] = 0;
     }
 
@@ -696,9 +697,11 @@ void FluidSystem::Run ()
     InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
     PrefixSumCellsCUDA ( 0x0, 1 );
     CountingSortFullCUDA ( 0x0 );
+    
     ComputePressureCUDA();
     ComputeForceCUDA ();
     AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
+    
     //EmitParticlesCUDA ( m_Time, (int) m_Vec[PEMIT_RATE].x );
     TransferFromCUDA ();	// return for rendering
     AdvanceTime ();

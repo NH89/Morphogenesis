@@ -112,45 +112,46 @@ extern "C" __global__ void countingSortFull ( int pnum )
 	}
 } 
 
-extern "C" __device__ float contributePressure ( int i, float3 p, int cell )
+extern "C" __device__ float contributePressure ( int i, float3 p, int cell )  
+// pressure due to particles in 'cell'. NB for each particle there are 27 cells in which interacting particles might be.
 {			
-	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return 0.0;
+	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return 0.0;                                  // If the cell is empty, skip it.
 
 	float3 dist;
 	float dsq, c, sum = 0.0;
 	register float d2 = fparam.psimscale * fparam.psimscale;
 	register float r2 = fparam.r2 / d2;
 	
-	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];
+	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];     // off set of this cell in the list of particles,  PLUS  the count of particles in this cell.
 
-	for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {
-		int pndx = fbuf.bufI(FGRID) [cndx];
-		dist = p - fbuf.bufF3(FPOS) [pndx];
-		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);
-		if ( dsq < r2 && dsq > 0.0) {
-			c = (r2 - dsq)*d2;
+	for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {   // For particles in this cell.
+		int pndx = fbuf.bufI(FGRID) [cndx];                                       // index of this particle
+		dist = p - fbuf.bufF3(FPOS) [pndx];                                       // float3 distance between this particle, and the particle for which the loop has been called.
+		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                    // scalar distance squared
+		if ( dsq < r2 && dsq > 0.0) {                                             // IF in-range && not the same particle. 
+			c = (r2 - dsq)*d2;                                                           //(NB this means all unused particles can be stored at one point)
 			sum += c * c * c;				
 		} 
 	}
 	
-	return sum;
+	return sum;                                                     // NB a scalar value for pressure contribution, at the current particle, due to particles in this cell.
 }
 			
 extern "C" __global__ void computePressure ( int pnum )
 {
-	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;	// particle index				
+	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                // particle index
 	if ( i >= pnum ) return;
 
 	// Get search cell
 	int nadj = (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
-	uint gc = fbuf.bufI(FGCELL) [i];
-	if ( gc == GRID_UNDEF ) return;						// particle out-of-range
+	uint gc = fbuf.bufI(FGCELL) [i];                                       // get grid cell of the current particle.
+	if ( gc == GRID_UNDEF ) return;                                        // IF particle not in the simulation
 	gc -= nadj;
 
 	// Sum Pressures
 	float3 pos = fbuf.bufF3(FPOS) [i];
 	float sum = 0.0;
-	for (int c=0; c < fparam.gridAdjCnt; c++) {
+	for (int c=0; c < fparam.gridAdjCnt; c++) {                                    
 		sum += contributePressure ( i, pos, gc + fparam.gridAdj[c] );
 	}
 	__syncthreads();
@@ -164,7 +165,7 @@ extern "C" __global__ void computePressure ( int pnum )
 
 extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell)
 {			
-	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return make_float3(0,0,0);	
+	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return make_float3(0,0,0);               // If the cell is empty, skip it.
 
 	float dsq, c, pterm;	
 	float3 dist, force = make_float3(0,0,0);
@@ -172,16 +173,31 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
 
 	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];
 
-	for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {
-		j = fbuf.bufI(FGRID)[ cndx ];				
-		dist = ( ipos - fbuf.bufF3(FPOS)[ j ] );		// dist in cm
-		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);
-		if ( dsq < fparam.rd2 && dsq > 0) {			
-			dsq = sqrt(dsq * fparam.d2);
+	for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {          // For particles in this cell.
+		j = fbuf.bufI(FGRID)[ cndx ];				                                     
+		dist = ( ipos - fbuf.bufF3(FPOS)[ j ] );                                  // dist in cm (Rama's comment)
+		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                    // scalar distance squared
+		if ( dsq < fparam.rd2 && dsq > 0) {                                       // IF in-range && not the same particle
+			dsq = sqrt(dsq * fparam.d2);                                                                                                 // sqrt(dist^2 * sim_scale^2))
 			c = ( fparam.psmoothradius - dsq ); 
 			pterm = fparam.psimscale * -0.5f * c * fparam.spikykern * ( ipress + fbuf.bufF(FPRESS)[ j ] ) / dsq;			
-			force += ( pterm * dist + fparam.vterm * ( fbuf.bufF3(FVEVAL)[ j ] - iveleval )) * c * idens * (fbuf.bufF(FDENSITY)[ j ] );
-		}	
+			force += ( pterm * dist + fparam.vterm * ( fbuf.bufF3(FVEVAL)[ j ] - iveleval )) * c * idens * (fbuf.bufF(FDENSITY)[ j ] ); 
+            // force due to pressure gradient PLUS viscosity.
+            //   pterm(-ve scalar) * distance(float3) => repulsion
+            //   viscosity * (vel(float3)[j] - vel(float3)[i]) * c * density[i] * desity[j]  => drag
+            //   
+            //  elastic force due to bonds
+            //  for(int a=1; a < BONDS_PER_PARTICLE ; a++)
+            //  { 
+            //      unit b = m_Fluid.gpu(FELASTIDX)[i][a];     
+            //      if(m_Fluid.gpu(FELASTIDX)[j][0] == b)
+            //      {
+            //          contribute_elastic_force()
+            //          m_Fluid.gpu(FELASTIDX)[i][a]  *= (-1);     //mark bond as intact  ? is this a uint !?
+            //      }
+            //
+            //  if(  m_Fluid.gpu(FELASTIDX)[0] == 
+        }
 	}
 	return force;
 }
@@ -189,16 +205,16 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
 
 extern "C" __global__ void computeForce ( int pnum)
 {			
-	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;	// particle index				
+	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;	          // particle index				
 	if ( i >= pnum ) return;
 
 	// Get search cell	
 	uint gc = fbuf.bufI(FGCELL)[ i ];
-	if ( gc == GRID_UNDEF ) return;						// particle out-of-range
+	if ( gc == GRID_UNDEF ) return;						              // particle out-of-range
 	gc -= (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
 
 	// Sum Pressures	
-	register float3 force;
+	register float3 force;                                            // request to compiler to store in a register for speed.
 	force = make_float3(0,0,0);		
 
 	for (int c=0; c < fparam.gridAdjCnt; c++) {
