@@ -103,6 +103,12 @@ extern "C" __global__ void countingSortFull ( int pnum )
 		fbuf.bufI (FCLR) [sort_ndx] =		ftemp.bufI(FCLR) [i];
 		fbuf.bufI (FGCELL) [sort_ndx] =		icell;
 		fbuf.bufI (FGNDX) [sort_ndx] =		indx;		
+        
+        // add extra data for morphogenesis
+        fbuf.bufI (FELASTIDX) [sort_ndx] =	ftemp.bufI(FELASTIDX) [i];
+        fbuf.bufI (FNERVEIDX) [sort_ndx] =	ftemp.bufI(FNERVEIDX) [i];
+        fbuf.bufI (FCONC) [sort_ndx] =		ftemp.bufI(FCONC) [i];
+        fbuf.bufI (FEPIGEN) [sort_ndx] =	ftemp.bufI(FEPIGEN) [i];
 	}
 } 
 
