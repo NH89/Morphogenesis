@@ -107,7 +107,7 @@ extern "C" __global__ void countingSortFull ( int pnum )
         
         // add extra data for morphogenesis
         for (int a=0;a<BONDS_PER_PARTICLE*2;a++){
-            fbuf.bufII (FELASTIDX) [sort_ndx][a] =	ftemp.bufII(FELASTIDX) [i][a];
+            fbuf.bufI (FELASTIDX) [sort_ndx*BONDS_PER_PARTICLE*2 + a] =	ftemp.bufI(FELASTIDX) [i*BONDS_PER_PARTICLE*2 + a]; //sort_ndx= grid_cell_offet + particle_offset   , i=particle index
         }
         fbuf.bufI (FPARTICLE_ID) [sort_ndx] =	ftemp.bufI(FPARTICLE_ID) [i];
         fbuf.bufI (FMASS_RADIUS) [sort_ndx] =	ftemp.bufI(FMASS_RADIUS) [i];
@@ -258,8 +258,8 @@ extern "C" __global__ void computeForce ( int pnum)
     uint elastIdx[BONDS_PER_PARTICLE];
     uint bond[BONDS_PER_PARTICLE][2];
     for (int a=0;a<BONDS_PER_PARTICLE;a++){                             // copy FELASTIDX to thread memory for particle i.
-        elastIdx[a] = fbuf.bufII(FELASTIDX)[i][a*2];// particle IDs              
-        uint temp = fbuf.bufII(FELASTIDX)[i][a*2];
+        elastIdx[a] = fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2];// particle IDs   i*BONDS_PER_PARTICLE*2 + a  //  [i][a*2]
+        uint temp = fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2 +1]; //[i][a*2]
         bond[a][0] = temp & TWO_POW_24_MINUS_1;     // modulus          // '&' bitwise AND is bit masking.  
         bond[a][1] = (temp >> 24);                  // elastic limit    // '>>' Bit shift can deliver high bits to bottom
     }
@@ -286,7 +286,7 @@ extern "C" __global__ void computeForce ( int pnum)
 	fbuf.bufF3(FFORCE)[ i ] += force;  //  += req for elastic bonds. NB need to reset to zero in  CountingSortFull(..)
 	
 	for (int a=0;a<BONDS_PER_PARTICLE;a++){                            // remove broken bonds
-        if(intact[a]!=1){fbuf.bufII(FELASTIDX)[i][a*2]=0;}             // nb particle_ID = 0 must be "NO_PARTICLE"
+        if(intact[a]!=1){fbuf.bufII(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2 +1]=0;} // nb particle_ID = 0 must be "NO_PARTICLE"  // [i][a*2]
     }
 }
 

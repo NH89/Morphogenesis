@@ -215,7 +215,7 @@
 		uint* getAge ( int n )			{ return &m_Fluid.bufI(FAGE)[n]; }
 		uint* getClr ( int n )			{ return &m_Fluid.bufI(FCLR)[n]; }
 //note #define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
-        uint* getElastIdx( int n ){ return &m_Fluid.bufI(FELASTIDX)[n*(BONDS_PER_PARTICLE +1)]; } 
+        uint* getElastIdx( int n ){ return &m_Fluid.bufI(FELASTIDX)[n*(BONDS_PER_PARTICLE * 2)]; } 
         uint* getParticle_ID(int n ){ return &m_Fluid.bufI(FPARTICLE_ID)[n]; }
         
         uint* getMass_Radius(int n ){ return &m_Fluid.bufI(FMASS_RADIUS)[n]; }

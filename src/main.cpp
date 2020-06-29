@@ -45,8 +45,8 @@ int main ( int argc, const char** argv )
     
     fluid.Initialize ();
     fluid.Start ( m_numpnts );                         // transfers data to gpu
-    for(int i=0;i<3;i++){
-        for(int j=0;j<3;j++) { fluid.Run (); }        // run the simulation
+    for(int i=0;i<10;i++){
+        for(int j=0;j<10;j++) { fluid.Run (); }        // run the simulation
         std::cout << "i=" << i << "\n";
             //fluid.SavePoints (i);                        // alternate file formats to write
             //fluid.SavePointsCSV (i);
