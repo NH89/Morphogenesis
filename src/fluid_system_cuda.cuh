@@ -44,7 +44,10 @@
 	#define BLOCK_THREADS		256
 	#define MAX_NBR				80		
 	#define FCOLORA(r,g,b,a)	( (uint((a)*255.0f)<<24) | (uint((b)*255.0f)<<16) | (uint((g)*255.0f)<<8) | uint((r)*255.0f) )
+    //#define TWO_POW_31 0x80000000       // Binary 10000000000000000000000000000000  // used to store data in top bit of uint
+    //#define TWO_POW_24_MINUS_1 0xFFFFFF // Binary 111111111111111111111111          // used to bit mask 1st 24 bits of uint
 
+    
 	typedef unsigned int		uint;
 	typedef unsigned short int	ushort;
 	typedef unsigned char		uchar;

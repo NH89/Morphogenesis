@@ -44,7 +44,7 @@
 //	#include "gvdb_vec.h"
 //	#include "gvdb_camera.h"
 //	using namespace nvdb;
-
+//    #define TWO_POW_16 65536                    // used to bit mask 1st 16 bits of uint
     
 	#define MAX_PARAM			50             // used for m_Param[], m_Vec[], m_Toggle[]
 	#define GRID_UCHAR			0xFF           // used in void FluidSystem::InsertParticles (){.. memset(..); ...}
@@ -200,12 +200,13 @@
 		// Particle Utilities
 		void AllocateBuffer(int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode);		
 		void TransferToTempCUDA ( int buf_id, int sz );
-		void AllocateParticles ( int cnt );
-        void AllocateParticles ( int cnt, int gpu_mode, int cpu_mode );
+		//void AllocateParticles ( int cnt );
+        void AllocateParticles ( int cnt, int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES );
 		int AddParticle ();
         int AddParticle (Vector3DF* Pos, Vector3DF* Vel);
         int AddParticleMorphogenesis ();
-        int AddParticleMorphogenesis (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint *ElastIdx, uint NerveIdx, uint* Conc, uint* EpiGen);
+        int AddParticleMorphogenesis(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint* _ElastIdx, uint NerveIdx, uint* _Conc, uint* _EpiGen);
+        int AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint *_ElastIdx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, uint* _Conc, uint* _EpiGen );
         
 		void AddEmit ( float spacing );
 		int NumPoints ()				{ return mNumPoints; }
@@ -215,6 +216,11 @@
 		uint* getClr ( int n )			{ return &m_Fluid.bufI(FCLR)[n]; }
 //note #define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
         uint* getElastIdx( int n ){ return &m_Fluid.bufI(FELASTIDX)[n*(BONDS_PER_PARTICLE +1)]; } 
+        uint* getParticle_ID(int n ){ return &m_Fluid.bufI(FPARTICLE_ID)[n]; }
+        
+        uint* getMass_Radius(int n ){ return &m_Fluid.bufI(FMASS_RADIUS)[n]; }
+        
+        
         uint* getNerveIdx( int n ){ return &m_Fluid.bufI(FNERVEIDX)[n]; }   //#define FNERVEIDX   15      //# uint
 //note #define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
         uint* getConc(int n){return &m_Fluid.bufI(FCONC)[n*NUM_TF];}
@@ -333,10 +339,12 @@
         
 		// I/O Files
 		void SavePointsCSV ( const char * relativePath, int frame );
+        void SavePointsCSV2 ( const char * relativePath, int frame );
         void ReadSimParams ( const char * relativePath );    // path to folder containing simparams and .csv files
         void WriteDemoSimParams ( const char * relativePath ); // Write standard demo to file, as demonstration of file format. 
         void WriteSimParams ( const char * relativePath );
         void ReadPointsCSV ( const char * relativePath, int gpu_mode, int cpu_mode);
+        void ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);
 		void SavePoints_asciiPLY ( const char * relativePath, int frame );
 		//int WriteParticlesToHDF5File(int filenum);
         

@@ -1,0 +1,22 @@
+//  Definition of masks for bitwise operations
+
+//                          Dec		Hex				Binary
+
+#define TWO_POW_3           8		//8		2^3		1000
+#define TWO_POW_4_MINUS_1   15		//F		(2^4) -1	1111
+
+
+#define TWO_POW_7           128		//80		2^7		10000000
+#define TWO_POW_8_MINUS_1   255		//FF		(2^8) -1	11111111
+
+
+#define TWO_POW_15          32768		//8000		2^15		1000000000000000
+#define TWO_POW_16_MINUS_1   65535		//FFFF		(2^16) -1	1111111111111111
+
+
+#define TWO_POW_23          8388608		//800000		2^23		100000000000000000000000
+#define TWO_POW_24_MINUS_1   16777215	//FFFFFF		(2^24) −1	111111111111111111111111
+
+
+#define TWO_POW_31          2147483648	//80000000	2^31		10000000000000000000000000000000
+#define TWO_POW_32_MINUS_1   4294967295	//FFFFFFFF	(2^32) -1	11111111111111111111111111111111

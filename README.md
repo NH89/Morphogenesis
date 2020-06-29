@@ -26,6 +26,7 @@ The notes below are rough working notes, and will change with development.
 This project uses Cmake. 
 Create a build subdirectory.
 In the build subdirectory
+
     cmake ../
     make
     make install
@@ -35,32 +36,50 @@ In the build subdirectory
 
 #### fluids_m
 usage:
+
     cd data
     ../build/install/bin/morphogenesis    number_of_particles    output_folder
+    
 The hacked remnant of the original.
 
 #### make_demo
 usage:
+    
     cd data
     ../build/install/bin/make_demo 
+    
 CPU-only test program to generate example **"SimParams.txt"** and **"particles_pos_vel_color100001.csv"** files for specifying models, and a **"particles_pos100001.ply"** for viewing a model in e.g. Meshlab.
 
 #### check_demo
 usage:
+
     cd data
-    ../build/install/bin/check_demo  demo  check
+    ../build/install/bin/check_demo  demo  check 
+    
 i.e
+
     check_demo  simulation_data_folder  output_folder
+    
 CPU-only test program to verify the ability to read and re-output models.
 
 #### load_sim
 New launch program to load data from files, and run simulation on GPU.
+
+usage:
+
+    cd data
+    ../build/install/bin/load_sim  demo  out
+    
+i.e
+
+    load_sim  simulation_data_folder  output_folder
 
 
 ### viewing with Meshlab
 
 The .ply files output can be viewed in MeshLab.
 It is recommended to select the following MeshLab options:
+
     Render - Show vertex dots
     Render - Render Mode - Wireframe
 

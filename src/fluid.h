@@ -30,6 +30,8 @@
 //	#include "gvdb_vec.h"
 //	using namespace nvdb;
 
+    #include "masks.h"
+
 	typedef	unsigned int		uint;	
 	typedef	unsigned short int	ushort;	
 
@@ -70,8 +72,8 @@
     // 
     // # if elastic force is written to both interacting particles, then the effective number of bonds doubles.
     // # i.e. each particle stores three bonds, but the average bonds per atom would be six.
-    #define BONDS_PER_PARTICLE  3   // +1 for self ID, mass & radius
-    
+    #define BONDS_PER_PARTICLE  4   // //old : actually 3, [0] for self ID, mass & radius
+#define REST_LENGTH  1  // need to find suitable number relative to partic;e and bin size, plus elastic limits.
     // Sensorimotor:
     // Sensory nerve endings & muscles need type and nerve uid to write/read.
     // 32bit uint for i/d, but use 3 bits for type (0)muscle, (1)stretch, (2)pressure/vibration, (3)temp, (4-7)other..
@@ -145,7 +147,9 @@
 	#define FNBRCNT		12      //# uint       particle neighbors count
 	#define FCLUSTER	13	    //# uint
  // additional buffers for morphogenesis   
-    #define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
+    #define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE * 2 = 8 ]  particleID, modulus, elastiic limit    /* old : 0=self UID, mass, radius. >0= modulus & particle UID */
+    #define FPARTICLE_ID 30     //# uint  original pnum, used for bonds between particles. 32bit, track upto 4Bn particles.
+    #define FMASS_RADIUS 31     //# uint holding modulus 16bit and limit 16bit.      
     //#define FELASTMOD         //# uint[BONDS_PER_PARTICLE +1]  modulus of bond (use a standard length) //not required
     #define FNERVEIDX   15      //# uint
     #define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
@@ -163,7 +167,7 @@
 	#define FAUXSCAN1   26		//!
 	#define FAUXARRAY2	27		//!
 	#define FAUXSCAN2	28		//!
-	#define MAX_BUF		29		//!
+	#define MAX_BUF		32		//!
     
 
 	#ifdef CUDA_KERNEL                                                                   // fluid_system_cuda.cuh:37:	#define CUDA_KERNEL ,   fluid_system_cuda.cu:29:#define CUDA_KERNEL
@@ -184,6 +188,7 @@
 			inline CALLFUNC float*  bufF (int n)		{ return (float*)  mgpu[n]; }
 			inline CALLFUNC uint*   bufI (int n)		{ return (uint*)   mgpu[n]; }
 			inline CALLFUNC char*   bufC (int n)		{ return (char*)   mgpu[n]; }
+			inline CALLFUNC uint**  bufII (int n)       { return (uint**)  mgpu[n]; }        // for elastIdx[][]
 			//inline CALLFUNC unsigned short* bufS (int n)		{ return (unsigned short*)   mgpu[n]; }
 		#else
 			// on host, access data via cpu pointers
@@ -192,6 +197,7 @@
 			inline CALLFUNC float*  bufF (int n)		{ return (float*)  mcpu[n]; }
 			inline CALLFUNC uint*   bufI (int n)		{ return (uint*)   mcpu[n]; }
 			inline CALLFUNC char*   bufC (int n)		{ return (char*)   mcpu[n]; }
+			inline CALLFUNC uint**  bufII (int n)       { return (uint**)  mcpu[n]; }        // for elastIdx[][]
 			//inline CALLFUNC unsigned short* bufS (int n)		{ return (unsigned short*)   mgpu[n]; }
 		#endif
 		inline CALLFUNC void    setBuf (int n, char* buf )	{ mcpu[n] = buf; }			// stores pointer to buffer in mcpu[]

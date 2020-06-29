@@ -49,8 +49,8 @@ int main ( int argc, const char** argv )
     fluid.ReadSimParams ( paramsPath );
     fluid.ReadGenome ( genomePath, GPU_DUAL, CPU_YES );
     // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
-    fluid.ReadPointsCSV ( pointsPath, GPU_DUAL, CPU_YES );
-
+    fluid.ReadPointsCSV2 ( pointsPath, GPU_DUAL, CPU_YES );
+std::cout <<"\nchk A_1.0\n"<<std::flush;
     for ( int i=0; i<10; i++ ) {
         for ( int j=0; j<30; j++ ) {
             fluid.Run ();                               // run the simulation

@@ -51,9 +51,9 @@ extern "C" __global__ void insertParticles ( int pnum )
 	//-- debugging (pointers should match CUdeviceptrs on host side)
 	// printf ( " pos: %012llx, gcell: %012llx, gndx: %012llx, gridcnt: %012llx\n", fbuf.bufC(FPOS), fbuf.bufC(FGCELL), fbuf.bufC(FGNDX), fbuf.bufC(FGRIDCNT) );
 
-	register float3 gridMin =	fparam.gridMin;
-	register float3 gridDelta = fparam.gridDelta;
-	register int3 gridRes =		fparam.gridRes;
+	register float3 gridMin =	fparam.gridMin;      // "register" is a compiler 'hint', to keep this variable in thread register
+	register float3 gridDelta = fparam.gridDelta;    //  even if other variable have to be moved to slower 'local' memory  
+	register int3 gridRes =		fparam.gridRes;      //  in the streaming multiprocessor's cache.
 	register int3 gridScan =	fparam.gridScanMax;
 
 	register int		gs;
@@ -91,13 +91,14 @@ extern "C" __global__ void countingSortFull ( int pnum )
 		uint indx =  ftemp.bufI(FGNDX)  [ i ];		
 	    int sort_ndx = fbuf.bufI(FGRIDOFF) [ icell ] + indx ;	// global_ndx = grid_cell_offet + particle_offset	
 		//printf ( "%d: cell: %d, off: %d, ndx: %d\n", i, icell, fbuf.bufI(FGRIDOFF)[icell], indx );
-		
+		float3 zero; zero.x=0;zero.y=0;zero.z=0;
 		// Transfer data to sort location
 		fbuf.bufI (FGRID) [ sort_ndx ] =	sort_ndx;			// full sort, grid indexing becomes identity		
 		fbuf.bufF3(FPOS) [sort_ndx] =		ftemp.bufF3(FPOS) [i];
 		fbuf.bufF3(FVEL) [sort_ndx] =		ftemp.bufF3(FVEL) [i];
 		fbuf.bufF3(FVEVAL)[sort_ndx] =		ftemp.bufF3(FVEVAL) [i];
-		fbuf.bufF3(FFORCE)[sort_ndx] =		ftemp.bufF3(FFORCE) [i];
+		fbuf.bufF3(FFORCE)[sort_ndx] =	zero;// old:	ftemp.bufF3(FFORCE) [i];  
+                                            // fbuf.bufF3(FFORCE)[ i ] += force; in contributeForce() requires value setting to 0
 		fbuf.bufF (FPRESS)[sort_ndx] =		ftemp.bufF(FPRESS) [i];
 		fbuf.bufF (FDENSITY)[sort_ndx] =	ftemp.bufF(FDENSITY) [i];
 		fbuf.bufI (FCLR) [sort_ndx] =		ftemp.bufI(FCLR) [i];
@@ -105,10 +106,15 @@ extern "C" __global__ void countingSortFull ( int pnum )
 		fbuf.bufI (FGNDX) [sort_ndx] =		indx;		
         
         // add extra data for morphogenesis
-        fbuf.bufI (FELASTIDX) [sort_ndx] =	ftemp.bufI(FELASTIDX) [i];
+        for (int a=0;a<BONDS_PER_PARTICLE*2;a++){
+            fbuf.bufII (FELASTIDX) [sort_ndx][a] =	ftemp.bufII(FELASTIDX) [i][a];
+        }
+        fbuf.bufI (FPARTICLE_ID) [sort_ndx] =	ftemp.bufI(FPARTICLE_ID) [i];
+        fbuf.bufI (FMASS_RADIUS) [sort_ndx] =	ftemp.bufI(FMASS_RADIUS) [i];
+        
         fbuf.bufI (FNERVEIDX) [sort_ndx] =	ftemp.bufI(FNERVEIDX) [i];
         fbuf.bufI (FCONC) [sort_ndx] =		ftemp.bufI(FCONC) [i];
-        fbuf.bufI (FEPIGEN) [sort_ndx] =	ftemp.bufI(FEPIGEN) [i];
+        fbuf.bufI (FEPIGEN) [sort_ndx] =	ftemp.bufI(FEPIGEN) [i];  
 	}
 } 
 
@@ -163,13 +169,17 @@ extern "C" __global__ void computePressure ( int pnum )
 	fbuf.bufF(FDENSITY)[ i ] = 1.0f / sum;
 }
 
-extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell)
+extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell, uint particleID,
+                                               uint elastIdx[BONDS_PER_PARTICLE * 2], uint bond[BONDS_PER_PARTICLE][2], 
+                                               uchar intact[BONDS_PER_PARTICLE]
+                                               /*uint particleID[BONDS_PER_PARTICLE], uint  BondType[BONDS_PER_PARTICLE]*/)
 {			
 	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return make_float3(0,0,0);               // If the cell is empty, skip it.
 
 	float dsq, c, pterm;	
-	float3 dist, force = make_float3(0,0,0);
+	float3 dist, eterm, force = make_float3(0,0,0);
 	int j;
+    
 
 	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];
 
@@ -178,15 +188,42 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
 		dist = ( ipos - fbuf.bufF3(FPOS)[ j ] );                                  // dist in cm (Rama's comment)
 		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                    // scalar distance squared
 		if ( dsq < fparam.rd2 && dsq > 0) {                                       // IF in-range && not the same particle
-			dsq = sqrt(dsq * fparam.d2);                                                                                                 // sqrt(dist^2 * sim_scale^2))
+			dsq = sqrt(dsq * fparam.d2);                                          // sqrt(dist^2 * sim_scale^2))
 			c = ( fparam.psmoothradius - dsq ); 
 			pterm = fparam.psimscale * -0.5f * c * fparam.spikykern * ( ipress + fbuf.bufF(FPRESS)[ j ] ) / dsq;			
-			force += ( pterm * dist + fparam.vterm * ( fbuf.bufF3(FVEVAL)[ j ] - iveleval )) * c * idens * (fbuf.bufF(FDENSITY)[ j ] ); 
+            
+            //  elastic force due to bonds
+            uint rest_len = REST_LENGTH * fparam.pradius;
+            for(int a=1; a < BONDS_PER_PARTICLE ; a++){ // for this other particle, check list of bonds for particle of this thread
+                if(particleID == elastIdx[a]){      // bond present
+                    float abs_dist = sqrt(dsq);
+                    if( abs_dist < bond[a][1] ){    // bond intact
+                        eterm = dist * ( (rest_len - abs_dist) * bond[a][0] / abs_dist ); // exerts force
+                        intact[a]+=1;                // mark bond intact n.b. this catches double counting as well as out of range bonds.
+                    }
+                    break;                          // bond processed => break out of for loop 
+                }
+            }            
+            
+			force += (eterm + pterm * dist + fparam.vterm * ( fbuf.bufF3(FVEVAL)[ j ] - iveleval )) * c * idens * (fbuf.bufF(FDENSITY)[ j ] ); 
+            /*
             // force due to pressure gradient PLUS viscosity.
             //   pterm(-ve scalar) * distance(float3) => repulsion
             //   viscosity * (vel(float3)[j] - vel(float3)[i]) * c * density[i] * desity[j]  => drag
-            //   
-            //  elastic force due to bonds
+               
+                //uint b = fbuf.bufI(FELASTIDX)[i+a]   ;//[i][a];  
+//                 if(fbuf.bufI(FELASTIDX)[j] == b){
+//                     float abs_dist = sqrt(dsq);
+//                     eterm = dist * ( (rest_len - abs_dist) * YoungsModulus / abs_dist );  // elastic_force  // NB need to split abs_force by xyz of 
+//                     fbuf.bufI(FELASTIDX)[j]  |= TWO_POW_31;                       // bitwise inclusive OR, mark bond as intact, NB this is a uint,
+//                 }
+            */
+            /*
+            // fbuf.bufI(FELASTIDX)[0]   is 24bits particle ID => 2^24 = 16,777,216 particles, and 8 bits bond type => 2^8 = 256 bond types.
+            //                              look up bond type in texture memory => modulus. Use fixed bond length.
+            // fbuf.bufI(FELASTIDX)[0]   is 24 bits particle ID of bonded particle, and 8 bits of other data. Includes 'broken bond' flag.
+            
+            
             //  for(int a=1; a < BONDS_PER_PARTICLE ; a++)
             //  { 
             //      unit b = m_Fluid.gpu(FELASTIDX)[i][a];     
@@ -197,6 +234,7 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
             //      }
             //
             //  if(  m_Fluid.gpu(FELASTIDX)[0] == 
+            */
         }
 	}
 	return force;
@@ -216,12 +254,42 @@ extern "C" __global__ void computeForce ( int pnum)
 	// Sum Pressures	
 	register float3 force;                                            // request to compiler to store in a register for speed.
 	force = make_float3(0,0,0);		
-
+    
+    uint elastIdx[BONDS_PER_PARTICLE];
+    uint bond[BONDS_PER_PARTICLE][2];
+    for (int a=0;a<BONDS_PER_PARTICLE;a++){                             // copy FELASTIDX to thread memory for particle i.
+        elastIdx[a] = fbuf.bufII(FELASTIDX)[i][a*2];// particle IDs              
+        uint temp = fbuf.bufII(FELASTIDX)[i][a*2];
+        bond[a][0] = temp & TWO_POW_24_MINUS_1;     // modulus          // '&' bitwise AND is bit masking.  
+        bond[a][1] = (temp >> 24);                  // elastic limit    // '>>' Bit shift can deliver high bits to bottom
+    }
+    uchar intact[BONDS_PER_PARTICLE];
+    for (int a=0;a<BONDS_PER_PARTICLE;a++){ intact[a]=0;}               // ledger for chcking bonds are intact.
+    
+    uint particleID = fbuf.bufI(FPARTICLE_ID)[i];   // ID of this particle
+    
+/*    
+//    // get ElastIdx[4], particle IDs and young's modulus. // NB need yield strain and other info too.
+//     uint BondType[BONDS_PER_PARTICLE];                                               // BondType[0] can store flag bit for broken bonds. 
+//     uint particleID[BONDS_PER_PARTICLE];
+// 
+//     for (int i=0;i<BONDS_PER_PARTICLE;i++){
+//         particleID[i] = fbuf.bufI(FELASTIDX)[i]  & TWO_POW_24 ;     // '&' bitwise AND is bit masking.  '>>' Bit shift can deliver high bits to bottom.
+//         BondType[i] = fbuf.bufI(FELASTIDX)[i];
+//         BondType[i] >> 24;                               // Young's modulus = pow(2,(BondType/6.4)) => 0-256 log spread from gel to diamond.
+//     }
+*/    
+    
 	for (int c=0; c < fparam.gridAdjCnt; c++) {
-		force += contributeForce ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FPRESS)[ i ], fbuf.bufF(FDENSITY)[ i ], gc + fparam.gridAdj[c] );
+		force += contributeForce ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FPRESS)[ i ], fbuf.bufF(FDENSITY)[ i ], gc + fparam.gridAdj[c], particleID, elastIdx, bond , intact); /*particleID, BondType*/
 	}
-	fbuf.bufF3(FFORCE)[ i ] = force;
+	fbuf.bufF3(FFORCE)[ i ] += force;  //  += req for elastic bonds. NB need to reset to zero in  CountingSortFull(..)
+	
+	for (int a=0;a<BONDS_PER_PARTICLE;a++){                            // remove broken bonds
+        if(intact[a]!=1){fbuf.bufII(FELASTIDX)[i][a*2]=0;}             // nb particle_ID = 0 must be "NO_PARTICLE"
+    }
 }
+
 
 extern "C" __global__ void randomInit ( int seed, int numPnts )
 {
@@ -446,15 +514,15 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 }
 
 
-extern "C" __global__ void prefixFixup(uint *input, uint *aux, int len)
+extern "C" __global__ void prefixFixup(uint *input, uint *aux, int len)     // merge *aux into *input  
 {
 	unsigned int t = threadIdx.x;
 	unsigned int start = t + 2 * blockIdx.x * SCAN_BLOCKSIZE;
-	if (start < len)					input[start] += aux[blockIdx.x];
+	if (start < len)					input[start] += aux[blockIdx.x];      
 	if (start + SCAN_BLOCKSIZE < len)   input[start + SCAN_BLOCKSIZE] += aux[blockIdx.x];
 }
 
-extern "C" __global__ void prefixSum(uint* input, uint* output, uint* aux, int len, int zeroff)
+extern "C" __global__ void prefixSum(uint* input, uint* output, uint* aux, int len, int zeroff) // sum *input, write to *output
 {
 	__shared__ uint scan_array[SCAN_BLOCKSIZE << 1];
 	unsigned int t1 = threadIdx.x + 2 * blockIdx.x * SCAN_BLOCKSIZE;
