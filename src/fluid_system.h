@@ -158,6 +158,9 @@
 	#define FUNC_SAMPLE			8
 	#define FUNC_FPREFIXSUM		9
 	#define FUNC_FPREFIXFIXUP	10
+	
+	#define FUNC_FREEZE         11
+	
 	#define FUNC_MAX			12
 
 	
@@ -237,6 +240,7 @@
 		void SetupSpacing ();
 		void SetupAddVolume ( Vector3DF min, Vector3DF max, float spacing, float offs, int total );
         void SetupAddVolumeMorphogenesis(Vector3DF min, Vector3DF max, float spacing, float offs, int total );
+        void SetupAddVolumeMorphogenesis2(Vector3DF min, Vector3DF max, float spacing, float offs, int total );  // NB ony used in WriteDemoSimParams()
 		void SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, float cell_size, float border );		
 		void AllocateGrid ();
         void AllocateGrid(int gpu_mode, int cpu_mode);
@@ -315,6 +319,7 @@
 		void ComputePressureCUDA ();
 		void ComputeQueryCUDA ();
 		void ComputeForceCUDA ();	
+        void FreezeCUDA ();
 		void SampleParticlesCUDA ( float* outbuf, uint3 res, float3 bmin, float3 bmax, float scalar );		
 		void AdvanceCUDA ( float time, float dt, float ss );
 		void EmitParticlesCUDA ( float time, int cnt );

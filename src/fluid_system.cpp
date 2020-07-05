@@ -99,6 +99,8 @@ void FluidSystem::Initialize (/*int _pnum = 65536*128, int _pmode = RUN_GPU_FULL
     LoadKernel ( FUNC_SAMPLE,			"sampleParticles" );
     LoadKernel ( FUNC_FPREFIXSUM,		"prefixSum" );
     LoadKernel ( FUNC_FPREFIXFIXUP,		"prefixFixup" );
+    LoadKernel ( FUNC_FREEZE,		    "freeze" );
+    
 
     std::cout << "Chk1.2 \n";
     size_t len = 0;
@@ -145,6 +147,7 @@ void FluidSystem::InitializeCuda ()         // used for load_sim  /home/nick/Pro
     LoadKernel ( FUNC_SAMPLE,			"sampleParticles" );
     LoadKernel ( FUNC_FPREFIXSUM,		"prefixSum" );
     LoadKernel ( FUNC_FPREFIXFIXUP,		"prefixFixup" );
+    LoadKernel ( FUNC_FREEZE,		    "freeze" );
 
     std::cout << "Chk1.2 \n";
     size_t len = 0;
@@ -562,12 +565,12 @@ int FluidSystem::AddParticleMorphogenesis ()
 
     *(m_Fluid.bufI(FNERVEIDX) + n) = 0;
 
-    uint* Conc = (m_Fluid.bufI(FCONC) + n*NUM_TF);
+    uint* Conc = (m_Fluid.bufI(FCONC) + n * NUM_TF);
     for(int j=0; j<(NUM_TF); j++) {
         Conc[j] = 0;
     }
 
-    uint* EpiGen = (m_Fluid.bufI(FEPIGEN) + n*NUM_GENES);
+    uint* EpiGen = (m_Fluid.bufI(FEPIGEN) + n * NUM_GENES);
     for(int j=0; j<(NUM_GENES); j++) {
         EpiGen[j]= 0;
     }
@@ -730,12 +733,8 @@ void FluidSystem::SetupAddVolumeMorphogenesis(Vector3DF min, Vector3DF max, floa
     std::cout << " chk1.2.1 " << std::flush ;
     for (pos.y = min.y; pos.y <= max.y; pos.y += spacing ) {
         
-        //std::cout << "\n pos.y = " << pos.y << std::flush ;
-        
         for (int xz=0; xz < cnt; xz++ ) {
             
-            //std::cout << "\n xz = " << xz << std::flush ;
-
             pos.x = min.x + (xz % int(cntx))*spacing;
             pos.z = min.z + (xz / int(cntx))*spacing;
             p = AddParticleMorphogenesis (); // AddParticle (); //
@@ -753,6 +752,98 @@ void FluidSystem::SetupAddVolumeMorphogenesis(Vector3DF min, Vector3DF max, floa
             }
         }
     }
+}
+
+void FluidSystem::SetupAddVolumeMorphogenesis2(Vector3DF min, Vector3DF max, float spacing, float offs, int total )  // NB ony used in WriteDemoSimParams() called by make_demo.cpp . Creates a cuboid with all particle values definable.
+{
+std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
+    Vector3DF pos;
+    int p;
+    float dx, dy, dz;
+    int cntx, cntz;
+    cntx = (int) ceil( (max.x-min.x-offs) / spacing );
+    cntz = (int) ceil( (max.z-min.z-offs) / spacing );
+    int cnt = cntx * cntz;
+    int c2;
+
+    min += offs;
+    max -= offs;
+
+    dx = max.x-min.x;
+    dy = max.y-min.y;
+    dz = max.z-min.z;
+
+    Vector3DF rnd;
+
+    c2 = cnt/2;
+    
+    Vector3DF Pos, Vel; 
+    uint Age, Clr, Particle_ID, Mass_Radius, /*mass, radius,*/ NerveIdx;
+    uint ElastIdx[BONDS_PER_PARTICLE*2];
+    uint Conc[NUM_TF];
+    uint EpiGen[NUM_GENES];
+    
+    Particle_ID = 0; // NB Particle_ID=0 means "no particle" in ElastIdx.
+    
+    for (Pos.x = min.x; Pos.x <= max.x; Pos.x += spacing ) {
+        for (Pos.y = min.y; Pos.y <= max.y; Pos.y += spacing){
+            for (Pos.z = min.z; Pos.z <= max.z; Pos.z += spacing){     //for (int xz=0; xz < cnt; xz++ ) {
+                Particle_ID ++;  // NB AddParticleMorphogenesis2(...) checks not to exceed max num particles
+                Vel.x=0; Vel.y=0; Vel.z=0; 
+                Age =  0; 
+                
+                // Colour of particles
+                Vector3DF clr ( (pos.x-min.x)/dx, 0, (pos.z-min.z)/dz );
+                clr *= 0.8;
+                clr += 0.2;
+                clr.Clamp (0, 1.0);
+                Clr = COLORA( clr.x, clr.y, clr.z, 1);
+                
+                // Modulus & length of elastic bonds
+                // 8bits log modulus + 24bit uid, with fixed length // but for now 16bit modulus and radius
+                uint modulus, length, mod_len;
+                modulus = uint(m_Param [ PINTSTIFF ]) ; // m_Param [ PINTSTIFF ] =		1.0f;
+                length = uint(1000 * m_Param [ PSMOOTHRADIUS ]); // m_Param [ PSMOOTHRADIUS ] =	0.015f;	// m // related to spacing, but also max particle range i.e. ....
+                mod_len = ( modulus <<16 | length ); // NB should mask length to prevent it exceeding 16bits, i.e. 255*255
+                
+                for (int i = 0; i<BONDS_PER_PARTICLE;i++){
+                    ElastIdx[i*2] = 0; // particle IDs must be found by "freeze kernel", 
+                    ElastIdx[i*2 +1] = mod_len; // but set modulus and length here
+                }
+                
+                // Mass & radius of particles
+                // 4bit mass + 4bit radius + 24bit uid // but for now, 16bit mass & radius
+                // Note m_params[] is set in "FluidSystem::SetupDefaultParams ()" and "FluidSystem::SetupExampleParams ()"
+                // mass = m_Param[PMASS]; // 0.00020543f; // kg
+                // radius = m_Param[PRADIUS]; // 0.015f; // m
+                Mass_Radius =  ( (uint(m_Param[PMASS]*255.0f*255.0f)<<16) | uint(m_Param[PRADIUS]*255.0f*255.0f) ) ; // mass=>13, radius=>975
+                
+                // nerve connections to particles
+                if (Particle_ID % 10 == 0){NerveIdx = Particle_ID/10;} else {NerveIdx = 0;} // Every 10th particle has nerve connection
+                
+                // morphogen & transcription factor concentrations
+                for (int i=0; i< NUM_TF; i++){ Conc[i] = 1 ;}
+                
+                // epigenetic state of each gene in this particle
+                for (int i=0; i< NUM_GENES; i++){ EpiGen[i] = i ;}
+            
+                p = AddParticleMorphogenesis2 (
+                /* Vector3DF* */ &Pos, 
+                /* Vector3DF* */ &Vel, 
+                /* uint */ Age, 
+                /* uint */ Clr, 
+                /* uint *_*/ ElastIdx, 
+                /* uint */ Particle_ID, 
+                /* uint */ Mass_Radius, 
+                /* uint */ NerveIdx, 
+                /* uint* */ Conc, 
+                /* uint* */ EpiGen 
+                );
+                if(p==-1){std::cout << "\n SetupAddVolumeMorphogenesis2 exited on p==-1, Pos=("<<Pos.x<<","<<Pos.y<<","<<Pos.z<<"), Particle_ID="<<Particle_ID<<" \n " << std::flush ; ;return;}
+            }
+        }
+    }
+    std::cout << "\n SetupAddVolumeMorphogenesis2 finished \n" << std::flush ;
 }
 
 
@@ -801,7 +892,7 @@ void FluidSystem::EmitParticles ()
 ///////////////////////////////////////////////////////////////////
 void FluidSystem::Run ()
 {
-std::cout << "\tFluidSystem::Run ()"<<std::flush;
+//std::cout << "\tFluidSystem::Run () "<<std::flush;
     //case RUN_GPU_FULL:					// Full CUDA pathway, GRID-accelerted GPU, /w deep copy sort
 //TransferFromCUDA ();
 //std::cout << "\n\n Chk1 \n"<<std::flush;
@@ -818,6 +909,8 @@ std::cout << "\tFluidSystem::Run ()"<<std::flush;
     ComputePressureCUDA();
 //TransferFromCUDA ();
 //std::cout << "\n\n Chk5 \n"<<std::flush;
+    FreezeCUDA ();                                  // makes the system plastic, ie the bonds keep reforming
+//std::cout << "\n\n Chk6 \n"<<std::flush;
     ComputeForceCUDA ();
 //TransferFromCUDA ();
 //std::cout << "\n\n Chk6 \n"<<std::flush;
@@ -2262,22 +2355,22 @@ void FluidSystem::SavePoints_asciiPLY ( const char * relativePath, int frame )
 #include <stdlib.h>
 
 #define DATASETNAME "Vec3DF_Array"
-#define NX     5                      /* dataset dimensions * /
+#define NX     5                      / * dataset dimensions * /
 #define NY     3
 #define RANK   2
 
 int FluidSystem::WriteParticlesToHDF5File (int filenum)
 {
     std::cout << "WriteParticlesToHDF5File \n" << std::flush;
-    hid_t       file, dataset;         /* file and dataset handles * /
-    hid_t       datatype, dataspace;   /* handles * /
-    hsize_t     dimsf[2];              /* dataset dimensions * /
+    hid_t       file, dataset;         / * file and dataset handles * /
+    hid_t       datatype, dataspace;   / * handles * /
+    hsize_t     dimsf[2];              / * dataset dimensions * /
     herr_t      status;
 
     const int NX =  NumPoints();
 
     int         i, j;
-    float **    data = new float*[NX];  /* allocate data to write * /
+    float **    data = new float*[NX];  / * allocate data to write * /
     for(i=0; i<NX; ++i)
 	data[i] =  new float[NY];
 
@@ -2286,7 +2379,7 @@ int FluidSystem::WriteParticlesToHDF5File (int filenum)
 	return -1;
     }
 
-    /* Data  and output buffer initialization.  * /
+    / * Data  and output buffer initialization.  * /
     for (j = 0; j < NX; j++) {
 	for (i = 0; i < NY; i++)
 	    data[j][i] = (float)(i + j);
@@ -2297,34 +2390,34 @@ int FluidSystem::WriteParticlesToHDF5File (int filenum)
     filenum += 100000;    // ensures numerical and alphabetic order match
 	sprintf ( filename, "particles_pos_%04d.h5", filenum );
 
-    /* Create a new file using H5F_ACC_TRUNC access,
+    / * Create a new file using H5F_ACC_TRUNC access,
      * default file creation properties, and default file
      * access properties. * /
-    file = H5Fcreate(/*FILE2 * /filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    file = H5Fcreate(/ *FILE2 * /filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
-    /* Describe the size of the array and create the data space for fixed
+    / * Describe the size of the array and create the data space for fixed
      * size dataset. * /
     dimsf[0] = NX;
     dimsf[1] = NY;
     dataspace = H5Screate_simple(RANK, dimsf, NULL);
 
-    /* Define datatype for the data in the file.
+    / * Define datatype for the data in the file.
      * We will store little endian INT numbers.* /
-    datatype = H5Tcopy(H5T_IEEE_F64LE/*H5T_NATIVE_INT   * /);
+    datatype = H5Tcopy(H5T_IEEE_F64LE / *H5T_NATIVE_INT   * /);
     status = H5Tset_order(datatype, H5T_ORDER_LE);
 
-    /* Create a new dataset within the file using defined dataspace and
+    / * Create a new dataset within the file using defined dataspace and
      * datatype and default dataset creation properties. * /
     dataset = H5Dcreate(file, DATASETNAME, datatype, dataspace,
 			H5P_DEFAULT,
 			H5P_DEFAULT,
 			H5P_DEFAULT);
 
-    /* Write the data to the dataset using default transfer properties.   * /
-    status = H5Dwrite(dataset, H5T_IEEE_F64LE/*H5T_NATIVE_INT  * /, H5S_ALL, H5S_ALL,
-		      H5P_DEFAULT, m_Fluid.bufV3(FPOS) /*data  * /);
+    / * Write the data to the dataset using default transfer properties.   * /
+    status = H5Dwrite(dataset, H5T_IEEE_F64LE / * H5T_NATIVE_INT  * /, H5S_ALL, H5S_ALL,
+		      H5P_DEFAULT, m_Fluid.bufV3(FPOS) / * data  * /);
 
-    /* Close/release resources. * /
+    / * Close/release resources. * /
     H5Sclose(dataspace);
     H5Tclose(datatype);
     H5Dclose(dataset);
@@ -2406,7 +2499,7 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath )
 
     m_Param[PEXAMPLE] = 2;      // wave pool example.
     m_Param [PGRID_DENSITY] = 2.0;
-    m_Param [PNUM] = 1000;    // minimal simulation
+    m_Param [PNUM] = 1000000;    //1000 = minimal simulation, 1000000 = large simulation
 
     AllocateBuffer ( FPARAMS, sizeof(FParams), 1,0,/*0, 1,*/ GPU_OFF, CPU_YES );//AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode ) 
 
@@ -2419,32 +2512,34 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath )
     SetupExampleParams();
     SetupExampleGenome();
 
-    mMaxPoints = m_Param [PNUM];
+    mMaxPoints = m_Param [PNUM];    
+    
     m_Param [PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
     SetupKernels();
     SetupSpacing();
     SetupGrid ( m_Vec[PVOLMIN], m_Vec[PVOLMAX], m_Param[PSIMSCALE], m_Param[PGRIDSIZE], 1.0f );	// Setup grid
 
-    std::cout << " chk1.0 " << std::flush ;
+    //std::cout << " chk1.0 " << std::flush ;
     
     AllocateParticles ( mMaxPoints, GPU_OFF, CPU_YES );  // allocates only cpu buffer for particles
     
-    std::cout << " chk1.1 " << std::flush ;
+    //std::cout << " chk1.1 " << std::flush ;
     AllocateGrid(GPU_OFF, CPU_YES);
-    std::cout << " chk1.2 " << std::flush ;
+    //std::cout << " chk1.2 " << std::flush ;
+    
     //SetupAddVolume(m_Vec[PINITMIN], m_Vec[PINITMAX], m_Param[PSPACING], 0.1f, (int)m_Param[PNUM]);
-    SetupAddVolumeMorphogenesis(m_Vec[PINITMIN], m_Vec[PINITMAX], m_Param[PSPACING], 0.1f, (int)m_Param[PNUM]);
-    std::cout << " chk1.3 " << std::flush ;
+    SetupAddVolumeMorphogenesis2(m_Vec[PINITMIN], m_Vec[PINITMAX], m_Param[PSPACING], 0.1f, (int)m_Param[PNUM]);
+    //std::cout << " chk1.3 " << std::flush ;
     
     // write data to file
     WriteSimParams ( relativePath );
-    std::cout << "\n WriteSimParams ( relativePath );  completed \n" << std::flush ;
+    //std::cout << "\n WriteSimParams ( relativePath );  completed \n" << std::flush ;
     WriteGenome ( relativePath);
-    std::cout << "\n WriteGenome ( relativePath );  completed \n" << std::flush ;
+    //std::cout << "\n WriteGenome ( relativePath );  completed \n" << std::flush ;
     SavePointsCSV2 ( relativePath, 1 );                                                  //SavePointsCSV ( relativePath, 1 );
-    std::cout << "\n SavePointsCSV ( relativePath, 1 );  completed \n" << std::flush ;
+    //std::cout << "\n SavePointsCSV ( relativePath, 1 );  completed \n" << std::flush ;
     SavePoints_asciiPLY ( relativePath, 1 );
-    std::cout << "\n SavePoints_asciiPLY ( relativePath, 1 );  completed \n" << std::flush ;
+    //std::cout << "\n SavePoints_asciiPLY ( relativePath, 1 );  completed \n" << std::flush ;
 }
 
 
@@ -2801,6 +2896,10 @@ std::cout<<" m_Fluid.gpu(FPOS)="<< m_Fluid.gpu(FPOS)<<"\tm_Fluid.bufC(FPOS)="<< 
     // add extra data for morphogenesis
     cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FELASTIDX), m_Fluid.bufC(FELASTIDX),	mNumPoints *sizeof(uint[BONDS_PER_PARTICLE * 2]) ),	"TransferToCUDA", "cuMemcpyHtoD", "FELASTIDX", mbDebug);
 //std::cout<<" m_Fluid.gpu(FELASTIDX)="<< m_Fluid.gpu(FELASTIDX)<<"\tm_Fluid.bufC(FELASTIDX)="<< *m_Fluid.bufC(FELASTIDX)<<"\n"<<std::flush;
+    
+    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FPARTICLE_ID),	m_Fluid.bufC(FPARTICLE_ID),			mNumPoints *sizeof(uint) ),		"TransferToCUDA", "cuMemcpyHtoD", "FPARTICLE_ID", mbDebug);
+    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FMASS_RADIUS),	m_Fluid.bufC(FMASS_RADIUS),			mNumPoints *sizeof(uint) ),		"TransferToCUDA", "cuMemcpyHtoD", "FMASS_RADIUS", mbDebug);
+    
 
     cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FNERVEIDX), m_Fluid.bufC(FNERVEIDX),	mNumPoints *sizeof(uint) ),	"TransferToCUDA", "cuMemcpyHtoD", "FNERVEIDX", mbDebug);
 //std::cout<<" m_Fluid.gpu(FNERVEIDX)="<< m_Fluid.gpu(FNERVEIDX)<<"\tm_Fluid.bufC(FNERVEIDX)="<< *m_Fluid.bufC(FNERVEIDX)<<"\n"<<std::flush;
@@ -2828,6 +2927,9 @@ void FluidSystem::TransferFromCUDA ()
     // add extra data for morphogenesis
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FELASTIDX),	m_Fluid.gpu(FELASTIDX),	mNumPoints *sizeof(uint[BONDS_PER_PARTICLE * 2]) ),	"TransferFromCUDA", "cuMemcpyDtoH", "FELASTIDX", mbDebug);
 //std::cout<<" m_Fluid.gpu(FELASTIDX)="<< m_Fluid.gpu(FELASTIDX)<<"\tm_Fluid.bufC(FELASTIDX)="<< static_cast<void*>(m_Fluid.bufC(FELASTIDX))<<"\n"<<std::flush;   
+    
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPARTICLE_ID),	m_Fluid.gpu(FPARTICLE_ID),	mNumPoints *sizeof(uint) ),	"TransferFromCUDA", "cuMemcpyDtoH", "FPARTICLE_ID", mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FMASS_RADIUS),	m_Fluid.gpu(FMASS_RADIUS),	mNumPoints *sizeof(uint) ),	"TransferFromCUDA", "cuMemcpyDtoH", "FMASS_RADIUS", mbDebug);
     
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FNERVEIDX),	m_Fluid.gpu(FNERVEIDX),	mNumPoints *sizeof(uint) ),	"TransferFromCUDA", "cuMemcpyDtoH", "FNERVEIDX", mbDebug);
 //std::cout<<" m_Fluid.gpu(FNERVEIDX)="<< m_Fluid.gpu(FNERVEIDX)<<"\tm_Fluid.bufC(FNERVEIDX)="<< static_cast<void*>(m_Fluid.bufC(FNERVEIDX))<<"\n"<<std::flush;    
@@ -2952,10 +3054,14 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos )
     TransferToTempCUDA ( FGNDX,		mNumPoints *sizeof(uint) );
     
 //      add extra data for morphogenesis
-//     TransferToTempCUDA ( FELASTIDX,		mNumPoints *sizeof(uint) );
-//     TransferToTempCUDA ( FNERVEIDX,		mNumPoints *sizeof(uint) );
-//     TransferToTempCUDA ( FCONC,		    mNumPoints *sizeof(uint) );
-//     TransferToTempCUDA ( FEPIGEN,		mNumPoints *sizeof(uint) );
+     TransferToTempCUDA ( FELASTIDX,		mNumPoints *sizeof(uint[BONDS_PER_PARTICLE * 2]) );
+     
+     TransferToTempCUDA ( FPARTICLE_ID,		mNumPoints *sizeof(uint) );
+     TransferToTempCUDA ( FMASS_RADIUS,		mNumPoints *sizeof(uint) );
+    
+     TransferToTempCUDA ( FNERVEIDX,		mNumPoints *sizeof(uint) );
+     TransferToTempCUDA ( FCONC,		    mNumPoints *sizeof(uint[NUM_TF]) );
+     TransferToTempCUDA ( FEPIGEN,		mNumPoints *sizeof(uint[NUM_GENES]) );
 
     // Reset grid cell IDs
     //cuCheck(cuMemsetD32(m_Fluid.gpu(FGCELL), GRID_UNDEF, numPoints ), "cuMemsetD32(Sort)");
@@ -2982,6 +3088,12 @@ void FluidSystem::ComputeForceCUDA ()
 {
     void* args[1] = { &m_FParams.pnum };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_FORCE],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputeForceCUDA", "cuLaunch", "FUNC_COMPUTE_FORCE", mbDebug);
+}
+
+void FluidSystem::FreezeCUDA ()
+{
+    void* args[1] = { &m_FParams.pnum };
+    cuCheck ( cuLaunchKernel ( m_Func[FUNC_FREEZE],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputeForceCUDA", "cuLaunch", "FUNC_FREEZE", mbDebug);
 }
 
 void FluidSystem::AdvanceCUDA ( float tm, float dt, float ss )

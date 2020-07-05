@@ -113,8 +113,10 @@ extern "C" __global__ void countingSortFull ( int pnum )
         fbuf.bufI (FMASS_RADIUS) [sort_ndx] =	ftemp.bufI(FMASS_RADIUS) [i];
         
         fbuf.bufI (FNERVEIDX) [sort_ndx] =	ftemp.bufI(FNERVEIDX) [i];
-        fbuf.bufI (FCONC) [sort_ndx] =		ftemp.bufI(FCONC) [i];
-        fbuf.bufI (FEPIGEN) [sort_ndx] =	ftemp.bufI(FEPIGEN) [i];  
+        
+        for (int a=0;a<NUM_TF;a++){fbuf.bufI (FCONC) [sort_ndx * NUM_TF + a] =		ftemp.bufI(FCONC) [i * NUM_TF + a];}
+        
+        for (int a=0;a<NUM_TF;a++){fbuf.bufI (FEPIGEN) [sort_ndx * NUM_GENES + a] =	ftemp.bufI(FEPIGEN) [i * NUM_GENES + a];}
 	}
 } 
 
@@ -169,43 +171,53 @@ extern "C" __global__ void computePressure ( int pnum )
 	fbuf.bufF(FDENSITY)[ i ] = 1.0f / sum;
 }
 
-extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell, uint particleID,
-                                               uint elastIdx[BONDS_PER_PARTICLE * 2], uint bond[BONDS_PER_PARTICLE][2], 
+extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell, 
+                                               //uint particleID,
+                                               uint elastIdx[BONDS_PER_PARTICLE * 2], 
+                                               uint bond[BONDS_PER_PARTICLE][2], 
                                                uchar intact[BONDS_PER_PARTICLE]
                                                /*uint particleID[BONDS_PER_PARTICLE], uint  BondType[BONDS_PER_PARTICLE]*/)
 {			
 	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return make_float3(0,0,0);               // If the cell is empty, skip it.
 
-	float dsq, c, pterm;	
-	float3 dist, eterm, force = make_float3(0,0,0);
+	float dsq, abs_dist, c, pterm;	
+	float3 dist = make_float3(0,0,0), eterm  = make_float3(0,0,0), force = make_float3(0,0,0);
 	int j;
-    
-
 	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];
+    uint particleID;
 
 	for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {          // For particles in this cell.
-		j = fbuf.bufI(FGRID)[ cndx ];				                                     
+		j = fbuf.bufI(FGRID)[ cndx ];
+        particleID = fbuf.bufI(FPARTICLE_ID)[j];
 		dist = ( ipos - fbuf.bufF3(FPOS)[ j ] );                                  // dist in cm (Rama's comment)
 		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                    // scalar distance squared
 		if ( dsq < fparam.rd2 && dsq > 0) {                                       // IF in-range && not the same particle
-			dsq = sqrt(dsq * fparam.d2);                                          // sqrt(dist^2 * sim_scale^2))
+            abs_dist = sqrt(dsq); 
+            dsq = sqrt(dsq * fparam.d2);                                          // sqrt(dist^2 * sim_scale^2))
 			c = ( fparam.psmoothradius - dsq ); 
-			pterm = fparam.psimscale * -0.5f * c * fparam.spikykern * ( ipress + fbuf.bufF(FPRESS)[ j ] ) / dsq;			
+			pterm = fparam.psimscale * -0.5f * c * fparam.spikykern * ( ipress + fbuf.bufF(FPRESS)[ j ] ) / dsq;
             
-            //  elastic force due to bonds
+            // elastic force due to bonds
             uint rest_len = REST_LENGTH * fparam.pradius;
-            for(int a=1; a < BONDS_PER_PARTICLE ; a++){ // for this other particle, check list of bonds for particle of this thread
-                if(particleID == elastIdx[a]){      // bond present
-                    float abs_dist = sqrt(dsq);
-                    if( abs_dist < bond[a][1] ){    // bond intact
-                        eterm = dist * ( (rest_len - abs_dist) * bond[a][0] / abs_dist ); // exerts force
-                        intact[a]+=1;                // mark bond intact n.b. this catches double counting as well as out of range bonds.
-                    }
-                    break;                          // bond processed => break out of for loop 
+            for(int a=0; a < BONDS_PER_PARTICLE ; a++){     // for this other particle, check list of bonds for particle of this thread
+                if(particleID == elastIdx[a]){              // bond present
+                    //float abs_dist = dsq; //sqrt(dsq); NB previously took sqrt
+                    //if( abs_dist < bond[a][1] ){            // bond intact                  // bond[a][0] = modulus, bond[a][1] = elastic limit
+                        eterm = dist * ( (rest_len - abs_dist ) * bond[a][0] / (abs_dist * 100) );   // exerts force  ## NB the direction & magnitude of the x,y,z components of the force.
+                        
+                        
+                        // ## NB Must send equal and oposdite force to the other particle
+                        fbuf.bufF3(FFORCE)[ j ] -= eterm;
+                        
+                        
+                        intact[a]+=1;                       // mark bond intact n.b. this catches double counting as well as out of range bonds.
+//                        printf(" CFo1 a=%i eterm=(%f,%f,%f),\t",a,eterm.x,eterm.y,eterm.z);
+                    //}
+                    //break;                                  // bond processed => break out of for loop 
                 }
             }            
             
-			force += (eterm + pterm * dist + fparam.vterm * ( fbuf.bufF3(FVEVAL)[ j ] - iveleval )) * c * idens * (fbuf.bufF(FDENSITY)[ j ] ); 
+			force +=  eterm + ( pterm * dist + fparam.vterm * ( fbuf.bufF3(FVEVAL)[ j ] - iveleval )) * c * idens * (fbuf.bufF(FDENSITY)[ j ] ); 
             /*
             // force due to pressure gradient PLUS viscosity.
             //   pterm(-ve scalar) * distance(float3) => repulsion
@@ -243,28 +255,28 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
 
 extern "C" __global__ void computeForce ( int pnum)
 {			
-	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;	          // particle index				
+	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                // particle index
 	if ( i >= pnum ) return;
 
 	// Get search cell	
 	uint gc = fbuf.bufI(FGCELL)[ i ];
-	if ( gc == GRID_UNDEF ) return;						              // particle out-of-range
+	if ( gc == GRID_UNDEF ) return;                                        // particle out-of-range
 	gc -= (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
 
 	// Sum Pressures	
-	register float3 force;                                            // request to compiler to store in a register for speed.
+	register float3 force;                                                 // request to compiler to store in a register for speed.
 	force = make_float3(0,0,0);		
     
     uint elastIdx[BONDS_PER_PARTICLE];
     uint bond[BONDS_PER_PARTICLE][2];
-    for (int a=0;a<BONDS_PER_PARTICLE;a++){                             // copy FELASTIDX to thread memory for particle i.
-        elastIdx[a] = fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2];// particle IDs   i*BONDS_PER_PARTICLE*2 + a  //  [i][a*2]
-        uint temp = fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2 +1]; //[i][a*2]
-        bond[a][0] = temp & TWO_POW_24_MINUS_1;     // modulus          // '&' bitwise AND is bit masking.  
-        bond[a][1] = (temp >> 24);                  // elastic limit    // '>>' Bit shift can deliver high bits to bottom
+    for (int a=0;a<BONDS_PER_PARTICLE;a++){                                 // copy FELASTIDX to thread memory for particle i.
+        elastIdx[a] = fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2];   // particle IDs   i*BONDS_PER_PARTICLE*2 + a  //  [i][a*2]
+        uint temp = fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2 +1];  //[i][a*2]
+        bond[a][0] = temp & TWO_POW_24_MINUS_1;     // modulus              // '&' bitwise AND is bit masking.  
+        bond[a][1] = (temp >> 24);                  // elastic limit        // '>>' Bit shift can deliver high bits to bottom
     }
     uchar intact[BONDS_PER_PARTICLE];
-    for (int a=0;a<BONDS_PER_PARTICLE;a++){ intact[a]=0;}               // ledger for chcking bonds are intact.
+    for (int a=0;a<BONDS_PER_PARTICLE;a++){ intact[a]=0;}                   // ledger for checking bonds are intact.
     
     uint particleID = fbuf.bufI(FPARTICLE_ID)[i];   // ID of this particle
     
@@ -281,15 +293,150 @@ extern "C" __global__ void computeForce ( int pnum)
 */    
     
 	for (int c=0; c < fparam.gridAdjCnt; c++) {
-		force += contributeForce ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FPRESS)[ i ], fbuf.bufF(FDENSITY)[ i ], gc + fparam.gridAdj[c], particleID, elastIdx, bond , intact); /*particleID, BondType*/
+		force += contributeForce ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FPRESS)[ i ], fbuf.bufF(FDENSITY)[ i ], gc + fparam.gridAdj[c], /*particleID,*/ elastIdx, bond , intact); /*particleID, BondType*/
 	}
 	fbuf.bufF3(FFORCE)[ i ] += force;  //  += req for elastic bonds. NB need to reset to zero in  CountingSortFull(..)
+//	printf(" force=%f,%f,%f\t",force.x,force.y,force.z);
 	
-	for (int a=0;a<BONDS_PER_PARTICLE;a++){                            // remove broken bonds
-        if(intact[a]!=1){fbuf.bufII(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2 +1]=0;} // nb particle_ID = 0 must be "NO_PARTICLE"  // [i][a*2]
+	for (int a=0;a<BONDS_PER_PARTICLE;a++){                                // remove broken bonds
+        if(intact[a]==0){fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2]=0;} // nb particle_ID = 0 must be "NO_PARTICLE"  // [i][a*2]
+        if(intact[a]>1){
+            fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2]=0;
+            intact[a]--;
+        }
     }
 }
 
+
+    //(i)find how many unfilled bonds there are, 
+    // in contribute force, when checking other particles. If elastIdx[i][1] == 0 && particle ID is not in list, then add particle NB particles are assorted randomly within the bins BUT bins are sorted in sequence.  
+extern "C" __device__ void contributeFreeze ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell, 
+                                    //uint particleID,
+                                    uint elastIdx[BONDS_PER_PARTICLE * 2], 
+                                    uint new_bond_list[BONDS_PER_PARTICLE],
+                                    float new_bond_dsq[BONDS_PER_PARTICLE],
+                                    uint bonds_to_fill
+                           ){
+//    printf ( " contributeFreeze");
+    if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return;// make_float3(0,0,0);     // If the cell is empty, skip it.
+
+//    printf ( " CF1");
+//printf ( " particleID=%u ",particleID);
+    
+	float dsq;	
+	float3 dist;
+	int j;
+	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];
+
+	for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {    // For particles in this cell.
+		j = fbuf.bufI(FGRID)[ cndx ];                                         // j = index of other particle
+        uint particleID = fbuf.bufI(FPARTICLE_ID)[j];
+        bool known = false;
+        int idxA = 0;
+        for(int a=0; a < BONDS_PER_PARTICLE ; a++){                         // for this other particle, check list of bonds for particle of this thread
+            known = known || (particleID == elastIdx[a]);
+        }
+/*
+            //if(particleID == elastIdx[a*2]){
+            //    known=1;
+            //    idxA = a*2;
+                //break;  
+            //}
+*/
+/*
+        //printf ( " particleID=%u elastIdx[%i]=%u known=%i,\t",particleID, idxA, elastIdx[idxA],known);
+        //if(known==1){continue;}
+        
+//        printf ( " CF2"); ///  ## does not reach here.
+*/     
+                                     
+		dist = ( ipos - fbuf.bufF3(FPOS)[ j ] );                            // dist in cm (Rama's comment)
+                                                                            // only consider particles where dist.y>0 (also eliminates bonding to self). NB also only call cells >= in y.
+		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);              // scalar distance squared
+        
+//        printf ( " CF4 known=%s, (dsq > fparam.rd2)=%s, (dist.y<=0)=%s,\t", known ? "true" : "false", (dsq > fparam.rd2) ? "true" : "false", (dist.y<=0) ? "true" : "false" );
+        
+        known = known ||(dsq > fparam.rd2)||(dist.y<=0);                    // if particle out of range, skip it.
+        
+        
+
+		for(int k=0; k< BONDS_PER_PARTICLE ; k++){                               // fills first 'bonds_to_fill' of uint new_bond_list[4][2] with closest particles, for which dist.x>=0 && not allready bonds.
+//            printf ( " CF5 dsq = %f, new_bond_list[%i][1]=%f,\t",dsq, k, new_bond_dsq[k]);
+            if ((dsq < new_bond_dsq[k])&&(!known)){     // If closer, or new bond not yet filled.
+                new_bond_list[k] = particleID;                           // NB need to 
+                new_bond_dsq[k] = dsq;                                  // (i) initialize new_bond_list[4][2] to zero, (ii) launch only for 18 bins, (iii) transfer only new_bond_list[bonds_to_fill][2] to unfilled bonds
+                known = true;
+//                printf ( " CF6");
+            }
+        }
+    }
+}
+
+
+extern "C" __global__ void freeze ( int pnum)       // creates elastic bonds 
+{
+    //printf ( " F1");
+    uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;	          // particle index				
+	if ( i >= pnum ) return;
+    uint particleID = fbuf.bufI(FPARTICLE_ID)[i];                 // ID of this particle
+    //printf ( "\tfreeze\t");
+//    printf ( " %u=particleID, ", particleID );
+    //if (particleID==0)return;
+
+	// Get search cell	
+	uint gc = fbuf.bufI(FGCELL)[ i ];
+	if ( (gc == GRID_UNDEF) || (particleID==0) ) return;						              // particle out-of-range
+	gc -= (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
+
+    uint elastIdx[BONDS_PER_PARTICLE];
+    //uint bond[BONDS_PER_PARTICLE][2];
+    uint bonds_to_fill = 0;
+    
+    for (int a=0;a<BONDS_PER_PARTICLE;a++){ 
+        elastIdx[a] = fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2]; 
+        if (fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2]==0) bonds_to_fill++;
+    }   // copy FELASTIDX to thread memory for particle i.
+/*        
+        // particle IDs   i*BONDS_PER_PARTICLE*2 + a  //  [i][a*2]
+        //uint temp = fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2 +1]; //[i][a*2]
+        //bond[a][0] = temp & TWO_POW_24_MINUS_1;     // modulus          // '&' bitwise AND is bit masking.  
+        //bond[a][1] = (temp >> 24);                  // elastic limit    // '>>' Bit shift can deliver high bits to bottom
+      //  if (fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + a*2]==0) bonds_to_fill++;
+    //printf ( " %u:bonds_to_fill, ", bonds_to_fill );
+*/  
+//    printf ( " %u:bonds_to_fill, ", bonds_to_fill );
+
+    if (bonds_to_fill>0){
+        uint new_bond_list[BONDS_PER_PARTICLE];
+        float new_bond_dsq[BONDS_PER_PARTICLE];
+        for (int a=0;a<BONDS_PER_PARTICLE;a++){ 
+            new_bond_list[a]=0; 
+            new_bond_dsq[a]=fparam.rd2;
+        }   
+    
+        for (int c=0; c < fparam.gridAdjCnt; c++) {                   // fetch list of nearest unbonded particles > in x than this particle.
+            contributeFreeze ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FPRESS)[ i ], fbuf.bufF(FDENSITY)[ i ], gc + fparam.gridAdj[c], /*particleID,*/ elastIdx, new_bond_list, new_bond_dsq, bonds_to_fill);
+        }
+        
+        //printf ( "\t%u:new_bond_list[0][0],", new_bond_list[0][0] );
+    
+        for (int b=0, c=0;b<BONDS_PER_PARTICLE; b++){                      // insert new bonds
+            if (elastIdx[b]==0  && c<bonds_to_fill){
+                fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + b*2] = new_bond_list[c];
+                c++;
+                //float len =      sqrt(new_bond_list[b][1]);         // need to set modulus and elastic lim of bond. NB we use fixed rest length for bonds = REST_LENGTH 
+                //length = uint(1000 * m_Param [ PSMOOTHRADIUS ]);
+                //modulus = uint(m_Param [ PINTSTIFF ])              // NNB initially MakeDemo inserts mod_lim, but normally would need to look up bond type. 
+                //mod_len = ( modulus <<16 | length );
+                //elastic_lim = 
+                //uint mod_lim = 
+                if (fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + b*2 +1] == 0){ fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE*2 + b*2 +1] = 65552 ;}; // nb MakeDemo sets 65551
+//                printf ( " F2");
+            };
+        }
+    }
+}
+    
 
 extern "C" __global__ void randomInit ( int seed, int numPnts )
 {
@@ -409,7 +556,7 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	if ( i >= numPnts ) return;
 	
 	if ( fbuf.bufI(FGCELL)[i] == GRID_UNDEF ) {
-		fbuf.bufF3(FPOS)[i] = make_float3(-1000,-1000,-1000);
+		fbuf.bufF3(FPOS)[i] = make_float3(fparam.pboundmin.x,fparam.pboundmin.y,fparam.pboundmin.z-2*fparam.gridRes.z);
 		fbuf.bufF3(FVEL)[i] = make_float3(0,0,0);
 		return;
 	}
@@ -423,6 +570,7 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	// Leapfrog integration						
 	accel = fbuf.bufF3(FFORCE)[i];
 	accel *= fparam.pmass;	
+//    printf(" accel=%f,%f,%f\t",accel.x,accel.y,accel.z);
 		
 	// Boundaries
 	// Y-axis
@@ -471,6 +619,7 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 		
 	// Gravity
 	accel += fparam.pgravity;
+//    printf(" accel+gravity=%f,%f,%f  gravity=%f,%f,%f\t",accel.x,accel.y,accel.z,fparam.pgravity.x,fparam.pgravity.y,fparam.pgravity.z);
 
 	// Accel Limit
 	speed = accel.x*accel.x + accel.y*accel.y + accel.z*accel.z;

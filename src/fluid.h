@@ -72,8 +72,9 @@
     // 
     // # if elastic force is written to both interacting particles, then the effective number of bonds doubles.
     // # i.e. each particle stores three bonds, but the average bonds per atom would be six.
-    #define BONDS_PER_PARTICLE  4   // current: 4 bonds plus length and modulus of each NB writtent to both particles so average 8 bonds per particle //old: actually 3, [0] for self ID, mass & radius
-#define REST_LENGTH  1  // need to find suitable number relative to partic;e and bin size, plus elastic limits.
+    #define BONDS_PER_PARTICLE  4   // current: 4 bonds plus length and modulus of each NB written to both particles so average 8 bonds per particle //old: actually 3, [0] for self ID, mass & radius
+#define REST_LENGTH  1  // need to find suitable number relative to particle and bin size, plus elastic limits.
+
     // Sensorimotor:
     // Sensory nerve endings & muscles need type and nerve uid to write/read.
     // 32bit uint for i/d, but use 3 bits for type (0)muscle, (1)stretch, (2)pressure/vibration, (3)temp, (4-7)other..

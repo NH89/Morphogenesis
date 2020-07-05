@@ -15,7 +15,7 @@ int main ( int argc, const char** argv )
 	char* endptr;
 
 	if ( argc != 3 ){
-	    printf("usage: fluid_m  number_of_particles  output_folder\n");
+	    printf("usage: morphogenesis  number_of_particles  output_folder\n");
 	    return 0;
 	}else {
 	    m_numpnts = strtoimax(argv[1],&endptr,10);

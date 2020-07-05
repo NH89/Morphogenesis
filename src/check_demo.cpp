@@ -35,6 +35,9 @@ int main ( int argc, const char** argv )
     fluid.ReadGenome(genomePath, GPU_OFF, CPU_YES);
     fluid.ReadPointsCSV2(pointsPath, GPU_OFF, CPU_YES);  //fluid.ReadPointsCSV(pointsPath, GPU_OFF, CPU_YES);
     
+    
+    
+    
     fluid.WriteSimParams ( outPath ); 
     fluid.WriteGenome( outPath );
     fluid.SavePointsCSV2 ( outPath, 1 );                 //fluid.SavePointsCSV ( outPath, 1 );
