@@ -57,7 +57,7 @@
 		__global__ void countingSortFull ( int pnum );		
 		__global__ void computeQuery ( int pnum );	
 		__global__ void computePressure ( int pnum );		
-		__global__ void computeForce ( int pnum );	
+		__global__ void computeForce ( int pnum , bool freeze = false);	
         //__global__ void freeze ( int pnum);                                                     // new freeze kernel, to generate elastic bonds.
 		__global__ void advanceParticles ( float time, float dt, float ss, int numPnts );
 		__global__ void emitParticles ( float frame, int emit, int numPnts );

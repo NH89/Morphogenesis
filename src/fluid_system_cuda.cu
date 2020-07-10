@@ -28,7 +28,7 @@
 
 #define CUDA_KERNEL
 #include "fluid_system_cuda.cuh"
-
+//#include <float.h>
 #include "cutil_math.h"			// cutil32.lib
 #include <string.h>
 #include <assert.h>
@@ -42,6 +42,7 @@ __constant__ FGenome		fgenome;		// GPU Genome for particle automata behaviour. A
 __constant__ uint			gridActive;
 
 #define SCAN_BLOCKSIZE		512
+#define FLT_MIN  0.000000001                // set here as 2^(-30)
 
 extern "C" __global__ void insertParticles ( int pnum )
 {
@@ -250,7 +251,7 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
     return force;
 }
 
-extern "C" __global__ void computeForce ( int pnum)
+extern "C" __global__ void computeForce ( int pnum, bool freeze)
 {			
 	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                         // particle index
 	if ( i >= pnum ) return;
@@ -281,7 +282,7 @@ if (i<10)printf("A: Before computeForce(): particle i=%u,\t(fbuf.bufI(FELASTIDX)
         float elastic_limit = (temp >> 24);                                         // '>>' Bit shift can deliver high bits to bottom
         dist = ( fbuf.bufF3(FPOS)[ i ] - fbuf.bufF3(FPOS)[ j ] );                   // dist in cm (Rama's comment)
         dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                      // scalar distance squared
-        abs_dist = sqrt(dsq);
+        abs_dist = sqrt(dsq) + FLT_MIN;                                             // FLT_MIN adds minimum +ve float, to prevent division by abs_dist=zero
         
         eterm = ((float)(dsq < elastic_limit))*(rest_len - abs_dist) * modulus * dist/(abs_dist*rest_len) ; 
 /*if (i<10)*/ printf("C: particle i=%u, a=%i, dsq=%f, temp=%u, elastic_limit=%f, rest_len=%f, abs_dist=%f,  modulus=%f, dist=(%f,%f,%f), eterm=(%f,%f,%f)\n",i,a,dsq,temp,elastic_limit,rest_len, abs_dist,modulus,dist.x,dist.y,dist.z,eterm.x,eterm.y,eterm.z );
@@ -295,24 +296,26 @@ if (i<10)printf("A: Before computeForce(): particle i=%u,\t(fbuf.bufI(FELASTIDX)
             bondsToFill++;
         }
     }
-/*if (i<10)*/ printf("D: {particle i=%u, bondsToFill=%u, force=(%f,%f,%f)}\n",i,bondsToFill,force.x,force.y,force.z);
+/*if (i<10)*/ printf("D: {particle i=%u, bondsToFill=%u, force=(%f,%f,%f), freeze=%s}\n",i,bondsToFill,force.x,force.y,force.z, (freeze==true) ? "true" : "false");
 
 	for (int c=0; c < fparam.gridAdjCnt; c++) {
-		force += contributeForce ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FPRESS)[ i ], fbuf.bufF(FDENSITY)[ i ], gc + fparam.gridAdj[c], bondsToFill, bonds , true);
+		force += contributeForce ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FPRESS)[ i ], fbuf.bufF(FDENSITY)[ i ], gc + fparam.gridAdj[c], bondsToFill, bonds , freeze);
 	}
 	fbuf.bufF3(FFORCE)[ i ] += force;                                               //  += req for elastic bonds. NB need to reset to zero in  CountingSortFull(..)
 
 
 	
-/*if (i<10)*/ //printf("E: [particle i=%u, force=(%f,%f,%f), bondsToFill=%u, (bonds[0][0]=%f, bonds[0][1]=%f), (bonds[1][0]=%f, bonds[1][1]=%f), (bonds[2][0]=%f, bonds[2][1]=%f), (bonds[3][0]=%f, bonds[3][1]=%f)],\n",i,force.x,force.y,force.z,bondsToFill,bonds[0][0],bonds[0][1],bonds[1][0],bonds[1][1],bonds[2][0],bonds[2][1],bonds[3][0],bonds[3][1] );
     
-    
-	for (int a=0, b=0; a< bondsToFill; a++){                                        // make new bonds
-        if(fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +1] == 0 && bonds[b][0] >=0){ // NB "bonds[b][0] = -1" is used to indicate no bond found
-           fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND] = bonds[b][0]; 
-           fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +1] = 33554433 ;          // nb MakeDemo sets 0
-           fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +2] = fbuf.bufI (FPARTICLE_ID) [(int)bonds[b][0]];  // save particle ID of the other particle NB for debugging
-           b++;
+    if(freeze==true){
+        /*if (i<10)*/ printf("E: [particle i=%u, force=(%f,%f,%f), bondsToFill=%u, (bonds[0][0]=%f, bonds[0][1]=%f), (bonds[1][0]=%f, bonds[1][1]=%f), (bonds[2][0]=%f, bonds[2][1]=%f), (bonds[3][0]=%f, bonds[3][1]=%f)],\n",i,force.x,force.y,force.z,bondsToFill,bonds[0][0],bonds[0][1],bonds[1][0],bonds[1][1],bonds[2][0],bonds[2][1],bonds[3][0],bonds[3][1] );
+
+        for (int a=0, b=0; a< bondsToFill; a++){                                        // make new bonds
+            if(fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +1] == 0 && bonds[b][0] >=0){ // NB "bonds[b][0] = -1" is used to indicate no bond found
+                fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND] = bonds[b][0]; 
+                fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +1] = 33554433 ;          // nb MakeDemo sets 0
+                fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +2] = fbuf.bufI (FPARTICLE_ID) [(int)bonds[b][0]];  // save particle ID of the other particle NB for debugging
+                b++;
+            }
         }
     }
 /*if (i<10)*/ /* printf("particle i=%u,\t(fbuf.bufI(FELASTIDX)[0][0]=%u, fbuf.bufI(FELASTIDX)[0][1]=%u),\t(fbuf.bufI(FELASTIDX)[1][0]=%u, fbuf.bufI(FELASTIDX)[1][1]=%u),\t(fbuf.bufI(FELASTIDX)[2][0]=%u, fbuf.bufI(FELASTIDX)[2][1]=%u),\t(fbuf.bufI(FELASTIDX)[3][0]=%u, fbuf.bufI(FELASTIDX)[3][1]=%u),\n",i,

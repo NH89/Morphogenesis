@@ -269,6 +269,7 @@
 
 		int				szPnts, szHash, szGrid;
 		int				stride, pnum;
+        bool            freeze;
 		int				chk;
 		float			pdist, pmass, prest_dens;
 		float			pextstiff, pintstiff;

@@ -928,6 +928,14 @@ void FluidSystem::Run ()
 }
 
 
+void FluidSystem::Freeze ()
+{
+    m_FParams.freeze = true;
+    Run();
+    m_FParams.freeze = false;
+}
+
+
 void FluidSystem::AdvanceTime ()
 {
     //std::cout << "FluidSystem::AdvanceTime (),  m_Time = "<< m_Time <<"\n";
@@ -2393,7 +2401,14 @@ void FluidSystem::SavePoints_asciiPLY_with_edges ( const char * relativePath, in
     
     for(int i=0; i<numpnt; i++) {
         ElastIdx = getElastIdx(i);                          // NB .ply requires particle position in list, not ID
-        for(int j=0; j<(BONDS_PER_PARTICLE ); j++) { fprintf(fp, "%u %u 255 255 0\n", i, ElastIdx[j * DATA_PER_BOND] ); }
+        for(int j=0; j<(BONDS_PER_PARTICLE ); j++) { 
+            int secondParticle = ElastIdx[j * DATA_PER_BOND];
+            int bond = ElastIdx[j * DATA_PER_BOND +1];
+            if (bond==0) secondParticle = i;
+            printf(" (bond=%i, secondParticle=%i)",bond,secondParticle);
+            fprintf(fp, "%u %u 255 255 0\n", i, secondParticle ); 
+            
+        }
     }
     
     
@@ -2847,6 +2862,7 @@ void FluidSystem::TransferToTempCUDA ( int buf_id, int sz )
 void FluidSystem::FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, float3 delta, float3 gmin, float3 gmax, int total, int chk )
 {
     m_FParams.pnum = num;
+    m_FParams.freeze = false;
     m_FParams.gridRes = res;
     m_FParams.gridSize = size;
     m_FParams.gridDelta = delta;
@@ -3148,7 +3164,7 @@ void FluidSystem::ComputePressureCUDA ()
 
 void FluidSystem::ComputeForceCUDA ()
 {
-    void* args[1] = { &m_FParams.pnum };
+    void* args[2] = { &m_FParams.pnum ,  &m_FParams.freeze};
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_FORCE],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputeForceCUDA", "cuLaunch", "FUNC_COMPUTE_FORCE", mbDebug);
 }
 /*

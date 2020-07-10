@@ -255,7 +255,8 @@
 		void FindNbrsGrid ();
 
 		// Simulation
-		void Run ();		
+		void Run ();	
+        void Freeze ();
 		void ValidateCUDA ();		
 		void RunPlayback ();
 		void AdvanceTime ();

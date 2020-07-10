@@ -88,7 +88,13 @@ std::cout <<"\nchk load_sim_1.4\n"<<std::flush;
     fluid.SavePointsCSV2 ( outPath, 3 );
     fluid.SavePoints_asciiPLY ( outPath, 3 );
  */   
+
+
+
 std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
+
+    fluid.Freeze ();                                    // creates the bonds
+
     for ( int i=1; i<num_files; i++ ) {
         for ( int j=0; j<steps_per_file; j++ ) {
             fluid.Run ();                               // run the simulation
