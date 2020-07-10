@@ -218,7 +218,7 @@
 		uint* getAge ( int n )			{ return &m_Fluid.bufI(FAGE)[n]; }
 		uint* getClr ( int n )			{ return &m_Fluid.bufI(FCLR)[n]; }
 //note #define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
-        uint* getElastIdx( int n ){ return &m_Fluid.bufI(FELASTIDX)[n*(BONDS_PER_PARTICLE * 2)]; } 
+        uint* getElastIdx( int n ){ return &m_Fluid.bufI(FELASTIDX)[n*(BONDS_PER_PARTICLE * DATA_PER_BOND)]; } 
         uint* getParticle_ID(int n ){ return &m_Fluid.bufI(FPARTICLE_ID)[n]; }
         
         uint* getMass_Radius(int n ){ return &m_Fluid.bufI(FMASS_RADIUS)[n]; }
@@ -346,11 +346,12 @@
 		void SavePointsCSV ( const char * relativePath, int frame );
         void SavePointsCSV2 ( const char * relativePath, int frame );
         void ReadSimParams ( const char * relativePath );    // path to folder containing simparams and .csv files
-        void WriteDemoSimParams ( const char * relativePath ); // Write standard demo to file, as demonstration of file format. 
+        void WriteDemoSimParams ( const char * relativePath, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim  ); // Write standard demo to file, as demonstration of file format. 
         void WriteSimParams ( const char * relativePath );
         void ReadPointsCSV ( const char * relativePath, int gpu_mode, int cpu_mode);
         void ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);
 		void SavePoints_asciiPLY ( const char * relativePath, int frame );
+        void SavePoints_asciiPLY_with_edges ( const char * relativePath, int frame );
 		//int WriteParticlesToHDF5File(int filenum);
         
         // Genome for Morphogenesis

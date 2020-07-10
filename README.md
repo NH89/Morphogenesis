@@ -46,7 +46,11 @@ The hacked remnant of the original.
 usage:
     
     cd data
-    ../build/install/bin/make_demo 
+    make_demo num_particles spacing x_dim y_dim z_dim
+    
+e.g.
+
+    ../build/install/bin/make_demo 125 1 6 6 6
     
 CPU-only test program to generate example **"SimParams.txt"** and **"particles_pos_vel_color100001.csv"** files for specifying models, and a **"particles_pos100001.ply"** for viewing a model in e.g. Meshlab.
 
@@ -56,9 +60,9 @@ usage:
     cd data
     ../build/install/bin/check_demo  demo  check 
     
-i.e
+e.g.
 
-    check_demo  simulation_data_folder  output_folder
+    ../build/install/bin/check_demo  simulation_data_folder  output_folder
     
 CPU-only test program to verify the ability to read and re-output models.
 
@@ -68,11 +72,12 @@ New launch program to load data from files, and run simulation on GPU.
 usage:
 
     cd data
-    ../build/install/bin/load_sim  demo  out
+    ../build/install/bin/load_sim  demo  out num_files steps_per_file save_ply(y/n) save_csv(y/n)
     
-i.e
+e.g.
 
-    load_sim  simulation_data_folder  output_folder
+    cd data/test
+    ./load_sim ../demo/ ../out/  10 3 y y
 
 
 ### viewing with Meshlab
