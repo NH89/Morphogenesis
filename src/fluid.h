@@ -73,7 +73,7 @@
     // # if elastic force is written to both interacting particles, then the effective number of bonds doubles.
     // # i.e. each particle stores three bonds, but the average bonds per atom would be six.
     #define BONDS_PER_PARTICLE  4   // current: 4 bonds plus length and modulus of each NB written to both particles so average 8 bonds per particle //old: actually 3, [0] for self ID, mass & radius
-#define DATA_PER_BOND 3
+#define DATA_PER_BOND 3 // 6 : [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID    // previously 3 : [0]current index, [1]mod_lim, [2]particle ID.
 #define BOND_DATA BONDS_PER_PARTICLE * DATA_PER_BOND
 #define REST_LENGTH  1  // need to find suitable number relative to particle and bin size, plus elastic limits.
 
@@ -151,8 +151,8 @@
 	#define FCLUSTER	13	    //# uint
  // additional buffers for morphogenesis   
     #define FELASTIDX   14      //# curently BOND_DATA = BONDS_PER_PARTICLE*3 = 12 //uint[BONDS_PER_PARTICLE * 2 = 8 ]  particleID, modulus, elastiic limit    /* old : 0=self UID, mass, radius. >0= modulus & particle UID */
-    #define FPARTICLE_IDX 29    //# uint // not used now //  index to look up order of particle from its ID, required for .ply edges
-    #define FPARTICLE_ID 30     //# uint  original pnum, used for bonds between particles. 32bit, track upto 4Bn particles.
+    #define FPARTICLE_IDX 29    //# uint[BONDS_PER_PARTICLE]  list of other particles' bonds connecting to this particle // NB risk of overwriting race condition, when making bonds.   
+    #define FPARTICLE_ID 30     //# uint original pnum, used for bonds between particles. 32bit, track upto 4Bn particles.
     #define FMASS_RADIUS 31     //# uint holding modulus 16bit and limit 16bit.      
     //#define FELASTMOD         //# uint[BONDS_PER_PARTICLE +1]  modulus of bond (use a standard length) //not required
     #define FNERVEIDX   15      //# uint

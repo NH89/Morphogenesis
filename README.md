@@ -72,12 +72,12 @@ New launch program to load data from files, and run simulation on GPU.
 usage:
 
     cd data
-    ../build/install/bin/load_sim  demo  out num_files steps_per_file save_ply(y/n) save_csv(y/n)
+    ../build/install/bin/load_sim  demo  out num_files steps_per_file freeze_steps save_ply(y/n) save_csv(y/n)
     
 e.g.
 
     cd data/test
-    ./load_sim ../demo/ ../out/  10 3 y y
+    ./load_sim ../demo/ ../out/  10 3 1 y y
 
 
 ### viewing with Meshlab

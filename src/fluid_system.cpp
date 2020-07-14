@@ -2038,7 +2038,7 @@ void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int 
     while (EOF != (ch=getc(points_file)))   if ('\n' == ch)  ++number_of_lines;
 
     // Allocate buffers for points
-    m_Param [PNUM] = number_of_lines;
+    m_Param [PNUM] = number_of_lines -1;                                    // NB there is a line of text above the particles, hence -1.
     mMaxPoints = m_Param [PNUM];
     m_Param [PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
 
@@ -2381,9 +2381,9 @@ void FluidSystem::SavePoints_asciiPLY_with_edges ( const char * relativePath, in
     
 //    std::cout << "Chk4.1.1\n";
 
-    fprintf(fp, "ply \n format ascii 1.0\n comment particle cloud from Fluids_v4\n element vertex %i\n", numpnt );
+    fprintf(fp, "ply \n format ascii 1.0\n comment particle cloud from Fluids_v4\n element vertex %i\n", numpnt  + 4); // +4 for axes
     fprintf(fp, "property float x\nproperty float y\nproperty float z\n");
-    fprintf(fp,"element edge %i\n",numpnt*BONDS_PER_PARTICLE);
+    fprintf(fp,"element edge %i\n",numpnt*BONDS_PER_PARTICLE + 3);    // +3 for axes
     fprintf(fp,"property int vertex1\nproperty int vertex2\nproperty uchar red\nproperty uchar green\nproperty uchar blue\n");
     fprintf(fp, "end_header\n");
 
@@ -2395,6 +2395,12 @@ void FluidSystem::SavePoints_asciiPLY_with_edges ( const char * relativePath, in
         Clr = getClr(i);
         fprintf(fp, "%f %f %f\n", Pos->x, Pos->y,Pos->z);
     }
+    Vector3DF axes = m_Vec[PINITMIN];
+    float len = sqrt(m_FParams.rd2);
+    fprintf(fp, "%f %f %f\n", axes.x, axes.y, axes.z);                             // points for axes placed at the origin of the particles created my make_demo
+    fprintf(fp, "%f %f %f\n", len + axes.x, axes.y, axes.z);
+    fprintf(fp, "%f %f %f\n", axes.x, len + axes.y, axes.z);
+    fprintf(fp, "%f %f %f\n", axes.x, axes.y, len + axes.z);
     
     // make index to look up particle position in list from particle ID
     // first allocate a buffer ?
@@ -2405,12 +2411,14 @@ void FluidSystem::SavePoints_asciiPLY_with_edges ( const char * relativePath, in
             int secondParticle = ElastIdx[j * DATA_PER_BOND];
             int bond = ElastIdx[j * DATA_PER_BOND +1];
             if (bond==0) secondParticle = i;
-            printf(" (bond=%i, secondParticle=%i)",bond,secondParticle);
+// printf(" (bond=%i, secondParticle=%i)",bond,secondParticle);
             fprintf(fp, "%u %u 255 255 0\n", i, secondParticle ); 
             
         }
     }
-    
+    fprintf(fp, "%u %u 255 0 0\n", NumPoints(), NumPoints()+1 );      // axes
+    fprintf(fp, "%u %u 0 255 0\n", NumPoints(), NumPoints()+2 ); 
+    fprintf(fp, "%u %u 0 0 255\n", NumPoints(), NumPoints()+3 ); 
     
 //    std::cout << "Chk4.3\n";
     

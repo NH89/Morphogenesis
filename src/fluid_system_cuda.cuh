@@ -39,7 +39,7 @@
 
 	#define EPSILON				0.00001f
 	#define GRID_UCHAR			0xFF
-	#define GRID_UNDEF			4294967295
+	#define GRID_UNDEF			4294967295// = 2^32 -1
 	#define TOTAL_THREADS		1000000
 	#define BLOCK_THREADS		256
 	#define MAX_NBR				80		

@@ -12,10 +12,11 @@ int main ( int argc, const char** argv )
     char pointsPath[256];
     char genomePath[256];
     char outPath[256];
-    uint num_files, steps_per_file;
+    uint num_files, steps_per_file, freeze_steps;
+    int file_num=0;
     char save_ply, save_csv;
-    if ( argc != 7 ) {
-        printf ( "usage: load_sim  simulation_data_folder output_folder num_files steps_per_file save_ply(y/n) save_csv(y/n)\n" );
+    if ( argc != 8 ) {
+        printf ( "usage: load_sim  simulation_data_folder output_folder num_files steps_per_file freeze_steps save_ply(y/n) save_csv(y/n)\n" );
         return 0;
     } else {
         sprintf ( paramsPath, "%s/SimParams.txt", argv[1] );
@@ -36,10 +37,12 @@ int main ( int argc, const char** argv )
         steps_per_file = atoi(argv[4]);
         printf ( "steps_per_file = %u\n", steps_per_file );
         
-        save_ply = *argv[5];
+        freeze_steps = atoi(argv[5]);
+        
+        save_ply = *argv[6];
         printf ( "save_ply = %u\n", save_ply );
         
-        save_csv = *argv[6];
+        save_csv = *argv[7];
         printf ( "save_csv = %u\n", save_csv );
     }
 
@@ -67,8 +70,9 @@ int main ( int argc, const char** argv )
 
 std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
     fluid.TransferFromCUDA ();
-    fluid.SavePointsCSV2 ( outPath, 0 );
-    fluid.SavePoints_asciiPLY ( outPath, 0 );
+    fluid.SavePointsCSV2 ( outPath, file_num );
+    fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+    file_num++;
 /*
 std::cout <<"\nchk load_sim_1.1\n"<<std::flush;
     fluid.InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
@@ -92,19 +96,25 @@ std::cout <<"\nchk load_sim_1.4\n"<<std::flush;
 
 
 std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
+    
 
-    fluid.Freeze ();                                    // creates the bonds
+    for (int k=0; k<freeze_steps; k++){
+        fluid.Freeze ();                                    // creates the bonds
+        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
+        if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+        file_num++;
+    }
 
-    for ( int i=1; i<num_files; i++ ) {
+    for ( ; file_num<num_files; file_num++ ) {
         for ( int j=0; j<steps_per_file; j++ ) {
             fluid.Run ();                               // run the simulation
         }
 
         //fluid.SavePoints (i);                         // alternate file formats to write
-        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, i);
-        if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, i );
+        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
+        if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
         //fluid.WriteParticlesToHDF5File(i);
-        printf ( "\t i=%i frame number =%i \n",i, i*steps_per_file );
+        printf ( "\t i=%i frame number =%i \n",file_num, file_num*steps_per_file );
     }
 
 
