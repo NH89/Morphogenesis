@@ -138,6 +138,7 @@ void FluidSystem::InitializeCuda ()         // used for load_sim  /home/nick/Pro
     std::cout << "Chk1.1 \n";
     LoadKernel ( FUNC_INSERT,			"insertParticles" );
     LoadKernel ( FUNC_COUNTING_SORT,	"countingSortFull" );
+//    LoadKernel ( FUNC_SORT_BONDIDX,	    "countingSortBondIDX" );
     LoadKernel ( FUNC_QUERY,			"computeQuery" );
     LoadKernel ( FUNC_COMPUTE_PRESS,	"computePressure" );
     LoadKernel ( FUNC_COMPUTE_FORCE,	"computeForce" );
@@ -414,8 +415,8 @@ std::cout<<" m_Fluid.gpu(FPOS)="<< m_Fluid.gpu(FPOS)<<"\tm_Fluid.bufC(FPOS)="<< 
     AllocateBuffer ( FSTATE,	sizeof(uint),		cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     // extra buffers for morphogenesis
 std::cout<<"chl2.11.1\n"<<std::flush;
-    AllocateBuffer ( FELASTIDX,	sizeof(uint[BOND_DATA]), cnt,   m_FParams.szPnts,	gpu_mode, cpu_mode );  // used to be [BONDS_PER_PARTICLE * 2]
-    AllocateBuffer ( FPARTICLE_IDX,	sizeof(uint),		             cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FELASTIDX,	sizeof(uint[BOND_DATA]),             cnt,   m_FParams.szPnts,	gpu_mode, cpu_mode );  // used to be [BONDS_PER_PARTICLE * 2]
+    AllocateBuffer ( FPARTICLEIDX,	sizeof(uint[BONDS_PER_PARTICLE *2]),cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FPARTICLE_ID,	sizeof(uint),		             cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FMASS_RADIUS,	sizeof(uint),		             cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     
@@ -621,7 +622,7 @@ int FluidSystem::AddParticleMorphogenesis (Vector3DF* Pos, Vector3DF* Vel, uint 
 }
 
 
-int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint *_ElastIdx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, uint* _Conc, uint* _EpiGen )
+int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float *_ElastIdx, uint *_Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, uint* _Conc, uint* _EpiGen )
 {
     if ( mNumPoints >= mMaxPoints ) return -1;
     int n = mNumPoints;
@@ -634,7 +635,6 @@ int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint
     *(m_Fluid.bufI(FGNEXT) + n) = -1;
     *(m_Fluid.bufI(FCLUSTER)  + n) = -1;
     *(m_Fluid.bufF(FSTATE) + n ) = (float) rand();
-
     *(m_Fluid.bufI(FAGE) + n) = Age;
     *(m_Fluid.bufI(FCLR) + n) = Clr;
 
@@ -642,26 +642,25 @@ int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint
     for(int j=0; j<(BOND_DATA); j++) {
         ElastIdx[j] = _ElastIdx[j] ;
     }
-    
-    *(m_Fluid.bufI(FPARTICLE_ID) + n) = Particle_ID;
-    
-    *(m_Fluid.bufI(FMASS_RADIUS) + n) = Mass_Radius;
-
-    //fprintf(fp, "\t%u, \t", *NerveIdx);
-    *(m_Fluid.bufI(FNERVEIDX) + n) = NerveIdx;
+    uint* Particle_Idx = (m_Fluid.bufI(FPARTICLEIDX) + n * BONDS_PER_PARTICLE *2 );
+    for(int j=0; j<(BONDS_PER_PARTICLE *2); j++) {
+        Particle_Idx[j] = _Particle_Idx[j] ;
+        std::cout<<"."<<Particle_Idx[j];
+    }std::cout<<std::flush;
+    *(m_Fluid.bufI(FPARTICLE_ID) + n)   = Particle_ID;
+    *(m_Fluid.bufI(FMASS_RADIUS) + n)   = Mass_Radius;
+    *(m_Fluid.bufI(FNERVEIDX) + n)      = NerveIdx;
 
     uint* Conc = (m_Fluid.bufI(FCONC) + n * NUM_TF);
     for(int j=0; j<(NUM_TF); j++) {
         Conc[j] = _Conc[j];
     }
-
     uint* EpiGen = (m_Fluid.bufI(FEPIGEN) + n * NUM_GENES);
     for(int j=0; j<(NUM_GENES); j++) {
         EpiGen[j]= _EpiGen[j];
     }
-//std::cout << "AddParticleMorphogenesis2 Particle_ID = " << Particle_ID << "\t" << std::flush;
-
     mNumPoints++;
+//std::cout << ", Particle_ID="<<Particle_ID<<" " << std::flush ;
     return n;
 }
 
@@ -780,7 +779,8 @@ std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
     
     Vector3DF Pos, Vel; 
     uint Age, Clr, Particle_ID, Mass_Radius, /*mass, radius,*/ NerveIdx;
-    uint ElastIdx[BOND_DATA];
+    float ElastIdx[BOND_DATA];
+    uint Particle_Idx[BONDS_PER_PARTICLE]; // FPARTICLE_IDX : other particles with bonds attaching here. 
     uint Conc[NUM_TF];
     uint EpiGen[NUM_GENES];
     
@@ -807,11 +807,13 @@ std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
                 length = uint(1000 * m_Param [ PSMOOTHRADIUS ]); // m_Param [ PSMOOTHRADIUS ] =	0.015f;	// m // related to spacing, but also max particle range i.e. ....
                 mod_len = ( modulus <<16 | length ); // NB should mask length to prevent it exceeding 16bits, i.e. 255*255
                 
-                for (int i = 0; i<BONDS_PER_PARTICLE;i++){
-                    ElastIdx[i*3] = 0; // particle IDs must be found by "freeze kernel", 
-                    ElastIdx[i*3 +1] = 0;//mod_len; // but set modulus and length here// changed for new freeze in computeForce().
-                    ElastIdx[i*3 +2] = 0;// ID of other particle
-                }
+                for (int i = 0; i<BONDS_PER_PARTICLE;i++){ for (int j = 0; j< DATA_PER_BOND; j++){ ElastIdx[i*DATA_PER_BOND +j] = 0; } }
+                //NB #define DATA_PER_BOND 6 //6 : [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index
+                
+                for (int i = 0; i<BONDS_PER_PARTICLE;i++){ Particle_Idx[i] = UINT_MAX; }
+                
+                // nerve connections to particles
+                if (Particle_ID % 10 == 0){NerveIdx = Particle_ID/10;} else {NerveIdx = 0;} // Every 10th particle has nerve connection
                 
                 // Mass & radius of particles
                 // 4bit mass + 4bit radius + 24bit uid // but for now, 16bit mass & radius
@@ -819,9 +821,6 @@ std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
                 // mass = m_Param[PMASS]; // 0.00020543f; // kg
                 // radius = m_Param[PRADIUS]; // 0.015f; // m
                 Mass_Radius =  ( (uint(m_Param[PMASS]*255.0f*255.0f)<<16) | uint(m_Param[PRADIUS]*255.0f*255.0f) ) ; // mass=>13, radius=>975
-                
-                // nerve connections to particles
-                if (Particle_ID % 10 == 0){NerveIdx = Particle_ID/10;} else {NerveIdx = 0;} // Every 10th particle has nerve connection
                 
                 // morphogen & transcription factor concentrations
                 for (int i=0; i< NUM_TF; i++){ Conc[i] = 1 ;}
@@ -835,13 +834,15 @@ std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
                 /* uint */ Age, 
                 /* uint */ Clr, 
                 /* uint *_*/ ElastIdx, 
+                /* unit * */ Particle_Idx,
                 /* uint */ Particle_ID, 
                 /* uint */ Mass_Radius, 
                 /* uint */ NerveIdx, 
                 /* uint* */ Conc, 
                 /* uint* */ EpiGen 
                 );
-                if(p==-1){std::cout << "\n SetupAddVolumeMorphogenesis2 exited on p==-1, Pos=("<<Pos.x<<","<<Pos.y<<","<<Pos.z<<"), Particle_ID="<<Particle_ID<<" \n " << std::flush ; ;return;}
+
+                if(p==-1){std::cout << "\n SetupAddVolumeMorphogenesis2 exited on p==-1, Pos=("<<Pos.x<<","<<Pos.y<<","<<Pos.z<<"), Particle_ID="<<Particle_ID<<" \n " << std::flush ; return;}
             }
         }
     }
@@ -894,44 +895,125 @@ void FluidSystem::EmitParticles ()
 ///////////////////////////////////////////////////////////////////
 void FluidSystem::Run ()
 {
-//std::cout << "\tFluidSystem::Run () "<<std::flush;
+std::cout << "\tFluidSystem::Run (),  "<<std::flush;  
     //case RUN_GPU_FULL:					// Full CUDA pathway, GRID-accelerted GPU, /w deep copy sort
 //TransferFromCUDA ();
-//std::cout << "\n\n Chk1 \n"<<std::flush;
+std::cout << "\n\n Chk1 \n"<<std::flush;
     InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug);
 //TransferFromCUDA ();
-//std::cout << "\n\n Chk2 \n"<<std::flush;
+std::cout << "\n\n Chk2 \n"<<std::flush;
     PrefixSumCellsCUDA ( 0x0, 1 );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumCellsCUDA", mbDebug);
 //TransferFromCUDA ();
-//std::cout << "\n\n Chk3 \n"<<std::flush;
+std::cout << "\n\n Chk3 \n"<<std::flush;
     CountingSortFullCUDA ( 0x0 );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortFullCUDA", mbDebug);
 //TransferFromCUDA ();
-//std::cout << "\n\n Chk4 \n"<<std::flush;
+std::cout << "\n\n Chk4 \n"<<std::flush;
     
     ComputePressureCUDA();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug); 
 //TransferFromCUDA ();
-//std::cout << "\n\n Chk5 \n"<<std::flush;
+std::cout << "\n\n Chk5 \n"<<std::flush;
     // FreezeCUDA ();                                   // makes the system plastic, ie the bonds keep reforming
 //std::cout << "\n\n Chk6 \n"<<std::flush;
     ComputeForceCUDA ();                                // now includes the function of freeze 
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug);
 //TransferFromCUDA ();
-//std::cout << "\n\n Chk6 \n"<<std::flush;
+std::cout << "\n\n Chk6 \n"<<std::flush;
     AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
-
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);    
 //TransferFromCUDA ();
-//std::cout << "\n\n Chk7 \n"<<std::flush;
-    
     //EmitParticlesCUDA ( m_Time, (int) m_Vec[PEMIT_RATE].x );
     TransferFromCUDA ();	// return for rendering
+std::cout << "\n\n Chk7 \n"<<std::flush;
+
     AdvanceTime ();
-    //std::cout << " finished \n";
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceTime", mbDebug);  
+std::cout << " finished \n";
 }
+
+ 
+void FluidSystem::Run (const char * relativePath, int frame )       // version to save data after each kernel
+{
+std::cout << "\tFluidSystem::Run (const char * relativePath, int frame ) "<<std::flush;
+    //case RUN_GPU_FULL:					// Full CUDA pathway, GRID-accelerted GPU, /w deep copy sort
+//TransferFromCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "begin Run", mbDebug); 
+    TransferFromCUDA ();
+    SavePointsCSV2 (  relativePath, frame );
+std::cout << "\n\nRun(relativePath,frame) Chk1, saved "<< frame <<".csv  \n"<<std::flush;
+
+    InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
+//TransferFromCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug); 
+    TransferFromCUDA ();
+    SavePointsCSV2 (  relativePath, frame+1 );
+std::cout << "\n\nRun(relativePath,frame) Chk2, saved "<< frame+1 <<".csv  \n"<<std::flush;
+
+    PrefixSumCellsCUDA ( 0x0, 1 );
+//TransferFromCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumCellsCUDA", mbDebug); 
+    TransferFromCUDA ();
+    SavePointsCSV2 (  relativePath, frame+2 );
+std::cout << "\n\nRun(relativePath,frame) Chk3, saved "<< frame+2 <<".csv  \n"<<std::flush;
+
+    CountingSortFullCUDA ( 0x0 );
+//TransferFromCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortFullCUDA", mbDebug); 
+    TransferFromCUDA ();
+    SavePointsCSV2 (  relativePath, frame+3 );
+std::cout << "\n\nRun(relativePath,frame) Chk4, saved "<< frame+3 <<".csv After CountingSortFullCUDA\n"<<std::flush;
+    
+    ComputePressureCUDA();
+//TransferFromCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug); 
+    TransferFromCUDA ();
+    SavePointsCSV2 (  relativePath, frame+4 );
+std::cout << "\n\nRun(relativePath,frame) Chk5, saved "<< frame+4 <<".csv  \n"<<std::flush;
+    // FreezeCUDA ();                                   // makes the system plastic, ie the bonds keep reforming
+//std::cout << "\n\n Chk6 \n"<<std::flush;
+
+
+    ComputeForceCUDA ();                                // now includes the function of freeze 
+//TransferFromCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug); 
+    TransferFromCUDA ();
+    SavePointsCSV2 (  relativePath, frame+5 );
+std::cout << "\n\nRun(relativePath,frame) Chk6, saved "<< frame+5 <<".csv  \n"<<std::flush;
+
+    AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
+//TransferFromCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug); 
+    TransferFromCUDA ();
+    SavePointsCSV2 (  relativePath, frame+6 );
+std::cout << "\n\nRun(relativePath,frame) Chk7, saved "<< frame+6 <<".csv  \n"<<std::flush;
+
+    //cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);    
+    //EmitParticlesCUDA ( m_Time, (int) m_Vec[PEMIT_RATE].x );
+    //TransferFromCUDA ();	// return for rendering
+
+    AdvanceTime ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceTime", mbDebug); 
+    TransferFromCUDA ();
+    SavePointsCSV2 (  relativePath, frame+7 );
+std::cout << "Run(relativePath,frame) finished,  saved "<< frame+7 <<".csv  \n";
+}
+
 
 
 void FluidSystem::Freeze ()
 {
     m_FParams.freeze = true;
     Run();
+    m_FParams.freeze = false;
+}
+
+void FluidSystem::Freeze (const char * relativePath, int frame)
+{
+    m_FParams.freeze = true;
+    Run(relativePath, frame);
     m_FParams.freeze = false;
 }
 
@@ -1869,39 +1951,68 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame )
     int numpnt = NumPoints();
     Vector3DF* Pos;
     Vector3DF* Vel;
-    uint* Age, *Clr, *NerveIdx, *ElastIdx, *Particle_ID, *Mass_Radius, *Conc, *EpiGen;  // Q: why are these pointers? A: they get dereferenced below.
+    uint* Age, *Clr, *NerveIdx, *ElastIdx, *Particle_Idx, *Particle_ID, *Mass_Radius, *Conc, *EpiGen;                  // Q: why are these pointers? A: they get dereferenced below.
     uint mass, radius;
+    float *ElastIdxPtr;
     
-    fprintf(fp, "x coord, y coord, z coord,\t\t x vel, y vel, z vel,\t\t age,  color,\t\t FELASTIDX[%u],\t\t Particle_ID, mass, radius, FNERVEIDX,\t\t FCONC[%u],\t\t\t \tFEPIGEN[%u] \n",
-            (BOND_DATA), NUM_TF, NUM_GENES );
+    fprintf(fp, "x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", BONDS_PER_PARTICLE, DATA_PER_BOND);  // This system inserts commas to align header with csv data
+    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID,,  ");
+    fprintf(fp, "\t"); 
+    fprintf(fp, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u]", BONDS_PER_PARTICLE);    
+    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ", ");
+    fprintf(fp, "\t\tFCONC[%u]", NUM_TF);
+    for (int i=0; i<NUM_TF; i++)fprintf(fp, ", ");
+    fprintf(fp, "\t\tFEPIGEN[%u] \n", NUM_GENES);
+
+//std::cout << "\n SavePointsCSV2: 1 \n" << std::flush;    
 
     for(int i=0; i<numpnt; i++) {       // nb need get..() accessors for private data.
+//std::cout << " "<<i<<" " << std::flush;    
         Pos = getPos(i);                // e.g.  Vector3DF* getPos ( int n )	{ return &m_Fluid.bufV3(FPOS)[n]; }
         Vel = getVel(i);
         Age = getAge(i);
         Clr = getClr(i);
         ElastIdx = getElastIdx(i);      // NB [BONDS_PER_PARTICLE]
+        ElastIdxPtr = (float*)ElastIdx; // #############packing floats and uints into the same array - should replace with a struct.#################
+        Particle_Idx = getParticle_Idx(i);
+        
         Particle_ID = getParticle_ID(i);//# uint  original pnum, used for bonds between particles. 32bit, track upto 4Bn particles.
+//std::cout << " Particle_ID ="<<*Particle_ID<<",\t"<< std::flush;
         if(*Particle_ID==0){
-         std::cout << "Particle_ID = pointer not assigned \t" << std::flush;
+         std::cout << "Particle_ID = pointer not assigned. i="<<i<<". \t" << std::flush;
          return;
         }
         // ? should I be splitting mass_radius with bitshift etc  OR just use two uit arrays .... where are/will these used anyway ?
         Mass_Radius = getMass_Radius(i);//# uint holding modulus 16bit and limit 16bit.
         if(*Mass_Radius==0){   mass = 0; }else{  mass = *Mass_Radius; }    // modulus          // '&' bitwise AND is bit masking. ;
-        
         radius = mass >> 16;
         mass = mass & TWO_POW_16_MINUS_1;
+        
         NerveIdx = getNerveIdx(i);      //# uint
         Conc = getConc(i);              //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
         EpiGen = getEpiGen(i);          //# uint[NUM_GENES]
         
-        fprintf(fp, "%f,%f,%f,\t%f,%f,%f,\t %u, %u, \t", Pos->x, Pos->y,Pos->z, Vel->x,Vel->y,Vel->z, *Age, *Clr );
-        for(int j=0; j<(BOND_DATA); j++) { fprintf(fp, "%u, ",  ElastIdx[j] ); }
-        fprintf(fp, " \t%u, %u, %u, %u, \t\t", *Particle_ID, mass, radius, *NerveIdx );
+        fprintf(fp, "%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t", Pos->x, Pos->y,Pos->z, Vel->x,Vel->y,Vel->z, *Age, *Clr );
         
-        for(int j=0; j<(NUM_TF); j++)       { fprintf(fp, "%u, ",  Conc[j] ); }   fprintf(fp, "\t\t");    
-        for(int j=0; j<(NUM_GENES); j++)    { fprintf(fp, "%u, ",  EpiGen[j] );}  fprintf(fp, " \n");
+        for(int j=0; j<(BOND_DATA); j++) { 
+            if ((j%DATA_PER_BOND==0)||((j+1)%DATA_PER_BOND==0))fprintf(fp, "%u, ",  ElastIdx[j] );  // print as int   [0]current index, [5]particle ID, [6]bond index 
+            else  fprintf(fp, "%f, ",  ElastIdxPtr[j] );                                            // print as float [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, 
+            if((j+1)%DATA_PER_BOND==0)fprintf(fp, "\t\t");
+        }
+/*        
+        for(int j=0; j<(BONDS_PER_PARTICLE); j++)            { 
+            fprintf(fp, "%u, ",  ElastIdx[j] );
+            for(int k=1;k<(DATA_PER_BOND-1);k++){
+                fprintf(fp, "%f, ",  ElastIdxPtr[j+k] );       // save floats for [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff,
+            }
+            fprintf(fp, "%u, ",  ElastIdx[j+(BONDS_PER_PARTICLE-1)] );
+            fprintf(fp, "\t\t"); // if((j+1)%DATA_PER_BOND==0)
+        }
+*/
+        fprintf(fp, " \t%u, %u, %u, %u, \t\t", *Particle_ID, mass, radius, *NerveIdx );
+        for(int j=0; j<(BONDS_PER_PARTICLE); j++)   { fprintf(fp, "%u, ",  Particle_Idx[j] );}  fprintf(fp, "\t\t");
+        for(int j=0; j<(NUM_TF); j++)               { fprintf(fp, "%u, ",  Conc[j] ); }         fprintf(fp, "\t\t");    
+        for(int j=0; j<(NUM_GENES); j++)            { fprintf(fp, "%u, ",  EpiGen[j] );}        fprintf(fp, " \n");
     }
     fclose ( fp );
     fflush ( fp );
@@ -2045,20 +2156,21 @@ void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int 
     SetupKernels ();
     SetupSpacing ();
     SetupGrid ( m_Vec[PVOLMIN]/*bottom corner*/, m_Vec[PVOLMAX]/*top corner*/, m_Param[PSIMSCALE], m_Param[PGRIDSIZE], 1.0f );
-std::cout<<"\nchk ReadPointsCSV2 1.0\n"<<std::flush;
+//std::cout<<"\nchk ReadPointsCSV2 1.0\n"<<std::flush;
     if (gpu_mode != GPU_OFF) {
         FluidSetupCUDA ( mMaxPoints, m_GridSrch, *(int3*)& m_GridRes, *(float3*)& m_GridSize, *(float3*)& m_GridDelta, *(float3*)& m_GridMin, *(float3*)& m_GridMax, m_GridTotal, 0 );
         UpdateParams();            //  sends simulation params to device.
         UpdateGenome();            //  sends genome to device.              // NB need to initialize genome from file, or something.
     }
-std::cout<<"\nchk ReadPointsCSV2 1.1\n"<<std::flush;
+//std::cout<<"\nchk ReadPointsCSV2 1.1\n"<<std::flush;
     AllocateParticles ( mMaxPoints, gpu_mode, cpu_mode );  // allocates only cpu buffer for particles
-std::cout<<"\nchk ReadPointsCSV2 1.2\n"<<std::flush;
+//std::cout<<"\nchk ReadPointsCSV2 1.2\n"<<std::flush;
     AllocateGrid(gpu_mode, cpu_mode);
-std::cout<<"\nchk ReadPointsCSV2 1.3\n"<<std::flush;
+//std::cout<<"\nchk ReadPointsCSV2 1.3\n"<<std::flush;
     uint Clr, Age;
     Vector3DF Pos, Vel, PosMin, PosMax;
-    uint ElastIdx[BOND_DATA];
+    float ElastIdx[BOND_DATA];
+    uint Particle_Idx[BONDS_PER_PARTICLE];
     uint Particle_ID, mass, radius, Mass_Radius, NerveIdx;
     uint Conc[NUM_TF];
     uint EpiGen[NUM_GENES];
@@ -2071,17 +2183,46 @@ std::cout<<"\nchk ReadPointsCSV2 1.3\n"<<std::flush;
     //std::fscanf(points_file, "x coord, y coord, z coord, x vel, y vel, z vel,  color \n");
     //fprintf(fp, "x coord, y coord, z coord,\t x vel, y vel, z vel,\t age,  color, \tFELASTIDX[%u], \tFNERVEIDX\t, FCONC[%u], \tFEPIGEN[%u] \n",
     //        (BONDS_PER_PARTICLE +1), NUM_TF, NUM_GENES );
-    uint bonds_per_particle, num_TF, num_genes;
-    std::fscanf(points_file, "x coord, y coord, z coord,\t\t x vel, y vel, z vel,\t\t age,  color,\t\t FELASTIDX[%u],\t\t Particle_ID, mass, radius, FNERVEIDX,\t\t FCONC[%u],\t\t\t \tFEPIGEN[%u] \n",
-                &bonds_per_particle, &num_TF, &num_genes );
+    uint bond_data=999, data_per_bond=999, bonds_per_particle=999, num_TF=999, num_genes=999;
+    int result=-2;
+    result = std::fscanf(points_file, "x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", &bond_data, &data_per_bond);
+    
+    for (int i=0; i<data_per_bond; i++)std::fscanf(points_file, ",[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID,,  ");
+    bond_data = bond_data * data_per_bond;
+    fscanf(points_file, "\t");
+//    printf("\nresult=%i, bond_data=%u",result,bond_data);
+    
+    result = std::fscanf(points_file, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u]", &bonds_per_particle);
+    for (int i=0; i<BONDS_PER_PARTICLE; i++)fscanf(points_file, ", ");
+//    printf("\nresult=%i, bonds_per_particle=%u",result,bonds_per_particle);
+    
+    result = std::fscanf(points_file, "\t\tFCONC[%u]",&num_TF);
+    for (int i=0; i<NUM_TF; i++)fscanf(points_file, ", ");
+//    printf("\nresult=%i, num_TF=%u",result,num_TF);
+    
+    result = std::fscanf(points_file, "\t\tFEPIGEN[%u] \n", &num_genes );
+//    printf("\nresult=%i, num_genes=%u",result,num_genes);
 
-    if (bonds_per_particle != (BOND_DATA) || num_TF != NUM_TF || num_genes != NUM_GENES)   // ## later replace #defines with variables throughout.
+    /*
+    fprintf(fp, "x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u]", BOND_DATA);  // This system inserts commas to align header with csv data
+    for (int i=0; i<BOND_DATA ; i++)fprintf(fp, ", ");
+    for (int i=0; i<BONDS_PER_PARTICLE ; i++)fprintf(fp, "\t\t"); 
+    fprintf(fp, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u]", BONDS_PER_PARTICLE);
+    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ", ");
+    fprintf(fp, "\t\tFCONC[%u]", NUM_TF);
+    for (int i=0; i<NUM_TF; i++)fprintf(fp, ", ");
+    fprintf(fp, "\t\tFEPIGEN[%u] \n", NUM_GENES);
+    */
+
+    if (bonds_per_particle != BONDS_PER_PARTICLE || bond_data != BOND_DATA || num_TF != NUM_TF || num_genes != NUM_GENES)   // ## later replace #defines with variables throughout.
     {
-        std::cout << "\n! Miss-match of parameters !  (bonds_per_particle != (BOND_DATA) || num_TF != NUM_TF || num_genes != NUM_GENES) \n";
-        std::cout << "\n In .csv file  bonds_per_particle = " << bonds_per_particle << ".  In program (BOND_DATA) = " << (BOND_DATA) ;
-        std::cout << "\n num_TF  = " << num_TF << ",  NUM_TF = " << NUM_TF ;
-        std::cout << "\n num_genes  = " << num_genes << ",  NUM_GENES = " << NUM_GENES ;
+        std::cout << "\n! Miss-match of parameters !  (bonds_per_particle != BONDS_PER_PARTICLE || bond_data != BOND_DATA || num_TF != NUM_TF || num_genes != NUM_GENES) \n";
+        std::cout << "\n In .csv file  bonds_per_particle = " << bonds_per_particle << ".  In program BONDS_PER_PARTICLE = " << BONDS_PER_PARTICLE ;
+        std::cout << "\n bond_data  = " << bond_data << ",  BOND_DATA = " << BOND_DATA ;
+        std::cout << "\n num_TF  = "    << num_TF    << ",  NUM_TF = "    << NUM_TF ;
+        std::cout << "\n num_genes  = " << num_genes << ",  NUM_GENES = " << NUM_GENES << std::flush;
     }
+//    std::cout << "\n" << std::flush;
     ////////////////////
     //Vector3DF* Pos;
     //Vector3DF* Vel;
@@ -2090,24 +2231,39 @@ std::cout<<"\nchk ReadPointsCSV2 1.3\n"<<std::flush;
     for (i=1; i<number_of_lines; i++ ) {
         // transcribe particle data from file to Pos, Vel and Clr
         //int ret = std::fscanf(points_file, "%f,%f,%f,%f,%f,%f, %u \n", &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Clr);
-        int ret = std::fscanf(points_file, "%f,%f,%f,\t%f,%f,%f,\t %u, %u, \t", &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Age, &Clr );
-
-        for(int j=0; j<(BOND_DATA); j++) {
-            ret += std::fscanf(points_file, "%u, ",  &ElastIdx[j] );
+        int ret = std::fscanf(points_file, "%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t", &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Age, &Clr );
+//        std::cout<<"ret="<<ret<<"\t"<< std::flush;
+        
+        for(int j=0; j<(BOND_DATA); j++) {// BONDS_PER_PARTICLE * DATA_PER_BOND
+            ret += std::fscanf(points_file, "%f, ",  &ElastIdx[j] );
         }
+//        std::cout<<"ret="<<ret<<"\t"<< std::flush;
         //fprintf(fp, " \t%u, %u, %u, %u, \t\t", *Particle_ID, mass, radius, *NerveIdx );
         ret += std::fscanf(points_file, " \t%u, %u, %u, %u, \t\t", &Particle_ID, &mass, &radius, &NerveIdx);
         Mass_Radius = mass + (radius << 16);                                    // pack two 16bit uint  into one 32bit uint.
+//        std::cout<<"ret="<<ret<<"\t"<< std::flush;
 
+        //for(int j=0; j<(BONDS_PER_PARTICLE); j++)   { fprintf(fp, "%u, ",  Particle_Idx[j] ); }
+        std::cout<<"\t(i="<<i<<",j=";
+        for(int j=0; j<(BONDS_PER_PARTICLE); j++) {
+            ret += std::fscanf(points_file, "%u, ",  &Particle_Idx[j] );
+            std::cout<<Particle_Idx[j]<<", ";
+        }
+        std::cout<<")"<<std::flush;
+//        std::cout<<"ret="<<ret<<"\t"<< std::flush;
+        
         for(int j=0; j<(NUM_TF); j++)       {    ret += std::fscanf(points_file, "%u, ",  &Conc[j] );   } ret += std::fscanf(points_file, "\t");
+//        std::cout<<"ret="<<ret<<"\t"<< std::flush;
         for(int j=0; j<(NUM_GENES); j++)    {    ret += std::fscanf(points_file, "%u, ",  &EpiGen[j] ); } ret += std::fscanf(points_file, " \n");
+//        std::cout<<"ret="<<ret<<"\t"<< std::flush;
 
-        if (ret != (8 + (BOND_DATA) + 4 + NUM_TF + NUM_GENES) ) {  
+        if (ret != (8 + BOND_DATA + 4 + BONDS_PER_PARTICLE + NUM_TF + NUM_GENES) ) {  
             std::cout << "\nvoid FluidSystem::ReadPointsCSV, read failure !  particle number = " << i;
             std::cout << "\n " << std::flush;
             fclose(points_file);
             return;
-        }
+        } // ret=8 ret=32 ret=36 ret=40 ret=56 ret=72 
+
         // check particle is within simulation bounds
         if (Pos.x < PosMin.x || Pos.y < PosMin.y || Pos.z < PosMin.z
                 || Pos.x > PosMax.x   || Pos.y > PosMax.y || Pos.z > PosMax.z
@@ -2122,7 +2278,8 @@ std::cout<<"\nchk ReadPointsCSV2 1.3\n"<<std::flush;
             fclose(points_file);
             return;
         }
-        AddParticleMorphogenesis2 (&Pos, &Vel, Age, Clr, ElastIdx,  Particle_ID, Mass_Radius,  NerveIdx, Conc, EpiGen );
+        AddParticleMorphogenesis2 (&Pos, &Vel, Age, Clr, ElastIdx, Particle_Idx, Particle_ID, Mass_Radius,  NerveIdx, Conc, EpiGen );
+        std::cout << ",\t" << std::flush;
     }
     std::cout << "\n" << i-1 << " particles read.\n" << std::flush;
     fclose(points_file);
@@ -2406,11 +2563,11 @@ void FluidSystem::SavePoints_asciiPLY_with_edges ( const char * relativePath, in
     // first allocate a buffer ?
     
     for(int i=0; i<numpnt; i++) {
-        ElastIdx = getElastIdx(i);                          // NB .ply requires particle position in list, not ID
+        ElastIdx = getElastIdx(i);                              // NB .ply requires particle position in list, not ID
         for(int j=0; j<(BONDS_PER_PARTICLE ); j++) { 
             int secondParticle = ElastIdx[j * DATA_PER_BOND];
-            int bond = ElastIdx[j * DATA_PER_BOND +1];
-            if (bond==0) secondParticle = i;
+            int bond = ElastIdx[j * DATA_PER_BOND +1];          // NB [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
+            if (bond==0) secondParticle = i;                    // i.e. check the bond is not broken
 // printf(" (bond=%i, secondParticle=%i)",bond,secondParticle);
             fprintf(fp, "%u %u 255 255 0\n", i, secondParticle ); 
             
@@ -2578,11 +2735,9 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath, uint num_parti
     memset ( &m_FParams, 0,		sizeof(FParams) );
     memset ( &m_FGenome, 0,		sizeof(FGenome) );
     
-    
-
     m_Param[PEXAMPLE] = 2;      // wave pool example.
-    m_Param [PGRID_DENSITY] = 2.0;
-    m_Param [PNUM] = num_particles;// 1000000;    //1000 = minimal simulation, 1000000 = large simulation
+    m_Param[PGRID_DENSITY] = 2.0;
+    m_Param[PNUM] = num_particles;// 1000000;    //1000 = minimal simulation, 1000000 = large simulation
 
     AllocateBuffer ( FPARAMS, sizeof(FParams), 1,0,/*0, 1,*/ GPU_OFF, CPU_YES );//AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode ) 
 
@@ -2595,36 +2750,36 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath, uint num_parti
     SetupExampleParams();
     SetupExampleGenome();
 
-    mMaxPoints = m_Param [PNUM];    
+    mMaxPoints = m_Param[PNUM];    
     
-    m_Param [PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
+    m_Param[PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
     SetupKernels();
     SetupSpacing();
     SetupGrid ( m_Vec[PVOLMIN], m_Vec[PVOLMAX], m_Param[PSIMSCALE], m_Param[PGRIDSIZE], 1.0f );	// Setup grid
 
-    //std::cout << " chk1.0 " << std::flush ;
+std::cout << " chk1.0 " << std::flush ;
     
     AllocateParticles ( mMaxPoints, GPU_OFF, CPU_YES );  // allocates only cpu buffer for particles
     
-    //std::cout << " chk1.1 " << std::flush ;
+std::cout << " chk1.1 " << std::flush ;
     AllocateGrid(GPU_OFF, CPU_YES);
-    //std::cout << " chk1.2 " << std::flush ;
+std::cout << " chk1.2 " << std::flush ;
     
     //SetupAddVolume(m_Vec[PINITMIN], m_Vec[PINITMAX], m_Param[PSPACING], 0.1f, (int)m_Param[PNUM]);
     Vector3DF pinit_max = {x_dim,y_dim,z_dim};
     pinit_max += m_Vec[PINITMIN];
     SetupAddVolumeMorphogenesis2(m_Vec[PINITMIN], pinit_max, spacing, 0.1f, (int)num_particles);  //  Particles created here //
-    //std::cout << " chk1.3 " << std::flush ;
+std::cout << " chk1.3 " << std::flush ;
     
     // write data to file
     WriteSimParams ( relativePath );
-    //std::cout << "\n WriteSimParams ( relativePath );  completed \n" << std::flush ;
+std::cout << "\n WriteSimParams ( relativePath );  completed \n" << std::flush ;
     WriteGenome ( relativePath);
-    //std::cout << "\n WriteGenome ( relativePath );  completed \n" << std::flush ;
+std::cout << "\n WriteGenome ( relativePath );  completed \n" << std::flush ;
     SavePointsCSV2 ( relativePath, 1 );                                                  //SavePointsCSV ( relativePath, 1 );
-    //std::cout << "\n SavePointsCSV ( relativePath, 1 );  completed \n" << std::flush ;
+std::cout << "\n SavePointsCSV ( relativePath, 1 );  completed \n" << std::flush ;
     SavePoints_asciiPLY ( relativePath, 1 );
-    //std::cout << "\n SavePoints_asciiPLY ( relativePath, 1 );  completed \n" << std::flush ;
+std::cout << "\n SavePoints_asciiPLY ( relativePath, 1 );  completed \n" << std::flush ;
 }
 
 
@@ -2982,6 +3137,7 @@ std::cout<<" m_Fluid.gpu(FPOS)="<< m_Fluid.gpu(FPOS)<<"\tm_Fluid.bufC(FPOS)="<< 
     // add extra data for morphogenesis
     cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FELASTIDX), m_Fluid.bufC(FELASTIDX),	mNumPoints *sizeof(uint[BOND_DATA]) ),	"TransferToCUDA", "cuMemcpyHtoD", "FELASTIDX", mbDebug);
 //std::cout<<" m_Fluid.gpu(FELASTIDX)="<< m_Fluid.gpu(FELASTIDX)<<"\tm_Fluid.bufC(FELASTIDX)="<< *m_Fluid.bufC(FELASTIDX)<<"\n"<<std::flush;
+    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FPARTICLEIDX), m_Fluid.bufC(FPARTICLEIDX),	mNumPoints *sizeof(uint[BONDS_PER_PARTICLE *2]) ),	"TransferToCUDA", "cuMemcpyHtoD", "FPARTICLEIDX", mbDebug);
     
     cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FPARTICLE_ID),	m_Fluid.bufC(FPARTICLE_ID),			mNumPoints *sizeof(uint) ),		"TransferToCUDA", "cuMemcpyHtoD", "FPARTICLE_ID", mbDebug);
     cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FMASS_RADIUS),	m_Fluid.bufC(FMASS_RADIUS),			mNumPoints *sizeof(uint) ),		"TransferToCUDA", "cuMemcpyHtoD", "FMASS_RADIUS", mbDebug);
@@ -2999,7 +3155,7 @@ std::cout<<"TransferToCUDA ()  finished\n"<<std::flush;
 
 void FluidSystem::TransferFromCUDA ()
 {
-//std::cout<<"TransferFromCUDA () \n"<<std::flush;    
+std::cout<<"TransferFromCUDA () \n"<<std::flush;    
     // Return particle buffers
 
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPOS),	m_Fluid.gpu(FPOS),	mNumPoints *sizeof(float)*3 ), "TransferFromCUDA", "cuMemcpyDtoH", "FPOS", mbDebug);
@@ -3014,6 +3170,8 @@ void FluidSystem::TransferFromCUDA ()
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FELASTIDX),	m_Fluid.gpu(FELASTIDX),	mNumPoints *sizeof(uint[BOND_DATA]) ),	"TransferFromCUDA", "cuMemcpyDtoH", "FELASTIDX", mbDebug);
 //std::cout<<" m_Fluid.gpu(FELASTIDX)="<< m_Fluid.gpu(FELASTIDX)<<"\tm_Fluid.bufC(FELASTIDX)="<< static_cast<void*>(m_Fluid.bufC(FELASTIDX))<<"\n"<<std::flush;   
     
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPARTICLEIDX),	m_Fluid.gpu(FPARTICLEIDX),	mNumPoints *sizeof(uint[BONDS_PER_PARTICLE *2]) ),	"TransferFromCUDA", "cuMemcpyDtoH", "FPARTICLEIDX", mbDebug);
+
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPARTICLE_ID),	m_Fluid.gpu(FPARTICLE_ID),	mNumPoints *sizeof(uint) ),	"TransferFromCUDA", "cuMemcpyDtoH", "FPARTICLE_ID", mbDebug);
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FMASS_RADIUS),	m_Fluid.gpu(FMASS_RADIUS),	mNumPoints *sizeof(uint) ),	"TransferFromCUDA", "cuMemcpyDtoH", "FMASS_RADIUS", mbDebug);
     
@@ -3139,23 +3297,39 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos )
     TransferToTempCUDA ( FGCELL,	mNumPoints *sizeof(uint) );
     TransferToTempCUDA ( FGNDX,		mNumPoints *sizeof(uint) );
     
-//      add extra data for morphogenesis
-     TransferToTempCUDA ( FELASTIDX,		mNumPoints *sizeof(uint[BOND_DATA]) );
-     
-     TransferToTempCUDA ( FPARTICLE_ID,		mNumPoints *sizeof(uint) );
-     TransferToTempCUDA ( FMASS_RADIUS,		mNumPoints *sizeof(uint) );
-    
-     TransferToTempCUDA ( FNERVEIDX,		mNumPoints *sizeof(uint) );
-     TransferToTempCUDA ( FCONC,		    mNumPoints *sizeof(uint[NUM_TF]) );
-     TransferToTempCUDA ( FEPIGEN,		mNumPoints *sizeof(uint[NUM_GENES]) );
+    // extra data for morphogenesis
+    TransferToTempCUDA ( FELASTIDX,		mNumPoints *sizeof(uint[BOND_DATA]) );
+    TransferToTempCUDA ( FPARTICLEIDX,	mNumPoints *sizeof(uint[BONDS_PER_PARTICLE *2]) );
+    TransferToTempCUDA ( FPARTICLE_ID,	mNumPoints *sizeof(uint) );
+    TransferToTempCUDA ( FMASS_RADIUS,	mNumPoints *sizeof(uint) );
+    TransferToTempCUDA ( FNERVEIDX,		mNumPoints *sizeof(uint) );
+    TransferToTempCUDA ( FCONC,		    mNumPoints *sizeof(uint[NUM_TF]) );
+    TransferToTempCUDA ( FEPIGEN,	    mNumPoints *sizeof(uint[NUM_GENES]) );
 
+    // reset bonds and forces in fbuf FELASTIDX, FPARTICLEIDX and FFORCE, required to prevent interference between time steps, 
+    // because these are not necessarily overwritten by the FUNC_COUNTING_SORT kernel.
+/*
+    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF), 0,	m_GridTotal*sizeof(int) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FELASTIDX),	m_Fluid.gpu(FELASTIDX),	mNumPoints *sizeof(uint[BOND_DATA]) ),	"TransferFromCUDA", "cuMemcpyDtoH", "FELASTIDX", mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPARTICLEIDX),	m_Fluid.gpu(FPARTICLEIDX),	mNumPoints *sizeof(uint[BONDS_PER_PARTICLE]) ),	"TransferFromCUDA", "cuMemcpyDtoH", "FPARTICLEIDX", mbDebug);
+*/
+    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FELASTIDX),    UINT_MAX,  mNumPoints *sizeof(uint[BOND_DATA])             ),  "CountingSortFullCUDA", "cuMemsetD32", "FELASTIDX",    mbDebug);
+    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPARTICLEIDX), UINT_MAX,  mNumPoints *sizeof(uint[BONDS_PER_PARTICLE *2]) ),  "CountingSortFullCUDA", "cuMemsetD32", "FPARTICLEIDX", mbDebug);
+    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FFORCE),      (uint)0.0,  mNumPoints *sizeof(Vector3DF)                   ),  "CountingSortFullCUDA", "cuMemsetD8" , "FFORCE",       mbDebug);
+     
     // Reset grid cell IDs
-    //cuCheck(cuMemsetD32(m_Fluid.gpu(FGCELL), GRID_UNDEF, numPoints ), "cuMemsetD32(Sort)");
+    // cuCheck(cuMemsetD32(m_Fluid.gpu(FGCELL), GRID_UNDEF, numPoints ), "cuMemsetD32(Sort)");
 
     void* args[1] = { &mNumPoints };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COUNTING_SORT], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),
               "CountingSortFullCUDA", "cuLaunch", "FUNC_COUNTING_SORT", mbDebug );
-
+/*    
+ * cuCtxSynchronize ();
+std::cout<<"\n\nCountingSortFullCUDA finished\n\n"<<std::flush;
+    //countingSortBondIDX  FUNC_SORT_BONDIDX
+    cuCheck ( cuLaunchKernel ( m_Func[FUNC_SORT_BONDIDX], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),
+              "countingSortBondIDX", "cuLaunch", "FUNC_SORT_BONDIDX", mbDebug );
+*/    
     if ( ppos != 0x0 ) {
         cuCheck( cuMemcpyDtoH ( ppos,		m_Fluid.gpu(FPOS),	mNumPoints*sizeof(Vector3DF) ), "CountingSortFullCUDA", "cuMemcpyDtoH", "FPOS", mbDebug);
         cuCtxSynchronize ();
@@ -3172,6 +3346,7 @@ void FluidSystem::ComputePressureCUDA ()
 
 void FluidSystem::ComputeForceCUDA ()
 {
+    printf("\n\nFluidSystem::ComputeForceCUDA (),  m_FParams.freeze=%s",(m_FParams.freeze==true) ? "true" : "false");
     void* args[2] = { &m_FParams.pnum ,  &m_FParams.freeze};
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_FORCE],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputeForceCUDA", "cuLaunch", "FUNC_COMPUTE_FORCE", mbDebug);
 }

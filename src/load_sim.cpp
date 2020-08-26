@@ -99,22 +99,32 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     
 
     for (int k=0; k<freeze_steps; k++){
+         /*
+        fluid.Freeze (outPath, file_num);                   // save csv after each kernel - to investigate bugs
+        file_num+=10;
+         */
+        // /*
         fluid.Freeze ();                                    // creates the bonds
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
         if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+        printf("\nsaved file_num=%u",file_num);
         file_num++;
+        
+        // */
     }
 
-    for ( ; file_num<num_files; file_num++ ) {
+    printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
+    
+    for ( ; file_num<num_files; file_num+=1 ) {
         for ( int j=0; j<steps_per_file; j++ ) {
-            fluid.Run ();                               // run the simulation
+            fluid.Run ();                               // run the simulation  // Run(outPath, file_num)
         }
 
         //fluid.SavePoints (i);                         // alternate file formats to write
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
         if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
         //fluid.WriteParticlesToHDF5File(i);
-        printf ( "\t i=%i frame number =%i \n",file_num, file_num*steps_per_file );
+        printf ( "\nsaved file_num=%u, frame number =%i \n",file_num,  file_num*steps_per_file );
     }
 
 

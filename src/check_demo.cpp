@@ -22,7 +22,7 @@ int main ( int argc, const char** argv )
         sprintf ( genomePath, "%s/genome.csv", argv[1] );
         printf("simulation parameters file = %s\n", genomePath);
         
-        sprintf ( pointsPath, "%s/particles_pos_vel_color100001_test_data.csv", argv[1] );
+        sprintf ( pointsPath, "%s/particles_pos_vel_color100001.csv", argv[1] );  // particles_pos_vel_color100001_test_data.csv
         printf("simulation points file = %s\n", pointsPath);
         
         sprintf ( outPath, "%s", argv[2] );

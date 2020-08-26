@@ -149,6 +149,7 @@
 	// kernel function   "m_Func[]"
 	#define FUNC_INSERT			0
 	#define	FUNC_COUNTING_SORT	1
+//    #define FUNC_SORT_BONDIDX   12
 	#define FUNC_QUERY			2
 	#define FUNC_COMPUTE_PRESS	3
 	#define FUNC_COMPUTE_FORCE	4
@@ -209,26 +210,21 @@
         int AddParticle (Vector3DF* Pos, Vector3DF* Vel);
         int AddParticleMorphogenesis ();
         int AddParticleMorphogenesis(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint* _ElastIdx, uint NerveIdx, uint* _Conc, uint* _EpiGen);
-        int AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint *_ElastIdx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, uint* _Conc, uint* _EpiGen );
+        int AddParticleMorphogenesis2(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float* _ElastIdx, uint* _Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, uint* _Conc, uint* _EpiGen);
         
 		void AddEmit ( float spacing );
 		int NumPoints ()				{ return mNumPoints; }
-		Vector3DF* getPos ( int n )	{ return &m_Fluid.bufV3(FPOS)[n]; }
-		Vector3DF* getVel ( int n )	{ return &m_Fluid.bufV3(FVEL)[n]; }
+		Vector3DF* getPos ( int n )	    { return &m_Fluid.bufV3(FPOS)[n]; }
+		Vector3DF* getVel ( int n )	    { return &m_Fluid.bufV3(FVEL)[n]; }
 		uint* getAge ( int n )			{ return &m_Fluid.bufI(FAGE)[n]; }
 		uint* getClr ( int n )			{ return &m_Fluid.bufI(FCLR)[n]; }
-//note #define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
-        uint* getElastIdx( int n ){ return &m_Fluid.bufI(FELASTIDX)[n*(BONDS_PER_PARTICLE * DATA_PER_BOND)]; } 
-        uint* getParticle_ID(int n ){ return &m_Fluid.bufI(FPARTICLE_ID)[n]; }
-        
-        uint* getMass_Radius(int n ){ return &m_Fluid.bufI(FMASS_RADIUS)[n]; }
-        
-        
-        uint* getNerveIdx( int n ){ return &m_Fluid.bufI(FNERVEIDX)[n]; }   //#define FNERVEIDX   15      //# uint
-//note #define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
-        uint* getConc(int n){return &m_Fluid.bufI(FCONC)[n*NUM_TF];}
-//note #define FEPIGEN     17      //# uint[NUM_GENES]		
-        uint* getEpiGen(int n){return &m_Fluid.bufI(FEPIGEN)[n*NUM_GENES];}
+        uint* getElastIdx( int n )      { return &m_Fluid.bufI(FELASTIDX)[n*(BONDS_PER_PARTICLE * DATA_PER_BOND)]; }        //note #define FELASTIDX   14      
+        uint* getParticle_Idx( int n )  { return &m_Fluid.bufI(FPARTICLEIDX)[n*BONDS_PER_PARTICLE*2]; } 
+        uint* getParticle_ID(int n )    { return &m_Fluid.bufI(FPARTICLE_ID)[n]; }
+        uint* getMass_Radius(int n )    { return &m_Fluid.bufI(FMASS_RADIUS)[n]; }
+        uint* getNerveIdx( int n )      { return &m_Fluid.bufI(FNERVEIDX)[n]; }          //#define FNERVEIDX        15      //# uint
+        uint* getConc(int n)            { return &m_Fluid.bufI(FCONC)[n*NUM_TF];}        //note #define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
+        uint* getEpiGen(int n)          { return &m_Fluid.bufI(FEPIGEN)[n*NUM_GENES];}   //note #define FEPIGEN     17      //# uint[NUM_GENES]		
 		
 		// Setup
 		void Start ( int num );
@@ -256,7 +252,9 @@
 
 		// Simulation
 		void Run ();	
+        void Run( const char * relativePath, int frame );
         void Freeze ();
+        void Freeze (const char * relativePath, int frame );
 		void ValidateCUDA ();		
 		void RunPlayback ();
 		void AdvanceTime ();

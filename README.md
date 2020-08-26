@@ -51,6 +51,7 @@ usage:
 e.g.
 
     ../build/install/bin/make_demo 125 1 6 6 6
+
     
 CPU-only test program to generate example **"SimParams.txt"** and **"particles_pos_vel_color100001.csv"** files for specifying models, and a **"particles_pos100001.ply"** for viewing a model in e.g. Meshlab.
 
@@ -58,11 +59,12 @@ CPU-only test program to generate example **"SimParams.txt"** and **"particles_p
 usage:
 
     cd data
-    ../build/install/bin/check_demo  demo  check 
+    check_demo  simulation_data_folder  output_folder
     
 e.g.
 
-    ../build/install/bin/check_demo  simulation_data_folder  output_folder
+    ../build/install/bin/check_demo  demo  check 
+    
     
 CPU-only test program to verify the ability to read and re-output models.
 
