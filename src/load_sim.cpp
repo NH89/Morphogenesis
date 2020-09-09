@@ -104,21 +104,21 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         file_num+=10;
          */
         // /*
-        fluid.Freeze ();                                    // creates the bonds
-        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
+        fluid.Freeze ();       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.
+//temporary comment out//   if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
         if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
-        printf("\nsaved file_num=%u",file_num);
-        file_num++;
+     //   printf("\nsaved file_num=%u",file_num);
+        file_num+=10;
         
         // */
     }
 
     printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
     
-    for ( ; file_num<num_files; file_num+=1 ) {
+    for ( ; file_num<num_files; file_num+=10 ) {
         for ( int j=0; j<steps_per_file; j++ ) {
-            fluid.Run ();                               // run the simulation  // Run(outPath, file_num)
-        }
+            fluid.Run ();                               // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
+        }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
 
         //fluid.SavePoints (i);                         // alternate file formats to write
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
