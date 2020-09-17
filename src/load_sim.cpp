@@ -73,44 +73,17 @@ std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
     fluid.SavePointsCSV2 ( outPath, file_num );
     fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
     file_num++;
-/*
-std::cout <<"\nchk load_sim_1.1\n"<<std::flush;
-    fluid.InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
-    fluid.PrefixSumCellsCUDA ( 0x0, 1 );
-    fluid.CountingSortFullCUDA ( 0x0 );
-std::cout <<"\nchk load_sim_1.2\n"<<std::flush;   
-    fluid.TransferFromCUDA ();
-    fluid.SavePointsCSV2 ( outPath, 1 );
-    fluid.SavePoints_asciiPLY ( outPath, 1 );
-std::cout <<"\nchk load_sim_1.3\n"<<std::flush;   
-    fluid.FreezeCUDA();
-    fluid.TransferFromCUDA ();
-    fluid.SavePointsCSV2 ( outPath, 2 );
-    fluid.SavePoints_asciiPLY ( outPath, 2 );
-std::cout <<"\nchk load_sim_1.4\n"<<std::flush;   
-    fluid.Run (); 
-    fluid.SavePointsCSV2 ( outPath, 3 );
-    fluid.SavePoints_asciiPLY ( outPath, 3 );
- */   
-
-
-
+ 
 std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
-    
-
     for (int k=0; k<freeze_steps; k++){
          /*
         fluid.Freeze (outPath, file_num);                   // save csv after each kernel - to investigate bugs
         file_num+=10;
          */
-        // /*
         fluid.Freeze ();       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.
-//temporary comment out//   if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
+        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
         if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
-     //   printf("\nsaved file_num=%u",file_num);
         file_num+=10;
-        
-        // */
     }
 
     printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
@@ -126,37 +99,6 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         //fluid.WriteParticlesToHDF5File(i);
         printf ( "\nsaved file_num=%u, frame number =%i \n",file_num,  file_num*steps_per_file );
     }
-
-
-    /*//fluid.TransferFromCUDA ();	// retrieve outcome
-    //int filenum = 0;
-    	//fluid.SavePoints(filenum);
-    // NB fluid.m_Fluid.bufC(FPOS) returns a char* for fluid.m_Fluid.mcpu[n]
-
-    //fluid.SaveResults ();
-    //int NumPoints (){ return mNumPoints; }
-    //Vector3DF* getPos(int n){ return &m_Fluid.bufV3(FPOS)[n]; }
-    //Vector3DF* getVel(int n){ return &m_Fluid.bufV3(FVEL)[n]; }
-    //uint* getClr (int n){ return &m_Fluid.bufI(FCLR)[n]; }
-
-    //write fluid.m_Fluid.mcpu[n] to file. where n=bufferID : FPOS=0, FVEL=1
-
-    // mcpu[MAX_BUF] where MAX_BUF = 25, is an array of buffers.
-    // FluidSystem::AllocateParticles ( int cnt=numParticles )
-    // calls FluidSystam::AllocateBuffer(...) for each each buffer
-    // which calls m_Fluid.setBuf(buf_id, dest_buf);
-    // to save the pointer to the allocated buffer to fluid.m_Fluid.mcpu[n]
-    // FPOS, has a stride : sizeof(Vector3DF) , and 'numParticles' elements
-
-    // create file
-
-    // write HDF5 data to store fluid.m_Fluid.mcpu[FPOS][numParticles][Vector3DF]
-    // use h5ex_t_array.c example
-
-    	//int stride = sizeof(Vector3DF);
-    	//fluid.SavePointsCSV (filenum);
-    //fluid.WriteFileTest2(m_numpnts);
-    //fluid.WriteParticlesToHDF5File(filenum);*/
     
     fluid.WriteSimParams ( outPath ); 
     fluid.WriteGenome( outPath );

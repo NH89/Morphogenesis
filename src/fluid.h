@@ -72,7 +72,7 @@
     // 
     // # if elastic force is written to both interacting particles, then the effective number of bonds doubles.
     // # i.e. each particle stores three bonds, but the average bonds per atom would be six.
-    #define BONDS_PER_PARTICLE  4   // current: 4 bonds plus length and modulus of each NB written to both particles so average 8 bonds per particle //old: actually 3, [0] for self ID, mass & radius
+    #define BONDS_PER_PARTICLE  6// 6 enables triangulated cubic structure    4   // current: 4 bonds plus length and modulus of each NB written to both particles so average 8 bonds per particle //old: actually 3, [0] for self ID, mass & radius
 #define DATA_PER_BOND 7 //6 : [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index  // previously 3 : [0]current index, [1]mod_lim, [2]particle ID.
 #define BOND_DATA BONDS_PER_PARTICLE * DATA_PER_BOND
 #define REST_LENGTH  1  // need to find suitable number relative to particle and bin size, plus elastic limits.

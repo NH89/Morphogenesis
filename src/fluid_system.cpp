@@ -128,6 +128,7 @@ void FluidSystem::Initialize (/*int _pnum = 65536*128, int _pmode = RUN_GPU_FULL
     AllocateBuffer ( FPARAMS,		sizeof(FParams),	0,	1,	 GPU_SINGLE,     CPU_OFF );//AllocateBuffer ( int buf_id, int stride,     int cpucnt, int gpucnt,    int gpumode,    int cpumode )
     std::cout << "\nChk1.6 \n";
 }
+
 // /home/nick/Programming/Cuda/Morphogenesis/build/install/ptx/objects/fluid_systemPTX/fluid_system_cuda.ptx
 void FluidSystem::InitializeCuda ()         // used for load_sim  /home/nick/Programming/Cuda/Morphogenesis/build/install/ptx/objects-Debug/fluid_systemPTX/fluid_system_cuda.ptx
 {
@@ -228,30 +229,6 @@ std::cout << "Chk2.14\n"<<std::flush;
 
 
 
-/* void FluidSystem::LoadSimulation (const char * relativePath)  // start sim from a folder of data
-{
-    / * data required.
-    //
-    // nb Initialize()  loads cuModule from .ptx , sets up kernels, memsets buffers (fluid, tem, params, genome),   // fixed
-    //                  sets m_param[mode, example, grid_density, pnum],   allocates  m_Fluid.mgpu[FPARAMS] buffer.
-    //
-    // "grid_density" & "pnum"
-    //
-    // Contents of : SetupDefaultParams()
-    // Contents of : S SetupExampleParams()
-    // int threadsPerBlock = 512; in FluidSetupCUDA(...)            // not included yet.
-    //
-    // NB need to load the particles, before TransferToCUDA()
-    // SetupAddVolume() defines a fixed array of particles
-    // Use ReadPointsCSV()
-    * /
-    ReadSimParams ( relativePath );
-    ReadPointsCSV ( relativePath, GPU_OFF, CPU_YES);    // !! change these !!
-    TransferToCUDA ();                                              // Initial transfer
-}*/
-
-
-
 /////////////////////////////////////////////////////////////////
 void FluidSystem::UpdateGenome ()   // Update Genome on GPU
 {
@@ -339,57 +316,6 @@ std::cout<<"cuMemFree(m_FluidTemp.gpu("<<buf_id<<"))\t"<<std::flush;
 }
 
 // Allocate particle memory
-/*
-void FluidSystem::AllocateParticles ( int cnt ) // calls AllocateBuffer(..) for each buffer.  
-//Called by FluidSystem::Start(..), cnt = mMaxPoints.
-{
-    AllocateBuffer ( FPOS,		sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );//AllocateBuffer ( int buf_id, int stride,     int cpucnt, int gpucnt,    int gpumode,    int cpumode )
-    AllocateBuffer ( FCLR,		sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FVEL,		sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );// NB GPU_DUAL means create buffers for _both_  "m_Fluid.mgpu[buf_id]" and "m_FluidTemp.mgpu[buf_id]"
-    AllocateBuffer ( FVEVAL,	sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FAGE,		sizeof(uint), cnt,m_FParams.szPnts,	GPU_DUAL, CPU_YES );            //uint = unsigned short
-    AllocateBuffer ( FPRESS,	sizeof(float),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FDENSITY,	sizeof(float),		cnt, 	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FFORCE,	sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FCLUSTER,	sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FGCELL,	sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FGNDX,		sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FGNEXT,	sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FNBRNDX,	sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FNBRCNT,	sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FSTATE,	sizeof(uint),		cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    // extra buffers for morphogenesis
-    AllocateBuffer ( FELASTIDX,	    sizeof(uint[BONDS_PER_PARTICLE]), cnt,   m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FPARTICLE_ID,	sizeof(uint),    cnt,   m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FMASS_RADIUS,	sizeof(uint),    cnt,   m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    
-    AllocateBuffer ( FNERVEIDX,	sizeof(uint),		                 cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FCONC,	    sizeof(uint[NUM_TF]),		         cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-    AllocateBuffer ( FEPIGEN,	sizeof(uint[NUM_GENES]),	         cnt,	m_FParams.szPnts,	GPU_DUAL, CPU_YES );
-
-
-    // Update GPU access pointers
-    cuCheck( cuMemcpyHtoD(cuFBuf,    &m_Fluid,      sizeof(FBufs)),	    "AllocateParticles", "cuMemcpyHtoD", "cuFBuf", mbDebug);
-    cuCheck( cuMemcpyHtoD(cuFTemp,   &m_FluidTemp,  sizeof(FBufs)),	    "AllocateParticles", "cuMemcpyHtoD", "cuFTemp", mbDebug);
-    cuCheck( cuMemcpyHtoD(cuFParams, &m_FParams,    sizeof(FParams)),   "AllocateParticles", "cuMemcpyHtoD", "cuFParams", mbDebug);
-    cuCheck( cuMemcpyHtoD(cuFGenome, &m_FGenome,    sizeof(FGenome)),   "AllocateParticles", "cuMemcpyHtoD", "cuFGenome", mbDebug);
-    cuCheck(cuCtxSynchronize(), "AllocateParticles", "cuCtxSynchronize", "", mbDebug );
-
-    m_Param[PSTAT_PMEM] = 68.0f * 2 * cnt;
-
-    // Allocate auxiliary buffers (prefix sums)
-    int blockSize = SCAN_BLOCKSIZE << 1;
-    int numElem1 = m_GridTotal;
-    int numElem2 = int ( numElem1 / blockSize ) + 1;
-    int numElem3 = int ( numElem2 / blockSize ) + 1;
-
-    AllocateBuffer ( FAUXARRAY1,	sizeof(uint),		0,	numElem2, GPU_SINGLE, CPU_OFF );
-    AllocateBuffer ( FAUXSCAN1,	    sizeof(uint),		0,	numElem2, GPU_SINGLE, CPU_OFF );
-    AllocateBuffer ( FAUXARRAY2,	sizeof(uint),		0,	numElem3, GPU_SINGLE, CPU_OFF );
-    AllocateBuffer ( FAUXSCAN2,	    sizeof(uint),		0,	numElem3, GPU_SINGLE, CPU_OFF );
-}
-*/
-
 void FluidSystem::AllocateParticles ( int cnt, int gpu_mode, int cpu_mode ) // calls AllocateBuffer(..) for each buffer.  
 // Defaults in header : int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES
 // Called by FluidSystem::ReadPointsCSV(..), and FluidSystem::WriteDemoSimParams(...), cnt = mMaxPoints.
@@ -498,20 +424,7 @@ int FluidSystem::AddParticle ()
     *(m_Fluid.bufI(FGNEXT) + n) = -1;
     *(m_Fluid.bufI(FCLUSTER)  + n) = -1;
     *(m_Fluid.bufF(FSTATE) + n ) = (float) rand();
-    *(m_Fluid.bufI(FPARTICLE_ID)+n) = n+1;
-    
- /*   
- //   *(m_Fluid.bufII(FELASTIDX)+n) = 0;              // uint[BONDS_PER_PARTICLE * 2 = 8 ]
-    
- //   *(m_Fluid.bufI(FPARTICLE_ID)+n) = 1;            //# uint  original pnum
- //   *(m_Fluid.bufI(FMASS_RADIUS)+n) = 0;            //# uint holding modulus 16bit and limit 16bit
- //   *(m_Fluid.bufI(FNERVEIDX)+n) = 0;               //# uint
-    
- //   *(m_Fluid.bufII(FCONC)+n) = 0;                   //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
-    
- //   *(m_Fluid.bufII(FEPIGEN)+n) = 0;                 //# uint[NUM_GENES]
-*/
-    
+    *(m_Fluid.bufI(FPARTICLE_ID)+n) = n+1; 
     mNumPoints++;
     return n;
 }
