@@ -1,0 +1,45 @@
+ m_Time = 0.000000
+ m_DT = 0.000300
+ m_Param [ PSIMSCALE ] = 0.005000
+ m_Param [ PGRID_DENSITY ] = 2.000000
+ m_Param [ PVISC ] = 5.000000
+ m_Param [ PRESTDENSITY ] = 400.000000
+ m_Param [ PSPACING ] = 1.393426
+ m_Param [ PMASS ] = 0.000205
+ m_Param [ PRADIUS ] = 0.015000
+ m_Param [ PDIST ] = 0.008008
+ m_Param [ PSMOOTHRADIUS ] = 0.015000
+ m_Param [ PINTSTIFF ] = 1.000000
+ m_Param [ PEXTSTIFF ] = 50000.000000
+ m_Param [ PEXTDAMP ] = 100.000000
+ m_Param [ PACCEL_LIMIT ] = 150.000000
+ m_Param [ PVEL_LIMIT ] = 3.000000
+ m_Param [ PMAX_FRAC ] = 1.000000
+ m_Param [ PGRAV ] = 1.000000
+ m_Param [ PGROUND_SLOPE ] = 0.100000
+ m_Param [ PFORCE_MIN ] = 100.000000
+ m_Param [ PFORCE_MAX ] = 0.000000
+ m_Param [ PFORCE_FREQ ] = 6.000000
+ m_Toggle [ PWRAP_X ] = 0
+ m_Toggle [ PWALL_BARRIER ] = 0
+ m_Toggle [ PLEVY_BARRIER ] = 0
+ m_Toggle [ PDRAIN_BARRIER ] = 0
+ m_Param [ PSTAT_NBRMAX ] = 0.000000
+ m_Param [ PSTAT_SRCHMAX ] = 0.000000
+ m_Vec [ PPOINT_GRAV_POS ].Set ( 0.000000, 0.000000, 0.000000 )
+ m_Vec [ PPLANE_GRAV_DIR ].Set ( 0.000000, -9.800000, 0.000000 )
+ m_Vec [ PEMIT_POS ].Set ( 0.000000, 0.000000, 0.000000 )
+ m_Vec [ PEMIT_RATE ].Set ( 0.000000, 0.000000, 0.000000 )
+ m_Vec [ PEMIT_ANG ].Set ( 0.000000, 90.000000, 1.000000 )
+ m_Vec [ PEMIT_DANG ].Set ( 0.000000, 0.000000, 0.000000 )
+ // Default sim config
+ m_Toggle [ PRUN ] = 1
+ m_Param [ PGRIDSIZE ] = 0.015000
+ m_Vec [ PVOLMIN ].Set ( 0.000000, 0.000000, 0.000000 )
+ m_Vec [ PVOLMAX ].Set ( 400.000000, 200.000000, 400.000000 )
+ m_Vec [ PINITMIN ].Set ( 100.000000, 80.000000, 100.000000 )
+ m_Vec [ PINITMAX ].Set ( 300.000000, 190.000000, 300.000000 )
+ m_Param [ PFORCE_MIN ] = 100.000000
+ m_Param [ PFORCE_FREQ ] = 6.000000
+ m_Param [ PGROUND_SLOPE ] = 0.100000
+ 

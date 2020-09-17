@@ -645,8 +645,8 @@ int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint
     uint* Particle_Idx = (m_Fluid.bufI(FPARTICLEIDX) + n * BONDS_PER_PARTICLE *2 );     // index of incoming bonds
     for(int j=0; j<(BONDS_PER_PARTICLE *2); j++) {
         Particle_Idx[j] = _Particle_Idx[j] ;
-        std::cout<<"."<<Particle_Idx[j];
-    }std::cout<<std::flush;
+        //std::cout<<"."<<Particle_Idx[j];
+    }//std::cout<<std::flush;
     *(m_Fluid.bufI(FPARTICLE_ID) + n)   = Particle_ID;                                  // permanent ID of particle 
     *(m_Fluid.bufI(FMASS_RADIUS) + n)   = Mass_Radius;
     *(m_Fluid.bufI(FNERVEIDX) + n)      = NerveIdx;
