@@ -99,7 +99,7 @@ See notes in fluid.h
 
     #define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
     #define FNERVEIDX   15      //# uint
-    #define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
+    #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
     #define FEPIGEN     17      //# uint[NUM_GENES]
     
     FELASTIDX - gives the particle ID of those particles that have elastic bonds to this particle.
@@ -211,7 +211,7 @@ See notes in fluid.h
     #define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
     //#define FELASTMOD         //# uint[BONDS_PER_PARTICLE +1]  modulus of bond (use a standard length) //not required
     #define FNERVEIDX   15      //# uint
-    #define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
+    #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
     #define FEPIGEN     17      //# uint[NUM_GENES]
     
 // original buffers continued    
