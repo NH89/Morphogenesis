@@ -152,7 +152,7 @@ extern "C" __global__ void countingSortFull ( int pnum )
         fbuf.bufI (FMASS_RADIUS) [sort_ndx] =	ftemp.bufI(FMASS_RADIUS) [i];
         fbuf.bufI (FNERVEIDX)    [sort_ndx] =	ftemp.bufI(FNERVEIDX) [i];
         
-        for (int a=0;a<NUM_TF;a++){fbuf.bufI (FCONC)   [sort_ndx * NUM_TF + a]      =	ftemp.bufI(FCONC) [i * NUM_TF + a]    ;}
+        for (int a=0;a<NUM_TF;a++){fbuf.bufF (FCONC)   [sort_ndx * NUM_TF + a]      =	ftemp.bufF(FCONC) [i * NUM_TF + a]    ;}
         for (int a=0;a<NUM_TF;a++){fbuf.bufI (FEPIGEN) [sort_ndx * NUM_GENES + a]   =	ftemp.bufI(FEPIGEN) [i * NUM_GENES + a];}
 	}
 } 
@@ -173,10 +173,10 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell )
 		int pndx = fbuf.bufI(FGRID) [cndx];                                       // index of this particle
 		dist = p - fbuf.bufF3(FPOS) [pndx];                                       // float3 distance between this particle, and the particle for which the loop has been called.
 		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                    // scalar distance squared
-		if ( dsq < r2 && dsq > 0.0) {                                             // IF in-range && not the same particle. 
+		if ( dsq < r2 && dsq > 0.0) {                                             // IF in-range && not the same particle.
 			c = (r2 - dsq)*d2;                                                    //(NB this means all unused particles can be stored at one point)
-			sum += c * c * c;				
-		} 
+			sum += c * c * c;
+		}
 	}
 	return sum;                                                             // NB a scalar value for pressure contribution, at the current particle, due to particles in this cell.
 }
@@ -205,6 +205,46 @@ extern "C" __global__ void computePressure ( int pnum )
 	if ( sum == 0.0 ) sum = 1.0;
 	fbuf.bufF(FPRESS)  [ i ] = ( sum - fparam.prest_dens ) * fparam.pintstiff;
 	fbuf.bufF(FDENSITY)[ i ] = 1.0f / sum;
+}
+
+extern "C" __device__ float contributeDiffusion(int i, float3 p, int cell){
+    // if the cell is empty, skip it
+    if (fbuf.bufI(FGRIDCNT)[cell] == 0) return 0.0f;
+
+    float3 dist;
+    float dsq, c, sum = 0.0;
+    register float d2 = fparam.psimscale * fparam.psimscale;
+    register float r2 = fparam.r2 / d2;
+
+    // process will be something like:
+    // - look at neighbours around me, add their chemicals to this particle, and subtract some from myself as well
+    // - return that
+
+    // USE FCONC - should be float
+
+    // add to neighbours, subtract from myself
+
+    return 1.0f;
+}
+
+
+extern "C" __global__ void computeDiffusion(int pnum){
+    // get particle index
+    uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
+    // if the particle is outside the simulation, quit processing
+    if (i >= pnum) return;
+
+    // Get search cell
+    // TODO - what does this block do?
+    int nadj = (1 * fparam.gridRes.z + 1) * fparam.gridRes.x + 1;
+    uint gc = fbuf.bufI(FGCELL) [i];
+    if (gc == GRID_UNDEF) return;
+    gc -= nadj;
+
+    // Sum diffusion? (or in this case subtract it?)
+    __syncthreads();
+
+    // Compute diffusion?
 }
 
 extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell, uint _bondsToFill, uint _bonds[BONDS_PER_PARTICLE][2], float _bond_dsq[BONDS_PER_PARTICLE], bool freeze)

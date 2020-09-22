@@ -157,7 +157,7 @@
     #define FMASS_RADIUS 31     //# uint holding modulus 16bit and limit 16bit.      
     //#define FELASTMOD         //# uint[BONDS_PER_PARTICLE +1]  modulus of bond (use a standard length) //not required
     #define FNERVEIDX   15      //# uint
-    #define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
+    #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
     #define FEPIGEN     17      //# uint[NUM_GENES]
     
 // original buffers continued    
