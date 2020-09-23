@@ -161,8 +161,9 @@
 	#define FUNC_FPREFIXFIXUP	10
 	
 	#define FUNC_FREEZE         11
+    #define FUNC_COMPUTE_DIFFUSION 12
 	
-	#define FUNC_MAX			12
+	#define FUNC_MAX			16
 
 	
 	// nb COLORA defined in 'vector.h"
@@ -316,6 +317,7 @@
 		void PrefixSumCellsCUDA ( uint* goff, int zero_offsets );		
 		void CountingSortFullCUDA ( Vector3DF* gpos );
 		void ComputePressureCUDA ();
+		void ComputeDiffusionCUDA();
 		void ComputeQueryCUDA ();
 		void ComputeForceCUDA ();	
         void FreezeCUDA ();

@@ -100,6 +100,7 @@ void FluidSystem::Initialize (/*int _pnum = 65536*128, int _pmode = RUN_GPU_FULL
     LoadKernel ( FUNC_FPREFIXSUM,		"prefixSum" );
     LoadKernel ( FUNC_FPREFIXFIXUP,		"prefixFixup" );
     LoadKernel ( FUNC_FREEZE,		    "freeze" );
+    LoadKernel ( FUNC_COMPUTE_DIFFUSION,"computeDiffusion");
     
 
     std::cout << "Chk1.2 \n";
@@ -150,6 +151,7 @@ void FluidSystem::InitializeCuda ()         // used for load_sim  /home/nick/Pro
     LoadKernel ( FUNC_FPREFIXSUM,		"prefixSum" );
     LoadKernel ( FUNC_FPREFIXFIXUP,		"prefixFixup" );
     LoadKernel ( FUNC_FREEZE,		    "freeze" );
+    LoadKernel ( FUNC_COMPUTE_DIFFUSION,"computeDiffusion");
 
     std::cout << "Chk1.2 \n";
     size_t len = 0;
@@ -835,6 +837,11 @@ std::cout << "\tFluidSystem::Run (),  "<<std::flush;
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug);
 //TransferFromCUDA ();
 //std::cout << "\n\n Chk6 \n"<<std::flush;
+
+    // I believe this is where we're supposed to call it, TODO check if correct
+    ComputeDiffusionCUDA();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
+
     AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);    
 //TransferFromCUDA ();
@@ -3265,6 +3272,12 @@ void FluidSystem::ComputePressureCUDA ()
 {
     void* args[1] = { &mNumPoints };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_PRESS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputePressureCUDA", "cuLaunch", "FUNC_COMPUTE_PRESS", mbDebug);
+}
+
+void FluidSystem::ComputeDiffusionCUDA(){
+    std::cout << "\n\nRunning ComputeDiffusionCUDA()" << std::endl;
+    void* args[1] = { &mNumPoints };
+    cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_DIFFUSION],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputeDiffusionCUDA", "cuLaunch", "FUNC_COMPUTE_DIFFUSION", mbDebug);
 }
 
 void FluidSystem::ComputeForceCUDA ()
