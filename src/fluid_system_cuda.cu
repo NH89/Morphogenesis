@@ -164,7 +164,7 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell )
 
 	float3 dist;
 	float dsq, c, sum = 0.0;
-	register float d2 = fparam.psimscale * fparam.psimscale;
+	register float d2 = fparam.psimscale * fparam.psimscale; // max length in simulation space
 	register float r2 = fparam.r2 / d2;
 	
 	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];      // off set of this cell in the list of particles,  PLUS  the count of particles in this cell.
@@ -199,6 +199,7 @@ extern "C" __global__ void computePressure ( int pnum )
 		sum += contributePressure ( i, pos, gc + fparam.gridAdj[c] );
 	}
 	__syncthreads();
+	printf("computePressure, particle %u, sum=%.32f\n", i, sum);
 		
 	// Compute Density & Pressure
 	sum = sum * fparam.pmass * fparam.poly6kern;
@@ -208,10 +209,7 @@ extern "C" __global__ void computePressure ( int pnum )
 }
 
 //! constant diffusion rate (as a percentage, 0.0 to 1.0) of chemical exchanged per step. change this in future!
-#define DIFFUSE_RATE 0.01
-
-// method:
-// add to ourselves 1% of what they have, and give away 1% of what we have
+#define DIFFUSE_RATE 10.0
 
 //! loops over all the chemicals in the given particle and exchanges chemicals
 extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const float currentConc[NUM_TF], float newConc[NUM_TF]){
@@ -219,8 +217,6 @@ extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const
     if (fbuf.bufI(FGRIDCNT)[cell] == 0) return;
 
     // this is all standard setup stuff, borrowed from contributePressure()
-    float3 dist;
-    float dsq;
     register float d2 = fparam.psimscale * fparam.psimscale; // (particle simulation scale), not PSI
     register float r2 = fparam.r2 / d2;
 
@@ -232,22 +228,27 @@ extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const
         int pndx = fbuf.bufI(FGRID)[cndx];
 
         // distance between this particle and considered particle (scalar distance squared, to save time I presume)
-        dist = p - fbuf.bufF3(FPOS) [pndx];
-        dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);
+        float3 dist = p - fbuf.bufF3(FPOS) [pndx];
+        float dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);
 
         // if the particle is in range, and not ourselves
         if (dsq < r2 && dsq > 0.0) {
+            // distance falloff, diffusion rate scalar
+            float c = (r2 - dsq) * d2;
+
             // chemical loop
             // for each chemical in this neighbour particle, exchange an amount relative to the diffusion rate with us
             for (int j = 0; j < NUM_TF; j++){
                 // get the j'th chemical from this particle and exchange
                 float otherConc = fbuf.bufF(FCONC)[pndx * NUM_TF + j];
-                float localConc = otherConc * DIFFUSE_RATE - currentConc[j] * DIFFUSE_RATE;
+                float localConc = otherConc * (DIFFUSE_RATE * c) - currentConc[j] * (DIFFUSE_RATE * c);
                 newConc[j] += localConc;
             }
         }
     }
 
+    // method:
+    // add to ourselves 1% of what they have, and give away 1% of what we have
     // compute calls contribute once per bin
     // contribute will loop over particles for the bin
     // therefore it needs to loop over each 16 chemical per particle
