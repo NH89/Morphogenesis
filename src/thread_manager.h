@@ -10,7 +10,7 @@
 /** test data struct for demo */
 struct TestData {
     int counter = 0;
-    std::string justMakingSure = "Need more time";
+    std::string justMakingSure = "Not working!";
 };
 
 /**
@@ -23,17 +23,21 @@ public:
     ThreadManager() = default;
     /** Creates and starts kernel manager and disk write threads. */
     void create();
-    /*** Asks threads to shut down and waits for them to finalise. */
+    /** Gracefully shuts down kernel manager and disk write threads. */
     void teardown();
-    /** Mainly for testing, blocks until both threads quit. **/
+    /** Mainly for testing, blocks until both threads quit. */
     void await();
 
 private:
     std::thread diskWriteThread;
     std::thread kernelManagerThread;
-    std::atomic<bool> running {}; // apparently this counts as an initialiser?
-    std::condition_variable dataReady; // true if data is ready for the disk write thread
-    std::mutex dataReadyMutex;
+
+    std::atomic<bool> running { false }; // true if teardown() has not been called
+
+    std::mutex condMutex; // mutex for all condition variables
+    std::condition_variable dataReady; // notifies the disk write thread that data is ready for writing
+    std::condition_variable diskReady; // notifies the kernel manager thread that the disk writer thread is finished
+    std::atomic<bool> isDiskReady { true }; // true if disk has finished being written to by disk write thread
 
     // pretend global data like FBuf, just for test
     TestData globalTestData;

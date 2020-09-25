@@ -11,11 +11,12 @@ int main(){
     manager.create();
 
     // the purpose of this loop is to prove that the threads are working and also to stop the app from exiting straight away
-    for (int i = 0; i < 5; i++){
+    for (int i = 0; i < 10; i++){
         std::this_thread::sleep_for(std::chrono::seconds(2));
-        std::cout << "main loop running" << std::endl;
+        //std::cout << "main loop running" << std::endl;
     }
 
+    std::cout << "Main loop finished. Tearing down threads" << std::endl;
     manager.teardown();
     return EXIT_SUCCESS;
 }
