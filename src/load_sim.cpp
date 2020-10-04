@@ -103,6 +103,7 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     fluid.WriteSimParams ( outPath ); 
     fluid.WriteGenome( outPath );
     fluid.SavePointsCSV2 ( outPath, 20*30 );                 //fluid.SavePointsCSV ( outPath, 1 );
+    fluid.SavePointsVTP2 ( outPath, 20*30 );
 
     fluid.Exit ();                                      // Clean up and close
     CUresult cuResult = cuCtxDestroy ( cuContext ) ;

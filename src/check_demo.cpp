@@ -31,6 +31,9 @@ int main ( int argc, const char** argv )
 
     FluidSystem fluid;
     
+    // Clear all buffers
+    fluid.Initialize();   // where do the buffers for params and genome get allocated when there is no fluid.InitializeCuda (); ?
+
     fluid.ReadSimParams(paramsPath);
     fluid.ReadGenome(genomePath, GPU_OFF, CPU_YES);
     fluid.ReadPointsCSV2(pointsPath, GPU_OFF, CPU_YES);  //fluid.ReadPointsCSV(pointsPath, GPU_OFF, CPU_YES);
@@ -42,6 +45,7 @@ int main ( int argc, const char** argv )
     fluid.WriteGenome( outPath );
     fluid.SavePointsCSV2 ( outPath, 1 );                 //fluid.SavePointsCSV ( outPath, 1 );
     fluid.SavePoints_asciiPLY ( outPath, 1 );
+    fluid.SavePointsVTP2(outPath, 1 );
     
     fluid.Exit ();	
     printf("\nmake_demo.\n");

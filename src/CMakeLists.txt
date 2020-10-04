@@ -1,8 +1,29 @@
 cmake_minimum_required(VERSION 3.8  FATAL_ERROR)  
+
+# if(POLICY CMP0025)
+#   cmake_policy(SET CMP0025 NEW) # CMake 3.0  for vtk
+# endif()
+# if(POLICY CMP0053)
+#   cmake_policy(SET CMP0053 NEW) # CMake 3.1  for vtk
+# endif()
+
+
 project(Morphogenesis LANGUAGES C CXX CUDA)
 
 find_package(CUDA 9.1 REQUIRED)
 #find_package(HDF5 REQUIRED)
+find_package(VTK COMPONENTS 
+    CommonCore
+    CommonDataModel
+    IOXML
+)
+
+if (NOT VTK_FOUND)
+  message("VTK not found: ${VTK_NOT_FOUND_MESSAGE}")
+  return ()
+endif()
+message (STATUS "VTK_VERSION: ${VTK_VERSION}")
+
 include_directories(${CUDA_INCLUDE_DIRS} )#"/home/hoc041/Programming/Cuda/fluids_v4/"
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -124,11 +145,17 @@ target_compile_features(make_demo PUBLIC cxx_std_11)
 target_compile_features(morphogenesis PUBLIC cxx_std_11)  
 #set_property(TARGET fluids_v4 PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
-target_link_libraries(load_sim PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES}  ) # ${HDF5_CXX_LIBRARIES}
-target_link_libraries(check_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES}  ) # ${HDF5_CXX_LIBRARIES}
-target_link_libraries(make_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES}  ) # ${HDF5_CXX_LIBRARIES}
-target_link_libraries(morphogenesis PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${HDF5_LIBRARIES}  ) # ${HDF5_CXX_LIBRARIES}
+target_link_libraries(load_sim PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES} 
+target_link_libraries(check_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES}
+target_link_libraries(make_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES}
+target_link_libraries(morphogenesis PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES}
 #target_link_libraries(fluids_v4 PRIVATE fluid_systemPTX)
+
+#vtk_module_autoinit is needed
+vtk_module_autoinit(
+     TARGETS load_sim check_demo make_demo
+     MODULES ${VTK_LIBRARIES}
+     )
 
 ###
 #nb edit code so that installed binary looks for ptx in correct location             
