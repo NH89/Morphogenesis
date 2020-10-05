@@ -10,6 +10,9 @@ cmake_minimum_required(VERSION 3.8  FATAL_ERROR)
 
 project(Morphogenesis LANGUAGES C CXX CUDA)
 
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CPP_STANDARD 17)
+
 find_package(CUDA 9.1 REQUIRED)
 #find_package(HDF5 REQUIRED)
 find_package(VTK COMPONENTS 
@@ -74,6 +77,27 @@ add_executable(load_sim
         vector.cpp
         vector.h
         vector_inline.h
+        thread_manager.cpp
+        thread_manager.h
+        ${output_file}
+)
+
+add_executable(thread_demo
+        thread_demo.cpp
+        allocator.cu
+        allocator.cuh
+        fluid.cpp
+        fluid.h
+        matrix.cpp
+        matrix.h
+        matrix_inline.h
+        fluid_system.cpp
+        fluid_system.h
+        vector.cpp
+        vector.h
+        vector_inline.h
+        thread_manager.cpp
+        thread_manager.h
         ${output_file}
 )
 
@@ -91,6 +115,8 @@ add_executable(check_demo
         vector.cpp
         vector.h
         vector_inline.h
+        thread_manager.cpp
+        thread_manager.h
         ${output_file}
 )
 
@@ -108,6 +134,8 @@ add_executable(make_demo
         vector.cpp
         vector.h
         vector_inline.h
+        thread_manager.cpp
+        thread_manager.h
         ${output_file}
 )
 
@@ -125,6 +153,8 @@ add_executable(morphogenesis
         vector.cpp
         vector.h
         vector_inline.h
+        thread_manager.cpp
+        thread_manager.h
         ${output_file}
         )
     
@@ -133,16 +163,19 @@ add_dependencies(load_sim fluid_systemPTX)
 add_dependencies(check_demo fluid_systemPTX)
 add_dependencies(make_demo fluid_systemPTX)
 add_dependencies(morphogenesis fluid_systemPTX)
+add_dependencies(thread_demo fluid_systemPTX)
 
 target_include_directories(load_sim PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(check_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(make_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(morphogenesis PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
+target_include_directories(thread_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 
 target_compile_features(load_sim PUBLIC cxx_std_11)
 target_compile_features(check_demo PUBLIC cxx_std_11)
 target_compile_features(make_demo PUBLIC cxx_std_11)
-target_compile_features(morphogenesis PUBLIC cxx_std_11)  
+target_compile_features(morphogenesis PUBLIC cxx_std_11)
+target_compile_features(thread_demo PUBLIC cxx_std_11)
 #set_property(TARGET fluids_v4 PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
 target_link_libraries(load_sim PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES} 
@@ -159,7 +192,7 @@ vtk_module_autoinit(
 
 ###
 #nb edit code so that installed binary looks for ptx in correct location             
-install(TARGETS fluid_systemPTX morphogenesis make_demo check_demo load_sim
+install(TARGETS fluid_systemPTX morphogenesis make_demo check_demo load_sim thread_demo
    EXPORT fluid_systemPTX
    RUNTIME DESTINATION bin
    LIBRARY DESTINATION lib

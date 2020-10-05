@@ -94,6 +94,7 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
 
         //fluid.SavePoints (i);                         // alternate file formats to write
+        // TODO flip mutex
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
         if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
         //fluid.WriteParticlesToHDF5File(i);

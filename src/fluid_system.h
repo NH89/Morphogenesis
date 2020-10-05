@@ -170,8 +170,9 @@
 	#define FUNC_FPREFIXFIXUP	10
 	
 	#define FUNC_FREEZE         11
+    #define FUNC_COMPUTE_DIFFUSION 12
 	
-	#define FUNC_MAX			12
+	#define FUNC_MAX			16
 
 	
 	// nb COLORA defined in 'vector.h"
@@ -218,8 +219,8 @@
 		int AddParticle ();
         int AddParticle (Vector3DF* Pos, Vector3DF* Vel);
         int AddParticleMorphogenesis ();
-        int AddParticleMorphogenesis(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint* _ElastIdx, uint NerveIdx, uint* _Conc, uint* _EpiGen);
-        int AddParticleMorphogenesis2(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float* _ElastIdx, uint* _Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, uint* _Conc, uint* _EpiGen);
+        int AddParticleMorphogenesis(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint* _ElastIdx, uint NerveIdx, float* _Conc, uint* _EpiGen);
+        int AddParticleMorphogenesis2(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float* _ElastIdx, uint* _Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen);
         
 		void AddEmit ( float spacing );
 		int NumPoints ()				{ return mNumPoints; }
@@ -232,7 +233,7 @@
         uint* getParticle_ID(int n )    { return &m_Fluid.bufI(FPARTICLE_ID)[n]; }
         uint* getMass_Radius(int n )    { return &m_Fluid.bufI(FMASS_RADIUS)[n]; }
         uint* getNerveIdx( int n )      { return &m_Fluid.bufI(FNERVEIDX)[n]; }          //#define FNERVEIDX        15      //# uint
-        uint* getConc(int n)            { return &m_Fluid.bufI(FCONC)[n*NUM_TF];}        //note #define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
+        float* getConc(int n)           { return &m_Fluid.bufF(FCONC)[n*NUM_TF];}        //note #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
         uint* getEpiGen(int n)          { return &m_Fluid.bufI(FEPIGEN)[n*NUM_GENES];}   //note #define FEPIGEN     17      //# uint[NUM_GENES]		
 		
 		// Setup
@@ -325,6 +326,7 @@
 		void PrefixSumCellsCUDA ( uint* goff, int zero_offsets );		
 		void CountingSortFullCUDA ( Vector3DF* gpos );
 		void ComputePressureCUDA ();
+		void ComputeDiffusionCUDA();
 		void ComputeQueryCUDA ();
 		void ComputeForceCUDA ();	
         void FreezeCUDA ();

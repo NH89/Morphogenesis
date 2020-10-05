@@ -152,7 +152,7 @@ extern "C" __global__ void countingSortFull ( int pnum )
         fbuf.bufI (FMASS_RADIUS) [sort_ndx] =	ftemp.bufI(FMASS_RADIUS) [i];
         fbuf.bufI (FNERVEIDX)    [sort_ndx] =	ftemp.bufI(FNERVEIDX) [i];
         
-        for (int a=0;a<NUM_TF;a++){fbuf.bufI (FCONC)   [sort_ndx * NUM_TF + a]      =	ftemp.bufI(FCONC) [i * NUM_TF + a]    ;}
+        for (int a=0;a<NUM_TF;a++){fbuf.bufF (FCONC)   [sort_ndx * NUM_TF + a]      =	ftemp.bufF(FCONC) [i * NUM_TF + a]    ;}
         for (int a=0;a<NUM_TF;a++){fbuf.bufI (FEPIGEN) [sort_ndx * NUM_GENES + a]   =	ftemp.bufI(FEPIGEN) [i * NUM_GENES + a];}
 	}
 } 
@@ -164,7 +164,7 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell )
 
 	float3 dist;
 	float dsq, c, sum = 0.0;
-	register float d2 = fparam.psimscale * fparam.psimscale;
+	register float d2 = fparam.psimscale * fparam.psimscale; // max length in simulation space
 	register float r2 = fparam.r2 / d2;
 	
 	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];      // off set of this cell in the list of particles,  PLUS  the count of particles in this cell.
@@ -173,10 +173,10 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell )
 		int pndx = fbuf.bufI(FGRID) [cndx];                                       // index of this particle
 		dist = p - fbuf.bufF3(FPOS) [pndx];                                       // float3 distance between this particle, and the particle for which the loop has been called.
 		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                    // scalar distance squared
-		if ( dsq < r2 && dsq > 0.0) {                                             // IF in-range && not the same particle. 
+		if ( dsq < r2 && dsq > 0.0) {                                             // IF in-range && not the same particle.
 			c = (r2 - dsq)*d2;                                                    //(NB this means all unused particles can be stored at one point)
-			sum += c * c * c;				
-		} 
+			sum += c * c * c;
+		}
 	}
 	return sum;                                                             // NB a scalar value for pressure contribution, at the current particle, due to particles in this cell.
 }
@@ -199,12 +199,99 @@ extern "C" __global__ void computePressure ( int pnum )
 		sum += contributePressure ( i, pos, gc + fparam.gridAdj[c] );
 	}
 	__syncthreads();
+	printf("computePressure, particle %u, sum=%.32f\n", i, sum);
 		
 	// Compute Density & Pressure
 	sum = sum * fparam.pmass * fparam.poly6kern;
 	if ( sum == 0.0 ) sum = 1.0;
 	fbuf.bufF(FPRESS)  [ i ] = ( sum - fparam.prest_dens ) * fparam.pintstiff;
 	fbuf.bufF(FDENSITY)[ i ] = 1.0f / sum;
+}
+
+//! constant diffusion rate (as a percentage, 0.0 to 1.0) of chemical exchanged per step. change this in future!
+#define DIFFUSE_RATE 10.0
+
+//! loops over all the chemicals in the given particle and exchanges chemicals
+extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const float currentConc[NUM_TF], float newConc[NUM_TF]){
+    // if the cell is empty, skip it
+    if (fbuf.bufI(FGRIDCNT)[cell] == 0) return;
+
+    // this is all standard setup stuff, borrowed from contributePressure()
+    register float d2 = fparam.psimscale * fparam.psimscale; // (particle simulation scale), not PSI
+    register float r2 = fparam.r2 / d2;
+
+    // offset of particle in particle list, and number of particles in cell?
+    int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];
+
+    // iterate over particles in cell
+    for (int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++) {
+        int pndx = fbuf.bufI(FGRID)[cndx];
+
+        // distance between this particle and considered particle (scalar distance squared, to save time I presume)
+        float3 dist = p - fbuf.bufF3(FPOS) [pndx];
+        float dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);
+
+        // if the particle is in range, and not ourselves
+        if (dsq < r2 && dsq > 0.0) {
+            // distance falloff, diffusion rate scalar
+            float c = (r2 - dsq) * d2;
+
+            // chemical loop
+            // for each chemical in this neighbour particle, exchange an amount relative to the diffusion rate with us
+            for (int j = 0; j < NUM_TF; j++){
+                // get the j'th chemical from this particle and exchange
+                float otherConc = fbuf.bufF(FCONC)[pndx * NUM_TF + j];
+                float localConc = otherConc * (DIFFUSE_RATE * c) - currentConc[j] * (DIFFUSE_RATE * c);
+                newConc[j] += localConc;
+            }
+        }
+    }
+
+    // method:
+    // add to ourselves 1% of what they have, and give away 1% of what we have
+    // compute calls contribute once per bin
+    // contribute will loop over particles for the bin
+    // therefore it needs to loop over each 16 chemical per particle
+    // space -> bin -> particle -> chemical in particle
+
+    // this function returns nothing because all arguments are passed to it
+    return;
+}
+
+//! main function to handle calculating diffusion, visits bins, then particles, then chemicals in particles
+extern "C" __global__ void computeDiffusion(int pnum){
+    // get particle index
+    uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
+    // if the particle is outside the simulation, quit processing
+    if (i >= pnum) return;
+
+    // collect current concentration: copy from global memory to thread memory
+    float newConc[NUM_TF] = {0};
+    float currentConc[NUM_TF] = {0};
+    // TODO maybe memcpy?
+    for (int j = 0; j < NUM_TF; j++){
+        currentConc[j] = fbuf.bufF(FCONC)[i * NUM_TF + j];
+    }
+
+    // Get search cell
+    int nadj = (1 * fparam.gridRes.z + 1) * fparam.gridRes.x + 1;
+    uint gc = fbuf.bufI(FGCELL) [i];
+    if (gc == GRID_UNDEF) return;
+    gc -= nadj;
+
+    // Now we work to exchange diffusion, by adding our neighbours chemicals and subtracting our own chemicals
+    float3 pos = fbuf.bufF3(FPOS) [i];
+    // bin loop: visit the bins
+    for (int c = 0; c < fparam.gridAdjCnt; c++) {
+        contributeDiffusion(i, pos, gc + fparam.gridAdj[c], currentConc, newConc);
+    }
+    __syncthreads();
+
+    // for this particular particle, loop over chemicals and write to global memory
+    // TODO could also be memcpy
+    for (int j = 0; j < NUM_TF; j++){
+        fbuf.bufF(FCONC)[i * NUM_TF + j] += newConc[j];
+    }
 }
 
 extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell, uint _bondsToFill, uint _bonds[BONDS_PER_PARTICLE][2], float _bond_dsq[BONDS_PER_PARTICLE], bool freeze)
