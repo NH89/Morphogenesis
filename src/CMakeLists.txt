@@ -11,14 +11,25 @@ cmake_minimum_required(VERSION 3.8  FATAL_ERROR)
 project(Morphogenesis LANGUAGES C CXX CUDA)
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CPP_STANDARD 17)
+set(CMAKE_CPP_STANDARD 11) # set(CMAKE_CPP_STANDARD 17)  NB need (<=11 for VTP)  &&  (>+11 for C++ threads)
 
 find_package(CUDA 9.1 REQUIRED)
 #find_package(HDF5 REQUIRED)
+#find_package(VTK REQUIRED)
+#vtk_module_config(VTK
+#    vtkCommonCore
+#    vtkCommonDataModel
+#    vtkIOXML
+#  )
+#include(${VTK_USE_FILE})
+
+
 find_package(VTK COMPONENTS 
     CommonCore
-    CommonDataModel
+    IOGeometry
+    IOLegacy
     IOXML
+    InteractionStyle
 )
 
 if (NOT VTK_FOUND)
@@ -27,7 +38,7 @@ if (NOT VTK_FOUND)
 endif()
 message (STATUS "VTK_VERSION: ${VTK_VERSION}")
 
-include_directories(${CUDA_INCLUDE_DIRS} )#"/home/hoc041/Programming/Cuda/fluids_v4/"
+include_directories(${CUDA_INCLUDE_DIRS} $(VTK_INCLUDE_DIRS) )#"/home/hoc041/Programming/Cuda/fluids_v4/"
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "./install" CACHE PATH "..." FORCE)
@@ -77,25 +88,25 @@ add_executable(load_sim
         vector.cpp
         vector.h
         vector_inline.h
-        thread_manager.cpp
-        thread_manager.h
+        #thread_manager.cpp
+        #thread_manager.h
         ${output_file}
 )
 
 add_executable(thread_demo
         thread_demo.cpp
-        allocator.cu
-        allocator.cuh
-        fluid.cpp
-        fluid.h
-        matrix.cpp
-        matrix.h
-        matrix_inline.h
-        fluid_system.cpp
-        fluid_system.h
-        vector.cpp
-        vector.h
-        vector_inline.h
+        #allocator.cu
+        #allocator.cuh
+        #fluid.cpp
+        #fluid.h
+        #matrix.cpp
+        #matrix.h
+        #matrix_inline.h
+        #fluid_system.cpp
+        #fluid_system.h
+        #vector.cpp
+        #vector.h
+        #vector_inline.h
         thread_manager.cpp
         thread_manager.h
         ${output_file}
@@ -115,8 +126,8 @@ add_executable(check_demo
         vector.cpp
         vector.h
         vector_inline.h
-        thread_manager.cpp
-        thread_manager.h
+        #thread_manager.cpp
+        #thread_manager.h
         ${output_file}
 )
 
@@ -134,8 +145,8 @@ add_executable(make_demo
         vector.cpp
         vector.h
         vector_inline.h
-        thread_manager.cpp
-        thread_manager.h
+        #thread_manager.cpp
+        #thread_manager.h
         ${output_file}
 )
 
@@ -153,8 +164,8 @@ add_executable(morphogenesis
         vector.cpp
         vector.h
         vector_inline.h
-        thread_manager.cpp
-        thread_manager.h
+        #thread_manager.cpp
+        #thread_manager.h
         ${output_file}
         )
     
@@ -163,7 +174,7 @@ add_dependencies(load_sim fluid_systemPTX)
 add_dependencies(check_demo fluid_systemPTX)
 add_dependencies(make_demo fluid_systemPTX)
 add_dependencies(morphogenesis fluid_systemPTX)
-add_dependencies(thread_demo fluid_systemPTX)
+#add_dependencies(thread_demo fluid_systemPTX)
 
 target_include_directories(load_sim PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(check_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
@@ -182,6 +193,8 @@ target_link_libraries(load_sim PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadev
 target_link_libraries(check_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES}
 target_link_libraries(make_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES}
 target_link_libraries(morphogenesis PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES}
+target_link_libraries(thread_demo PRIVATE -lpthread )
+
 #target_link_libraries(fluids_v4 PRIVATE fluid_systemPTX)
 
 #vtk_module_autoinit is needed

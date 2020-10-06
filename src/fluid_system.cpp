@@ -1794,9 +1794,9 @@ void FluidSystem::SavePointsVTP ( const char * relativePath, int frame ){
     uint numlines = numpnt * BONDS_PER_PARTICLE;
     Vector3DF* Pos;
     Vector3DF* Vel;
-    uint* Age, *Clr, *NerveIdx, *ElastIdx, *Particle_Idx, *Particle_ID, *Mass_Radius, *Conc, *EpiGen;                  // Q: why are these pointers? A: they get dereferenced below.
+    uint* Age, *Clr, *NerveIdx, *ElastIdx, *Particle_Idx, *Particle_ID, *Mass_Radius,  *EpiGen;                  // Q: why are these pointers? A: they get dereferenced below.
     uint mass, radius;
-    float *ElastIdxPtr;
+    float *ElastIdxPtr, *Conc;
 //// file header    
     fprintf(fp, "x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", BONDS_PER_PARTICLE, DATA_PER_BOND);  // This system inserts commas to align header with csv data
     for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index,,  ");
@@ -1945,7 +1945,7 @@ fprintf(fp, "\n</VTKFile>" );
 
         fprintf(fp, " \t%u, %u, %u, %u, \t\t", *Particle_ID, mass, radius, *NerveIdx );
         for(int j=0; j<(BONDS_PER_PARTICLE*2); j+=2)   { fprintf(fp, "%u, %u,, ",  Particle_Idx[j], Particle_Idx[j+1] );}  fprintf(fp, "\t\t"); // NB index of other particle AND other particle's index of the bond
-        for(int j=0; j<(NUM_TF); j++)               { fprintf(fp, "%u, ",  Conc[j] ); }         fprintf(fp, "\t\t");    
+        for(int j=0; j<(NUM_TF); j++)               { fprintf(fp, "%f, ",  Conc[j] ); }         fprintf(fp, "\t\t");    
         for(int j=0; j<(NUM_GENES); j++)            { fprintf(fp, "%u, ",  EpiGen[j] );}        fprintf(fp, " \n");
     }
     fclose ( fp );
