@@ -14,9 +14,9 @@ int main ( int argc, const char** argv )
     char outPath[256];
     uint num_files, steps_per_file, freeze_steps;
     int file_num=0;
-    char save_ply, save_csv;
-    if ( argc != 8 ) {
-        printf ( "usage: load_sim  simulation_data_folder output_folder num_files steps_per_file freeze_steps save_ply(y/n) save_csv(y/n)\n" );
+    char save_ply, save_csv, save_vtp;
+    if ( argc != 9 ) {
+        printf ( "usage: load_sim  simulation_data_folder output_folder num_files steps_per_file freeze_steps save_ply(y/n) save_csv(y/n) save_vtp(y/n)\n" );
         return 0;
     } else {
         sprintf ( paramsPath, "%s/SimParams.txt", argv[1] );
@@ -40,10 +40,14 @@ int main ( int argc, const char** argv )
         freeze_steps = atoi(argv[5]);
         
         save_ply = *argv[6];
-        printf ( "save_ply = %u\n", save_ply );
+        printf ( "save_ply = %c\n", save_ply );
         
         save_csv = *argv[7];
-        printf ( "save_csv = %u\n", save_csv );
+        printf ( "save_csv = %c\n", save_csv );
+        
+        save_vtp = *argv[8];
+        printf ( "save_vtp = %c\n", save_vtp );
+        
     }
 
     cuInit ( 0 );                                       // Initialize
@@ -83,6 +87,7 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         fluid.Freeze ();       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
         if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+        if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
         file_num+=10;
     }
 
@@ -97,14 +102,15 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         // TODO flip mutex
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
         if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+        if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
         //fluid.WriteParticlesToHDF5File(i);
-        printf ( "\nsaved file_num=%u, frame number =%i \n",file_num,  file_num*steps_per_file );
+        //printf ( "\nsaved file_num=%u, frame number =%i \n",file_num,  file_num*steps_per_file );
     }
     
     fluid.WriteSimParams ( outPath ); 
     fluid.WriteGenome( outPath );
-    fluid.SavePointsCSV2 ( outPath, 20*30 );                 //fluid.SavePointsCSV ( outPath, 1 );
-    fluid.SavePointsVTP2 ( outPath, 20*30 );
+    //fluid.SavePointsCSV2 ( outPath, 20*30 );                 //fluid.SavePointsCSV ( outPath, 1 );
+    //fluid.SavePointsVTP2 ( outPath, 20*30 );
 
     fluid.Exit ();                                      // Clean up and close
     CUresult cuResult = cuCtxDestroy ( cuContext ) ;

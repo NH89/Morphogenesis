@@ -7,13 +7,15 @@ cmake_minimum_required(VERSION 3.8  FATAL_ERROR)
 #   cmake_policy(SET CMP0053 NEW) # CMake 3.1  for vtk
 # endif()
 
+cmake_policy(SET CMP0054 NEW)
+
 
 project(Morphogenesis LANGUAGES C CXX CUDA)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CPP_STANDARD 11) # set(CMAKE_CPP_STANDARD 17)  NB need (<=11 for VTP)  &&  (>+11 for C++ threads)
 
-find_package(CUDA 9.1 REQUIRED)
+find_package(CUDA REQUIRED)
 #find_package(HDF5 REQUIRED)
 #find_package(VTK REQUIRED)
 #vtk_module_config(VTK

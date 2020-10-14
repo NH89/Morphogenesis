@@ -48,6 +48,10 @@
     #include <vtk-9.0/vtkDataSet.h>
     #include <vtk-9.0/vtkUnsignedIntArray.h>
     #include <vtk-9.0/vtkUnsignedCharArray.h>
+    #include <vtk-9.0/vtkFloatArray.h>
+    #include <vtk-9.0/vtkPointData.h>
+    //#include <vtk-9.0/vtkSOADataArrayTemplate.h>
+    #include <vtk-9.0/vtkCellData.h>
 
 	#include "fluid.h"
 //	#include "gvdb_vec.h"
@@ -355,6 +359,8 @@
 		// I/O Files
         void SavePointsVTP ( const char * relativePath, int frame );
         void SavePointsVTP2 ( const char * relativePath, int frame );
+        void SavePointsVTP3 ( const char * relativePath, int frame );// Struct_of_Arrays matching FBufs 
+        
 		void SavePointsCSV ( const char * relativePath, int frame );
         void SavePointsCSV2 ( const char * relativePath, int frame );
         void ReadSimParams ( const char * relativePath );    // path to folder containing simparams and .csv files

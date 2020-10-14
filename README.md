@@ -88,12 +88,12 @@ New launch program to load data from files, and run simulation on GPU.
 usage:
 
     cd data
-    ../build/install/bin/load_sim  demo  out  num_files steps_per_file  freeze_steps save_ply(y/n)  save_csv(y/n)
+    ../build/install/bin/load_sim  demo  out  num_files steps_per_file  freeze_steps save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)
     
 e.g.
 
     cd data/test
-    ./load_sim ../demo/ ../out/  10 3 1 y y
+    ./load_sim ../demo/ ../out/  10 3 1 y y y
 
 
 ### viewing with Meshlab
@@ -103,6 +103,44 @@ It is recommended to select the following MeshLab options:
 
     Render - Show vertex dots
     Render - Render Mode - Wireframe
+    
+    
+### viewing with Paraview
+
+The .vtp files output can be viewed in Paraview. This allows visualization of all the parameters, and is especially relevant for diffusion of morphogens, epigenetic state, and material properties.
+
+    ParaView is a widely used scientific data visualization tool.
+    ParaView can be downloaded from https://www.paraview.org/
+
+    NB GPU conflict:
+    Both Paraview and Morphogenesis will both try to use your GPU. 
+    This may result in an _"invalid device context"_ or _"There is no device supporting CUDA"_ error.
+    If ParaView fails to release the GPU after being shut down, then it may be necessary to reboot.
+    This does not arise where the two programs are run on separate machines, as when Morphogenesis is run on a cluster.
+    
+
+    Loading the data into ParaView:
+    load the .vtp file 
+    select the file in the pipeline browser
+    click "Apply"
+    In "Coloring" select the model parameter of interest
+    Adjust the coloring scale
+    
+    
+    For Volume rendering:
+    In the top menu bar, select "Filters->Point Interpolation->Point Volume Interpolator"
+    Select the new "PointVolumeInterpolator" in the pipeline browser
+    In the Properties pane, select a kernel type, e.g. Gaussian Kernel or Shepard Kernel
+    In Coloring, select the model parameter of interest
+    Adjust the coloring scale
+    In "Volume Refinement", "Representation", select "Volume"
+    (Alternatively select these in the top menu, second row tool bar.)
+    In Volume Rendering (near the bottom of the Properties pane), in "Volume Rendering Mode", select "Smart" or "GPU"
+    Click Apply (at the toip of the Properties pane.
+    
+    
+    Also in "Volume Rendering"
+    In "Blend Mode" select between "Compostite/IsoSurface/Slice"
 
 
 ### New data structures in Morphogenesis branch
