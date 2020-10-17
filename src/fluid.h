@@ -29,6 +29,13 @@
     #include "vector.h"
 //	#include "gvdb_vec.h"
 //	using namespace nvdb;
+#include <atomic>
+#include <iostream>
+#include <thread>
+#include <chrono>
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
 
     #include "masks.h"
 
@@ -324,5 +331,21 @@
     // 1st order - all spheres, not 2nd order - elipsoids with orientatoin and angular momentum.
     // When finding particles in range for a small particle - consider (i) is the bin in range, (ii) iff particle x&y&z are in range 
     // When combining particles - (i) similar type ?, (ii) gradients, (iii) significance to simulation. 
+    
+    struct output{
+        char paramsPath[256];
+        char pointsPath[256];
+        char genomePath[256];
+        char outPath[256];
+        uint num_files, steps_per_file, freeze_steps;
+        int file_num=0;
+        char save_ply, save_csv, save_vtp;
+            std::atomic<bool> running { false }; 					// true if teardown() has not been called
+    std::mutex condMutex; 							// mutex for all condition variables
+    std::condition_variable dataReady; 						// notifies the disk write thread that data is ready for writing
+    std::condition_variable diskReady; 						// notifies the kernel manager thread that the disk writer thread is finished
+    std::atomic<bool> isDiskReady { true }; 					// true if disk has finished being written to by disk write thread
+
+    };
     
 #endif /*PARTICLE_H_*/

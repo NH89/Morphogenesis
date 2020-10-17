@@ -42,7 +42,9 @@
 	#include <vtk-9.0/vtkCellArray.h>
     #include <vtk-9.0/vtkPoints.h>
     #include <vtk-9.0/vtkXMLPolyDataWriter.h>//"/usr/local/include/vtk-9.0/vtkXMLPPolyDataWriter.h"
+    #include <vtk-9.0/vtkXMLPPolyDataWriter.h>  // #include "/usr/local/include/vtk-9.0/vtkXMLPPolyDataWriter.h"
     #include <vtk-9.0/vtkPolyData.h>//"/usr/local/include/vtk-9.0/vtkPolyData.h"//
+
     #include <vtk-9.0/vtkSmartPointer.h>//"/usr/local/include/vtk-9.0/vtkSmartPointer.h"//
     #include <vtk-9.0/vtkLine.h>
     #include <vtk-9.0/vtkDataSet.h>
@@ -359,7 +361,7 @@
 		// I/O Files
         void SavePointsVTP ( const char * relativePath, int frame );
         void SavePointsVTP2 ( const char * relativePath, int frame );
-        void SavePointsVTP3 ( const char * relativePath, int frame );// Struct_of_Arrays matching FBufs 
+        void SavePointsPVTP2 ( const char * relativePath, int frame );// parallel .pvtp files
         
 		void SavePointsCSV ( const char * relativePath, int frame );
         void SavePointsCSV2 ( const char * relativePath, int frame );

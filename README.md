@@ -143,6 +143,19 @@ The .vtp files output can be viewed in Paraview. This allows visualization of al
     In "Blend Mode" select between "Compostite/IsoSurface/Slice"
 
 
+### Running & file writing speeds + select your data
+
+Writing the .vtp files (even in binary mode) takes as long as several time steps of simulation.
+
+You can reduce the time to write files by extracting only the data you need. This can be done by commenting out sections of FluidSystem::SavePointsVTP2(...) in fluid_system.cpp.
+
+You can reduce the time to simulate a time step by setting the number of bonds, diffusable transcription factors, and the number of genes. This must be done when you generate your intial simulation files. e.g. make_demo.cpp takes the number of particles as input, and calls FluidSystem::WriteDemoSimParams(...) in fluid_system.cpp. BONDS_PER_PARTICLE, NUM_TF, NUM_GENES are #defined in fluid.h . 
+
+NB Changing the number of bonds per particle will affect the process of forming bonds in the kernel computeForce(...) in fluid_system_cuda.cu. The "bond-angle-freeze" branch enables a minimal two (outgoing) bonds per particle, for a diamon-like tetrahdral topology.
+
+
+
+
 ### New data structures in Morphogenesis branch
 
 See notes in fluid.h

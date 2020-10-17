@@ -28,9 +28,12 @@ find_package(CUDA REQUIRED)
 
 find_package(VTK COMPONENTS 
     CommonCore
+    ParallelCore
     IOGeometry
     IOLegacy
+    IOCore
     IOXML
+    IOParallelXML
     InteractionStyle
 )
 
@@ -152,49 +155,49 @@ add_executable(make_demo
         ${output_file}
 )
 
-add_executable(morphogenesis 
-        main.cpp 
-        allocator.cu
-        allocator.cuh
-        fluid.cpp
-        fluid.h
-        matrix.cpp 
-        matrix.h
-        matrix_inline.h
-        fluid_system.cpp  
-        fluid_system.h
-        vector.cpp
-        vector.h
-        vector_inline.h
+# add_executable(morphogenesis 
+#         main.cpp 
+#         allocator.cu
+#         allocator.cuh
+#         fluid.cpp
+#         fluid.h
+#         matrix.cpp 
+#         matrix.h
+#         matrix_inline.h
+#         fluid_system.cpp  
+#         fluid_system.h
+#         vector.cpp
+#         vector.h
+#        vector_inline.h
         #thread_manager.cpp
         #thread_manager.h
-        ${output_file}
-        )
+#        ${output_file}
+#        )
     
         
 add_dependencies(load_sim fluid_systemPTX)
 add_dependencies(check_demo fluid_systemPTX)
 add_dependencies(make_demo fluid_systemPTX)
-add_dependencies(morphogenesis fluid_systemPTX)
+#add_dependencies(morphogenesis fluid_systemPTX)
 #add_dependencies(thread_demo fluid_systemPTX)
 
 target_include_directories(load_sim PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(check_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(make_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
-target_include_directories(morphogenesis PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
+#target_include_directories(morphogenesis PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(thread_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 
 target_compile_features(load_sim PUBLIC cxx_std_11)
 target_compile_features(check_demo PUBLIC cxx_std_11)
 target_compile_features(make_demo PUBLIC cxx_std_11)
-target_compile_features(morphogenesis PUBLIC cxx_std_11)
+#target_compile_features(morphogenesis PUBLIC cxx_std_11)
 target_compile_features(thread_demo PUBLIC cxx_std_11)
 #set_property(TARGET fluids_v4 PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
-target_link_libraries(load_sim PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES} 
+target_link_libraries(load_sim PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport VTK::IOParallelXML) # ${HDF5_CXX_LIBRARIES} 
 target_link_libraries(check_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES}
 target_link_libraries(make_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES}
-target_link_libraries(morphogenesis PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES}
+#target_link_libraries(morphogenesis PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport ) # ${HDF5_CXX_LIBRARIES}
 target_link_libraries(thread_demo PRIVATE -lpthread )
 
 #target_link_libraries(fluids_v4 PRIVATE fluid_systemPTX)
@@ -207,7 +210,7 @@ vtk_module_autoinit(
 
 ###
 #nb edit code so that installed binary looks for ptx in correct location             
-install(TARGETS fluid_systemPTX morphogenesis make_demo check_demo load_sim thread_demo
+install(TARGETS fluid_systemPTX  make_demo check_demo load_sim thread_demo #morphogenesis
    EXPORT fluid_systemPTX
    RUNTIME DESTINATION bin
    LIBRARY DESTINATION lib

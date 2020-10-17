@@ -787,7 +787,7 @@ void FluidSystem::EmitParticles ()
 ///////////////////////////////////////////////////////////////////
 void FluidSystem::Run ()
 {
-std::cout << "\tFluidSystem::Run (),  "<<std::flush;  
+//std::cout << "\tFluidSystem::Run (),  "<<std::flush;  
     //case RUN_GPU_FULL:					// Full CUDA pathway, GRID-accelerted GPU, /w deep copy sort
 //TransferFromCUDA ();
 //std::cout << "\n\n Chk1 \n"<<std::flush;
@@ -905,6 +905,7 @@ void FluidSystem::Freeze ()
 {
     m_FParams.freeze = true;
     Run();
+    std::cout <<"\nfreeze called\n";
     m_FParams.freeze = false;
 }
 
@@ -2195,14 +2196,270 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
 	writer->SetFileName(buf);
 	writer->SetInputData(polydata);
     //writer->SetDataModeToAscii();   
-    writer->SetDataModeToAppended();    // prefered, produces a human readable header followed by a binary blob.
-    //writer->SetDataModeToBinary();
+    //writer->SetDataModeToAppended();    // prefered, produces a human readable header followed by a binary blob.
+    writer->SetDataModeToBinary();
 	writer->Write();
     
 	//cout << "\nFinished writing vtp file " << buf << "." << endl;
 	//cout << "\tNumPoints: " << NumPoints() << endl;
 }
 
+
+
+void FluidSystem::SavePointsPVTP2 ( const char * relativePath, int frame ){// uses vtk library to write binary vtp files
+    // based on VtpWrite(....)demo at https://vtk.org/Wiki/Write_a_VTP_file  (30 April 2009)
+    // and on https://lorensen.github.io/VTKExamples/site/Cxx/IO/WriteVTP/   (post vtk-8.90.9)
+
+    //std::cout << "\n  SavePointsVTP2 ( const char * relativePath = "<< relativePath << ", int frame = "<< frame << " );  started \n" << std::flush;
+
+    
+    // Header information:  ?? how can this be added ??
+    //  A) fparams & fgenome
+    //  B) header of the.csv file, giving sizes of arrays.
+    
+    
+    // points, vertices & lines
+    // points & vertices = FPOS 3df
+    vtkSmartPointer<vtkPoints> points3D = vtkSmartPointer<vtkPoints>::New();                           // Points3D
+	vtkSmartPointer<vtkCellArray> Vertices = vtkSmartPointer<vtkCellArray>::New();                     // Vertices
+
+    for ( unsigned int i = 0; i < NumPoints(); ++i )
+	{	
+		vtkIdType pid[1];
+		//Point P = Model.Points[i];
+        Vector3DF* Pos = getPos(i); 
+		pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
+		Vertices->InsertNextCell(1,pid);
+	}
+    
+    // edges = FELASTIDX [0]current index uint                                                         // Lines
+    vtkSmartPointer<vtkCellArray> Lines = vtkSmartPointer<vtkCellArray>::New();
+    uint *ElastIdx;
+    for ( unsigned int i = 0; i < NumPoints(); ++i )
+	{	
+        ElastIdx = getElastIdx(i);   
+        for(int j=0; j<(BONDS_PER_PARTICLE ); j++) { 
+            int secondParticle = ElastIdx[j * DATA_PER_BOND];
+            int bond = ElastIdx[j * DATA_PER_BOND +1];          // NB [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
+            if (bond==0) secondParticle = i;                    // i.e. if [1]elastic limit, then bond is broken, therefore bond to self.
+            vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
+            line->GetPointIds()->SetId(0,i);
+            line->GetPointIds()->SetId(1,secondParticle);
+            Lines->InsertNextCell(line);
+        }
+	}
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////// Particle Data 
+    
+    // FELASTIDX bond data, float and uint vtkDataArrays, stored in particles
+    vtkSmartPointer<vtkUnsignedIntArray> BondsUIntData = vtkSmartPointer<vtkUnsignedIntArray>::New();
+    BondsUIntData->SetNumberOfComponents(3);
+	BondsUIntData->SetName("curr_idx, particle ID, bond index");
+    
+    vtkSmartPointer<vtkFloatArray> BondsFloatData = vtkSmartPointer<vtkFloatArray>::New();
+    BondsFloatData->SetNumberOfComponents(4);
+	BondsFloatData->SetName("elastic limit, restlength, modulus, damping coeff");
+    
+    float *ElastIdxPtr;
+    for ( unsigned int i = 0; i < NumPoints(); ++i )
+	{
+        ElastIdx = getElastIdx(i);                          // FELASTIDX[BONDS_PER_PARTICLE]  [0]current index uint, [5]particle ID uint, [6]bond index uint
+        ElastIdxPtr = (float*)ElastIdx;                     // FELASTIDX[BONDS_PER_PARTICLE]  [1]elastic limit float, [2]restlength float, [3]modulus float, [4]damping coeff float,
+        for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
+            BondsUIntData->InsertNextTuple3(ElastIdx[j], ElastIdx[j+5], ElastIdx[j+6]);
+            BondsFloatData->InsertNextTuple4(ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4]);
+        }
+    }
+    //BondsUIntData->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
+    //BondsFloatData->SetNumberOfComponents(BONDS_PER_PARTICLE *4); 
+    
+
+    // FVEL 3df, 
+    Vector3DF* Vel;
+    vtkSmartPointer<vtkFloatArray> fvel = vtkSmartPointer<vtkFloatArray>::New();
+    fvel->SetNumberOfComponents(3);
+	fvel->SetName("FVEL");
+    for(unsigned int i=0;i<NumPoints();i++){
+        Vel = getVel(i);
+        fvel->InsertNextTuple3(Vel->x,Vel->y,Vel->z);
+    }
+    fvel->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
+    
+    
+/*    // FVEVAL 3df, 
+    Vector3DF* Veval;
+    vtkSmartPointer<vtkFloatArray> fveval = vtkSmartPointer<vtkFloatArray>::New();
+    fvel->SetNumberOfComponents(3);
+	fvel->SetName("FVEVAL");
+    for(unsigned int i=0;i<NumPoints();i++){
+        Veval = getVeval(i);
+        fveval->InsertNextTuple3(Veval->x,Veval->y,Veval->z);
+    }
+    fveval->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
+*/
+    
+/*    // FFORCE 3df, 
+    Vector3DF* Force;
+    vtkSmartPointer<vtkFloatArray> fforce = vtkSmartPointer<vtkFloatArray>::New();
+    fforce->SetNumberOfComponents(3);
+	fforce->SetName("FFORCE");
+    for(unsigned int i=0;i<NumPoints();i++){
+        Force = getForce(i);
+        fforce->InsertNextTuple3(Force->x,Force->y,Force->z);
+    }
+    fforce->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
+*/
+    
+    
+/*    // FPRESS f,
+    float* Pres;
+    vtkSmartPointer<vtkFloatArray> fpres = vtkSmartPointer<vtkFloatArray>::New();
+    fpres->SetNumberOfComponents(1);
+	fpres->SetName("FPRESS");
+    for(unsigned int i=0;i<NumPoints();i++){
+        Pres = getPres(i);
+        fpres->InsertNextTuple(Pres);
+    }
+*/     
+    
+/*    // FDENSITY f, 
+    float* Dens;
+    vtkSmartPointer<vtkFloatArray> fdens = vtkSmartPointer<vtkFloatArray>::New();
+    fdens->SetNumberOfComponents(1);
+	fdens->SetName("FDENSITY");
+    for(unsigned int i=0;i<NumPoints();i++){
+        Dens = getDensity(i);
+        fdens->InsertNextTuple(Dens);
+    }
+*/
+    
+    // FAGE ushort, 
+    unsigned int* age = getAge(0);
+    vtkSmartPointer<vtkUnsignedIntArray> fage = vtkSmartPointer<vtkUnsignedIntArray>::New();
+    fage->SetNumberOfComponents(1);
+	fage->SetName("FAGE");
+    for(unsigned int i=0;i<NumPoints();i++){
+        fage->InsertNextValue(age[i]);
+    }
+    
+    // FCLR uint, 
+    unsigned int* color = getClr(0);
+    vtkSmartPointer<vtkUnsignedIntArray> fcolor = vtkSmartPointer<vtkUnsignedIntArray>::New();
+    fcolor->SetNumberOfComponents(1);
+	fcolor->SetName("FCLR");
+    for(unsigned int i=0;i<NumPoints();i++){
+        fcolor->InsertNextValue(color[i]);
+    }
+    
+    // FGCELL	uint, 
+    
+    // FPARTICLEIDX uint[BONDS_PER_PARTICLE *2],  
+    
+    // FPARTICLE_ID  uint, 
+    unsigned int* pid = getParticle_ID(0);
+    vtkSmartPointer<vtkUnsignedIntArray> fpid = vtkSmartPointer<vtkUnsignedIntArray>::New();
+    fpid->SetNumberOfComponents(1);
+	fpid->SetName("FPARTICLE_ID");
+    for(unsigned int i=0;i<NumPoints();i++){
+        fpid->InsertNextValue(pid[i]);
+    }
+    
+    // FMASS_RADIUS uint (holding modulus 16bit and limit 16bit.),    
+    unsigned int* Mass_Radius = getMass_Radius(0);
+    uint mass, radius;
+    vtkSmartPointer<vtkUnsignedIntArray> fmass_radius = vtkSmartPointer<vtkUnsignedIntArray>::New();
+    fmass_radius->SetNumberOfComponents(2);
+	fmass_radius->SetName("FMASS_RADIUS");
+    for(unsigned int i=0;i<NumPoints();i++){
+        if(Mass_Radius[i]==0){   mass = 0; }else{  mass = Mass_Radius[i]; } 
+        radius = mass >> 16;
+        mass = mass & TWO_POW_16_MINUS_1;
+        fmass_radius->InsertNextTuple2(mass,radius);
+    }
+    
+    // FNERVEIDX uint, 
+    unsigned int* nidx = getNerveIdx(0);
+    vtkSmartPointer<vtkUnsignedIntArray> fnidx = vtkSmartPointer<vtkUnsignedIntArray>::New();
+    fnidx->SetNumberOfComponents(1);
+	fnidx->SetName("FNERVEIDX");
+    for(unsigned int i=0;i<NumPoints();i++){
+        fnidx->InsertNextValue(nidx[i]);
+    }
+    
+    // FCONC float[NUM_TF].                                                                                     // commented out until Matt's edit FCONC uint->foat is merged
+    vtkSmartPointer<vtkFloatArray> fconc[NUM_TF];
+    char buf_conc[256];
+    for (int a=0; a<NUM_GENES; a++){ 
+        fconc[a] = vtkSmartPointer<vtkFloatArray>::New();
+        fconc[a]->SetNumberOfComponents(1);
+        sprintf ( buf_conc, "FCONC_%i",a);
+        fconc[a]->SetName(buf_conc);
+    }
+    float *conc;
+    for ( unsigned int i = 0, k=0; i < NumPoints(); ++i ){
+        conc = getConc(0);                   
+        for(int j=0; j<NUM_GENES; j++, k++)    fconc[j]->InsertNextValue(conc[k]);                              // now have one array for each column of fepigen
+    }
+    
+    // FEPIGEN uint[NUM_GENES] ... make an array of arrays
+    vtkSmartPointer<vtkUnsignedIntArray> fepigen[NUM_GENES];
+    char buf_epigen[256];
+    for (int a=0; a<NUM_GENES; a++){ 
+        fepigen[a] = vtkSmartPointer<vtkUnsignedIntArray>::New();
+        fepigen[a]->SetNumberOfComponents(1);
+        sprintf ( buf_epigen, "FEPIGEN_%i",a);
+        fepigen[a]->SetName(buf_epigen);
+    }
+    unsigned int *epigen;
+    for ( unsigned int i = 0, k=0; i < NumPoints(); ++i ){
+        epigen = getEpiGen(0);                   
+        for(int j=0; j<NUM_GENES; j++, k++)    fepigen[j]->InsertNextValue(epigen[k]);                              // now have one array for each column of fepigen
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // POLYDATA
+	vtkSmartPointer<vtkPolyData> polydata = vtkPolyData::New();                                        // polydata
+	polydata->SetPoints(points3D);
+	//polydata->SetVerts(Vertices);
+    polydata->SetLines(Lines);
+    
+    
+    //cout << "\nStarting writing bond data to polydata\n" << std::flush;
+    polydata->GetCellData()->AddArray(BondsUIntData);
+    polydata->GetCellData()->AddArray(BondsFloatData);
+    //polydata->GetPointData()->AddArray(BondsUIntData);
+    //polydata->GetPointData()->AddArray(BondsFloatData);
+    polydata->GetPointData()->AddArray(fage);
+    polydata->GetPointData()->AddArray(fcolor);
+    polydata->GetPointData()->AddArray(fpid);
+    polydata->GetPointData()->AddArray(fmass_radius);
+    polydata->GetPointData()->AddArray(fnidx);
+    
+    for(int i=0;i<NUM_TF; i++)      polydata->GetPointData()->AddArray(fconc[i]);
+    for(int i=0;i<NUM_GENES; i++)   polydata->GetPointData()->AddArray(fepigen[i]);
+    
+    //cout << "\nFinished writing bond data to polydata\n" << std::flush;
+    
+    // WRITER 
+	vtkSmartPointer<vtkXMLPPolyDataWriter> writer = vtkSmartPointer<vtkXMLPPolyDataWriter>::New();       // writer
+    char buf[256];
+    frame += 100000;                                                                                              // ensures numerical and alphabetic order match of filenames
+    sprintf ( buf, "%s/particles_pos_vel_color%04d.pvtp", relativePath, frame );
+
+	writer->SetFileName(buf);
+	writer->SetInputData(polydata);
+    
+    writer->SetNumberOfPieces(11);
+    writer->SetStartPiece(0);
+    writer->SetEndPiece(10);
+    //writer->SetDataModeToAscii();   
+    writer->SetDataModeToAppended();    // prefered, produces a human readable header followed by a binary blob.
+    //writer->SetDataModeToBinary();
+	writer->Write();
+    
+	//cout << "\nFinished writing pvtp file " << buf << "." << endl;
+	//cout << "\tNumPoints: " << NumPoints() << endl;
+}
 
 
 
