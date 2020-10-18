@@ -1,0 +1,128 @@
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 0.287149 seconds
+
+Time taken to write files for 10000 particles : 0.48602 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 0.312098 seconds
+
+Time taken to write files for 10000 particles : 0.490904 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 0.355384 seconds
+
+Time taken to write files for 10000 particles : 0.488167 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 0.333119 seconds
+
+Time taken to write files for 10000 particles : 0.494799 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 0.293017 seconds
+
+Time taken to write files for 10000 particles : 0.480006 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 0.292629 seconds
+
+Time taken to write files for 10000 particles : 0.478184 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 0.282395 seconds
+
+Time taken to write files for 10000 particles : 0.490708 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 0.319093 seconds
+
+Time taken to write files for 10000 particles : 0.48066 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 0.283851 seconds
+
+Time taken to write files for 10000 particles : 0.482213 seconds
+
+
+
+//////////////////////////////
+
+
+Freeze finished, starting normal Run ##############################################
+
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 2.42119 seconds
+
+Time taken to write files for 100000 particles : 4.76725 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 2.52867 seconds
+
+Time taken to write files for 100000 particles : 4.76463 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 2.99884 seconds
+
+Time taken to write files for 100000 particles : 4.79513 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 4.33341 seconds
+
+Time taken to write files for 100000 particles : 4.86302 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 4.65571 seconds
+
+Time taken to write files for 100000 particles : 4.81292 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 3.17415 seconds
+
+Time taken to write files for 100000 particles : 4.68649 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 1.93122 seconds
+
+Time taken to write files for 100000 particles : 4.6658 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 1.94899 seconds
+
+Time taken to write files for 100000 particles : 4.65469 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 1.99694 seconds
+
+Time taken to write files for 100000 particles : 4.80539 seconds
+
+
+
+////////////////////
+
+
+Freeze finished, starting normal Run ##############################################
+
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 26.9269 seconds
+
+Time taken to write files for 1000000 particles : 48.8505 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 26.8919 seconds
+
+Time taken to write files for 1000000 particles : 47.5492 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 32.2417 seconds
+
+Time taken to write files for 1000000 particles : 47.8657 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 49.2432 seconds
+
+Time taken to write files for 1000000 particles : 48.1192 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 71.751 seconds
+
+Time taken to write files for 1000000 particles : 48.3027 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 63.1832 seconds
+
+Time taken to write files for 1000000 particles : 48.3652 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 35.151 seconds
+
+Time taken to write files for 1000000 particles : 47.0155 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 36.0243 seconds
+
+Time taken to write files for 1000000 particles : 48.1339 seconds
+	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  	FluidSystem::Run (),  
+Time taken to run 30 steps : 42.3092 seconds
+
+Time taken to write files for 1000000 particles : 47.8772 seconds
+
+
+
+
