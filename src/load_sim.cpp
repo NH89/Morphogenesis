@@ -3,7 +3,7 @@
 #include <inttypes.h>
 #include <errno.h>
 #include <string.h>
-
+#include <chrono>
 #include "fluid_system.h"
 
 int main ( int argc, const char** argv )
@@ -73,6 +73,8 @@ int main ( int argc, const char** argv )
     fluid.ReadPointsCSV2 ( pointsPath, GPU_DUAL, CPU_YES );
 
 std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
+    auto old_begin = std::chrono::steady_clock::now();
+    
     fluid.TransferFromCUDA ();
     fluid.SavePointsCSV2 ( outPath, file_num );
     fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
@@ -94,15 +96,29 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
     
     for ( ; file_num<num_files; file_num+=10 ) {
+        
+        
         for ( int j=0; j<steps_per_file; j++ ) {
             fluid.Run ();                               // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
         }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
 
         //fluid.SavePoints (i);                         // alternate file formats to write
         // TODO flip mutex
+        auto begin = std::chrono::steady_clock::now();
+        
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
         if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
         if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
+        
+        auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> time = end - begin;
+        std::chrono::duration<double> begin_dbl = begin - old_begin;
+        std::cout << "\nLoop duration : "
+                    << begin_dbl.count() <<" seconds. Time taken to write files for "
+                    << fluid.NumPoints() <<" particles : " 
+                    << time.count() << " seconds\n" << std::endl;
+        old_begin = begin;
+        
         //fluid.WriteParticlesToHDF5File(i);
         //printf ( "\nsaved file_num=%u, frame number =%i \n",file_num,  file_num*steps_per_file );
     }
