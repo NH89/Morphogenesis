@@ -149,7 +149,8 @@
 	#define FNBRNDX		11		//# uint       particle neighbors index (optional)
 	#define FNBRCNT		12      //# uint       particle neighbors count
 	#define FCLUSTER	13	    //# uint
- // additional buffers for morphogenesis   
+
+    // additional buffers for morphogenesis   
     #define FELASTIDX   14      //# currently [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
     //old : BOND_DATA = BONDS_PER_PARTICLE*3 = 12 //uint[BONDS_PER_PARTICLE * 2 = 8 ]  particleID, modulus, elastic limit    /* old old : 0=self UID, mass, radius. >0= modulus & particle UID */
     #define FPARTICLEIDX 29    //# uint[BONDS_PER_PARTICLE *2]  list of other particles' bonds connecting to this particle AND their indices // NB risk of overwriting race condition, when making bonds.   
@@ -158,21 +159,37 @@
     //#define FELASTMOD         //# uint[BONDS_PER_PARTICLE +1]  modulus of bond (use a standard length) //not required
     #define FNERVEIDX   15      //# uint
     #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
-    #define FEPIGEN     17      //# uint[NUM_GENES]
+    #define FEPIGEN     17      //# uint[NUM_GENES]  holds epigenetic state. if cast as int, let -ve values indicate inactive or silenced genes.
+                                // NB if data is ordered FEPIGEN[gene][particle], then contiguious read writes by synchronous kernels are favoured. 
+
+// additional buffers for dense lists  
+    #define INITIAL_BUFFSIZE_ACTIVE_GENES 1024    // initial buffer size for densely packed lists    
+                                            // NB NUM_BINS is m_GridTotal computed in FluidSystem::SetupGrid()
+                                            // NB The FGRID* buffers are set up in FluidSystem::AllocateGrid()
+    #define FGRIDCNT_ACTIVE_GENES    32  //# uint[NUM_BINS][NUM_GENES]  for each bin, for each gene, num active particles
+    #define FGRIDOFF_ACTIVE_GENES    33  //# uint[NUM_BINS][NUM_GENES]  For each bin, for each gene, the offset of the bin in the gene's dense array.
+    #define FDENSE_LIST_LENGTHS      34  //# uint[NUM_GENES]  for each gene the length of its dense list, i.e. num active particles for that gene.
+    #define FDENSE_LISTS             35  //# *uint[NUM_GENES]   where each points to uint[FNUM_ACTIVE_GENES[gene]]
+                                            // In AllocateParticles(...) AllocateBuffer initial size 1024 for each gene.
+                                            // Each timestep, before CountingSortFull(...) need to check size & enlarge if needed.
+                                            // NB need to AllocateBuffer, _if_ (new size is > old size) 
+                                            // enlarge in quadruplings, starting with 1024 particles. 
+                                            // VNB need to modify cleanup at exit.
+    #define FDENSE_BUF_LENGTHS       36  //# uint[NUM_GENES] holds length of currently allocated buffer.
     
 // original buffers continued    
-	#define FGRID		18		//!         uniform acceleration grid
-	#define FGRIDCNT	19      //!         grid count
-	#define	FGRIDOFF	20      //!         grid offset
+	#define FGRID		18		//!         uniform acceleration grid : the bin to which a particle belongs
+	#define FGRIDCNT	19      //!         grid count                : array holding num particles in each bin
+	#define	FGRIDOFF	20      //!         grid offset               : array holding the offset of each bin
 	#define FGRIDACT	21      //!
 	#define FSTATE		22      //# uint 
-	#define FBRICK		23      //!
+	//#define FBRICK		23      //!            #Not used
 	#define FPARAMS		24		//! fluid parameters
 	#define FAUXARRAY1	25		//! auxiliary arrays (prefix sums)
 	#define FAUXSCAN1   26		//!
 	#define FAUXARRAY2	27		//!
 	#define FAUXSCAN2	28		//!
-	#define MAX_BUF		32		//!
+	#define MAX_BUF		37		//!
     
 
 	#ifdef CUDA_KERNEL                                                                   // fluid_system_cuda.cuh:37:	#define CUDA_KERNEL ,   fluid_system_cuda.cu:29:#define CUDA_KERNEL
@@ -212,7 +229,7 @@
 		#ifdef CUDA_KERNEL
 			char*			mgpu[ MAX_BUF ];		// on device, pointer is local.
 		#else			
-			CUdeviceptr		mgpu[ MAX_BUF ];		// on host, gpu is a device pointer // an array of pointers
+			CUdeviceptr		mgpu[ MAX_BUF ];		// on host, gpu is a device pointer // an array of pointers, filled by cuMemAlloc
 			CUdeviceptr		gpu (int n )	{ return mgpu[n]; }
 			CUdeviceptr*	gpuptr (int n )	{ return &mgpu[n]; }		
 		#endif			

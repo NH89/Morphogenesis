@@ -65,6 +65,10 @@ usage:
 e.g.
 
     ../build/install/bin/make_demo 125 1 6 6 6
+    
+    ../build/install/bin/make_demo 10000 1 100 10 10
+    ../build/install/bin/make_demo 100000 1 100 100 10
+    ../build/install/bin/make_demo 1000000 1 100 100 100
 
     
 CPU-only test program to generate example **"SimParams.txt"** and **"particles_pos_vel_color100001.csv"** files for specifying models, and a **"particles_pos100001.ply"** for viewing a model in e.g. Meshlab.
@@ -94,12 +98,16 @@ e.g.
 
     cd data/test
     ./load_sim ../demo/ ../out/  10 3 1 y y y
+    
+    ./load_sim ../demo_10000_1_100_10_10/ ../out/  100 30 1 n n y
+    ./load_sim ../demo_100000_1_100_100_10/ ../out/  100 30 1 n n y
+    ./load_sim ../demo_1000000_1_100_100_100/ ../out/  100 30 1 n n y
 
 
 ### viewing with Meshlab
 
 The .ply files output can be viewed in MeshLab.
-It is recommended to select the following MeshLab options:
+It is recommended to select the following MeshLab options:   NB need old MeshLab (Ubuntu18.04). Version on Ubuntu 20.04 does not work.
 
     Render - Show vertex dots
     Render - Render Mode - Wireframe
@@ -115,6 +123,7 @@ The .vtp files output can be viewed in Paraview. This allows visualization of al
     NB GPU conflict:
     Both Paraview and Morphogenesis will both try to use your GPU. 
     This may result in an _"invalid device context"_ or _"There is no device supporting CUDA"_ error.
+    This seems to happen specifically where the computer suspends while ParaView is open.
     If ParaView fails to release the GPU after being shut down, then it may be necessary to reboot.
     This does not arise where the two programs are run on separate machines, as when Morphogenesis is run on a cluster.
     

@@ -173,8 +173,13 @@
 	#define FUNC_FPREFIXSUM		9
 	#define FUNC_FPREFIXFIXUP	10
 	
-	#define FUNC_FREEZE         11
+//	#define FUNC_FREEZE         11
+    #define FUNC_TALLYLISTS     11
     #define FUNC_COMPUTE_DIFFUSION 12
+    #define FUNC_COUNT_SORT_LISTS  13
+    
+    #define FUNC_COMPUTE_GENE_ACTION 14
+
 	
 	#define FUNC_MAX			16
 
@@ -217,6 +222,7 @@
 
 		// Particle Utilities
 		void AllocateBuffer(int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode);		
+        void AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt );
 		void TransferToTempCUDA ( int buf_id, int sz );
 		//void AllocateParticles ( int cnt );
         void AllocateParticles ( int cnt, int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES );
@@ -238,7 +244,7 @@
         uint* getMass_Radius(int n )    { return &m_Fluid.bufI(FMASS_RADIUS)[n]; }
         uint* getNerveIdx( int n )      { return &m_Fluid.bufI(FNERVEIDX)[n]; }          //#define FNERVEIDX        15      //# uint
         float* getConc(int n)           { return &m_Fluid.bufF(FCONC)[n*NUM_TF];}        //note #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
-        uint* getEpiGen(int n)          { return &m_Fluid.bufI(FEPIGEN)[n*NUM_GENES];}   //note #define FEPIGEN     17      //# uint[NUM_GENES]		
+        uint* getEpiGen(int gene)       { return &m_Fluid.bufI(FEPIGEN)[gene*m_FParams.pnum];}   //note #define FEPIGEN     17    //# uint[NUM_GENES] // used in savePoints... 
 		
 		// Setup
 		void Start ( int num );
@@ -333,7 +339,10 @@
 		void ComputeDiffusionCUDA();
 		void ComputeQueryCUDA ();
 		void ComputeForceCUDA ();	
-        void FreezeCUDA ();
+        //void FreezeCUDA ();
+        void ComputeGenesCUDA ();
+        void ComputeParticleChangesCUDA ();
+        
 		void SampleParticlesCUDA ( float* outbuf, uint3 res, float3 bmin, float3 bmax, float scalar );		
 		void AdvanceCUDA ( float time, float dt, float ss );
 		void EmitParticlesCUDA ( float time, int cnt );

@@ -53,11 +53,18 @@
 	typedef unsigned char		uchar;
 	
 	extern "C" {
-		__global__ void insertParticles ( int pnum );		
+		__global__ void insertParticles ( int pnum );	
+        __global__ void tally_denselist_lengths( );
+        
 		__global__ void countingSortFull ( int pnum );		
 		__global__ void computeQuery ( int pnum );	
 		__global__ void computePressure ( int pnum );		
+        
+        __global__ void computeGeneAction ( int pnum, int gene, uint list_len );  //NB here pnum is for the dense list
+        
 		__global__ void computeForce ( int pnum , bool freeze = false, uint frame =20);	          // skip CAS lock if frame>10
+        __global__ void computeDiffusion ( int pnum );
+        __global__ void computeAutomata ( int pnum );
         //__global__ void freeze ( int pnum);                                                     // new freeze kernel, to generate elastic bonds.
 		__global__ void advanceParticles ( float time, float dt, float ss, int numPnts );
 		__global__ void emitParticles ( float frame, int emit, int numPnts );
@@ -65,7 +72,7 @@
 		__global__ void sampleParticles ( float* brick, uint3 res, float3 bmin, float3 bmax, int numPnts, float scalar );	
 		__global__ void prefixFixup ( uint *input, uint *aux, int len);
 		__global__ void prefixSum ( uint* input, uint* output, uint* aux, int len, int zeroff );
-		__global__ void countActiveCells ( int pnum );		
+		//__global__ void countActiveCells ( int pnum );		
 	}
 
 #endif

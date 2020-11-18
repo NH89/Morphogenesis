@@ -46,15 +46,11 @@ __constant__ uint			gridActive;
 //#define FLT_MIN  0.000000001                // set here as 2^(-30)
 //#define UINT_MAX 65535
 
-extern "C" __global__ void insertParticles ( int pnum )
+extern "C" __global__ void insertParticles ( int pnum )     // decides which bin each particle belongs in.
 {
 	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;	// particle index
 	if ( i >= pnum ) return;
-for (int a=0;a<BONDS_PER_PARTICLE;a++){                                          // The list of bonds from other particles 
-            uint j = fbuf.bufI(FPARTICLEIDX) [i*BONDS_PER_PARTICLE*2 + a];       // NB j is valid only in ftemp.*
-            uint k = ftemp.bufI(FPARTICLEIDX) [i*BONDS_PER_PARTICLE*2 + a];
-//if(i<34)printf("\nAA(i=%i,a=%i,j=%u,k=%u)\t",i,a,j,k);
-}
+
 	//-- debugging (pointers should match CUdeviceptrs on host side)
 	// printf ( " pos: %012llx, gcell: %012llx, gndx: %012llx, gridcnt: %012llx\n", fbuf.bufC(FPOS), fbuf.bufC(FGCELL), fbuf.bufC(FGNDX), fbuf.bufC(FGRIDCNT) );
 
@@ -62,24 +58,97 @@ for (int a=0;a<BONDS_PER_PARTICLE;a++){                                         
 	register float3 gridDelta = fparam.gridDelta;                                //  even if other variable have to be moved to slower 'local' memory  
 	register int3 gridRes =		fparam.gridRes;                                  //  in the streaming multiprocessor's cache.
 	register int3 gridScan =	fparam.gridScanMax;
+    register int gridTot =      fparam.gridTotal;
 
 	register int		gs;
 	register float3		gcf;
 	register int3		gc;	
 
-	gcf = (fbuf.bufF3(FPOS)[i] - gridMin) * gridDelta; 
-	gc = make_int3( int(gcf.x), int(gcf.y), int(gcf.z) );
-	gs = (gc.y * gridRes.z + gc.z)*gridRes.x + gc.x;
+	gcf = (fbuf.bufF3(FPOS)[i] - gridMin) * gridDelta;                           // finds bin as a float3
+	gc = make_int3( int(gcf.x), int(gcf.y), int(gcf.z) );                        // crops to an int3
+	gs = (gc.y * gridRes.z + gc.z)*gridRes.x + gc.x;                             // linearizes to an int for a 1D array of bins
 
 	if ( gc.x >= 1 && gc.x <= gridScan.x && gc.y >= 1 && gc.y <= gridScan.y && gc.z >= 1 && gc.z <= gridScan.z ) {
 		fbuf.bufI(FGCELL)[i] = gs;											     // Grid cell insert.
-		fbuf.bufI(FGNDX)[i] = atomicAdd ( &fbuf.bufI(FGRIDCNT)[ gs ], 1 );		 // Grid counts.
-		//gcf = (-make_float3(poff,poff,poff) + fbuf.bufF3(FPOS)[i] - gridMin) * gridDelta;
-		//gc = make_int3( int(gcf.x), int(gcf.y), int(gcf.z) );
-		//gs = ( gc.y * gridRes.z + gc.z)*gridRes.x + gc.x;
+		fbuf.bufI(FGNDX)[i] = atomicAdd ( &fbuf.bufI(FGRIDCNT)[ gs ], 1 );       // Grid counts.         //  ## counts particles in this bin.
+                                                                                                         //  ## add counters for dense lists. ##############
+        // for each gene, if active, then atomicAdd bin count for gene
+        for(int gene=0; gene<NUM_GENES; gene++){ // NB data ordered FEPIGEN[gene][particle] AND +ve int values -> active genes.
+            //if(i==0)printf("\n");
+            if ( (int)fbuf.bufI(FEPIGEN) [i + gene*pnum] ){ 
+                atomicAdd ( &fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[gene*gridTot  + gs ], 1 );
+                //if(i<10)printf("\n,i=%u, gene=%u, gs=%u, fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[ gene*gridTot  + gs ]=%u",
+                //    i, gene, gs, fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[ gene*gridTot  + gs ]);
+            }
+            // could use a small array of uints to store gene activity as bits. This would reduce the reads, but require bitshift and mask to read. 
+            //if(i==0)printf("\nfbuf.bufI(FEPIGEN) [i*NUM_GENES + gene]=%u  gene=%u  i=%u,",fbuf.bufI(FEPIGEN)[i*NUM_GENES + gene], gene ,i  );
+        }
+        //if(i==0)printf("\n");
 	} else {
-		fbuf.bufI(FGCELL)[i] = GRID_UNDEF;		
+		fbuf.bufI(FGCELL)[i] = GRID_UNDEF;
 	}
+}
+
+extern "C" __global__ void prefixFixup(uint *input, uint *aux, int len)     // merge *aux into *input  
+{
+	unsigned int t = threadIdx.x;
+	unsigned int start = t + 2 * blockIdx.x * SCAN_BLOCKSIZE;
+	if (start < len)					input[start] += aux[blockIdx.x];     
+	if (start + SCAN_BLOCKSIZE < len)   input[start + SCAN_BLOCKSIZE] += aux[blockIdx.x];
+    
+}
+
+extern "C" __global__ void prefixSum(uint* input, uint* output, uint* aux, int len, int zeroff) // sum *input, write to *output   // modify to count mebers of dense arrays #########
+{
+	__shared__ uint scan_array[SCAN_BLOCKSIZE << 1];
+	unsigned int t1 = threadIdx.x + 2 * blockIdx.x * SCAN_BLOCKSIZE;
+	unsigned int t2 = t1 + SCAN_BLOCKSIZE;
+
+	// Pre-load into shared memory
+	scan_array[threadIdx.x] = (t1<len) ? input[t1] : 0.0f;
+	scan_array[threadIdx.x + SCAN_BLOCKSIZE] = (t2<len) ? input[t2] : 0.0f;
+	__syncthreads();
+
+	// Reduction
+	int stride;
+	for (stride = 1; stride <= SCAN_BLOCKSIZE; stride <<= 1) {
+		int index = (threadIdx.x + 1) * stride * 2 - 1;
+		if (index < 2 * SCAN_BLOCKSIZE)
+			scan_array[index] += scan_array[index - stride];
+		__syncthreads();
+	}
+
+	// Post reduction
+	for (stride = SCAN_BLOCKSIZE >> 1; stride > 0; stride >>= 1) {
+		int index = (threadIdx.x + 1) * stride * 2 - 1;
+		if (index + stride < 2 * SCAN_BLOCKSIZE)
+			scan_array[index + stride] += scan_array[index];
+		__syncthreads();
+	}
+	__syncthreads();
+
+	// Output values & aux
+	if (t1 + zeroff < len)	output[t1 + zeroff] = scan_array[threadIdx.x];
+	if (t2 + zeroff < len)	output[t2 + zeroff] = (threadIdx.x == SCAN_BLOCKSIZE - 1 && zeroff) ? 0 : scan_array[threadIdx.x + SCAN_BLOCKSIZE];
+	if (threadIdx.x == 0) {
+		if (zeroff) output[0] = 0;
+		if (aux) aux[blockIdx.x] = scan_array[2 * SCAN_BLOCKSIZE - 1];
+	}
+}
+
+extern "C" __global__ void tally_denselist_lengths( )
+{
+    uint gene = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;            // gene index i.e. which dense list is being tallied.
+	if ( gene >= NUM_GENES ) return;
+    register int gridTot =      fparam.gridTotal;
+    fbuf.bufI(FDENSE_LIST_LENGTHS)[gene] = fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[(gene+1)*gridTot -1] + fbuf.bufI(FGRIDOFF_ACTIVE_GENES)[(gene+1)*gridTot -1];
+    /*
+    printf("\ngene=%u,  fbuf.bufI(FDENSE_LIST_LENGTHS)[gene]=%u,  fbuf.bufI(FGRIDOFF_ACTIVE_GENES)[(gene+1)*gridTot -1]=%u,  fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[(gene+1)*gridTot -1]=%u .\t", 
+           gene, 
+           fbuf.bufI(FDENSE_LIST_LENGTHS)[gene], 
+           fbuf.bufI(FGRIDOFF_ACTIVE_GENES)[(gene+1)*gridTot -1], 
+           fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[(gene+1)*gridTot -1]);
+    */
 }
 
 // Counting Sort - Full (deep copy)
@@ -87,7 +156,7 @@ extern "C" __global__ void countingSortFull ( int pnum )
 {
 	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;            // particle index
 	if ( i >= pnum ) return;
-
+    
 	// Copy particle from original, unsorted buffer (msortbuf),
 	// into sorted memory location on device (mpos/mvel)
 	uint icell = ftemp.bufI(FGCELL) [ i ];                             // icell is bin into which i is sorted in fbuf.*
@@ -97,6 +166,13 @@ extern "C" __global__ void countingSortFull ( int pnum )
         uint indx =  ftemp.bufI(FGNDX)  [ i ];                         // indx is off set within new cell
         int sort_ndx = fbuf.bufI(FGRIDOFF) [ icell ] + indx ;          // global_ndx = grid_cell_offet + particle_offset	
 		float3 zero; zero.x=0;zero.y=0;zero.z=0;
+        
+        // Make dense lists for (i) available genes (ii) active genes (iii) diffusion particles (iv) active/reserve particles. ######################
+        // NB req new FGNDX & FGRIDOFF for each of (i-iv).
+        // Write (1) list of current array lengths, (2) arrays containing  [sort_ndx] of relevant particles.
+        // In use kernels read the array to access correct particle.
+        // If there is data only used by such kernels, then it should be stored in a dense array.  
+        
 		// Transfer data to sort location
 		fbuf.bufI (FGRID) [ sort_ndx ] =	sort_ndx;                  // full sort, grid indexing becomes identity		
 		fbuf.bufF3(FPOS) [sort_ndx] =		ftemp.bufF3(FPOS) [i];
@@ -137,7 +213,7 @@ extern "C" __global__ void countingSortFull ( int pnum )
             uint b = ftemp.bufI(FPARTICLEIDX) [i*BONDS_PER_PARTICLE*2 + a*2 +1];
             uint ksort_ndx = UINT_MAX; 
             uint kndx, kcell;
-            if (k<pnum){                                                                //(k>=pnum) => bond broken // crashes when j=0 (as set in demo), after run().
+            if (k<pnum){                                                                // (k>=pnum) => bond broken // crashes when j=0 (as set in demo), after run().
                 kcell = ftemp.bufI(FGCELL) [ k ];                                       // jcell is bin into which j is sorted in fbuf.*
                 if ( kcell != GRID_UNDEF ) {
                     kndx =  ftemp.bufI(FGNDX)  [ k ];  
@@ -153,9 +229,50 @@ extern "C" __global__ void countingSortFull ( int pnum )
         fbuf.bufI (FNERVEIDX)    [sort_ndx] =	ftemp.bufI(FNERVEIDX) [i];
         
         for (int a=0;a<NUM_TF;a++){fbuf.bufF (FCONC)   [sort_ndx * NUM_TF + a]      =	ftemp.bufF(FCONC) [i * NUM_TF + a]    ;}
-        for (int a=0;a<NUM_TF;a++){fbuf.bufI (FEPIGEN) [sort_ndx * NUM_GENES + a]   =	ftemp.bufI(FEPIGEN) [i * NUM_GENES + a];}
+        for (int a=0;a<NUM_GENES;a++){fbuf.bufI (FEPIGEN) [sort_ndx + pnum*a]   =	ftemp.bufI(FEPIGEN) [i + pnum*a];}
 	}
 } 
+
+extern "C" __global__ void countingSortDenseLists ( int pnum )
+{
+    unsigned int bin = threadIdx.x + blockIdx.x * SCAN_BLOCKSIZE/2;
+    register int gridTot =      fparam.gridTotal;
+	if ( bin >= gridTot ) return;                                    // for each bin, for each particle, for each gene, 
+                                                                     // if gene active, then write to dense list 
+    uint count = fbuf.bufI (FGRIDCNT)[bin];
+    if (count==0) return;                                            // return here means that if all bins in this threadblock are empty,
+                                                                     // then this multiprocessor is free for the next threadblock.
+                                                                     // NB Faster still would be a list of occupied bins.
+    uint grdoffset = fbuf.bufI (FGRIDOFF)[bin];
+    uint gene_counter[NUM_GENES]={0};
+    
+    register uint* lists[NUM_GENES];
+    for (int gene=0; gene<NUM_GENES;gene++) lists[gene]=fbuf.bufII(FDENSE_LISTS)[gene]; // This element entry is a pointer
+    
+    register uint* offsets[NUM_GENES];
+    for (int gene=0; gene<NUM_GENES;gene++){ 
+        offsets[gene]=&fbuf.bufI(FGRIDOFF_ACTIVE_GENES)[gene * gridTot];                // The address of this element
+        //printf(", (gene%u,%p)",gene, fbuf.bufII(FGRIDOFF_ACTIVE_GENES)[gene] );
+    }
+    
+    if (grdoffset+count > pnum){
+        printf("\n\n!!Overflow: (grdoffset+count > pnum), bin=%u \n",bin);
+        return;
+    }
+
+    uint* pointer;
+    for(int particle=grdoffset; particle<grdoffset+count; particle++){
+        for(int gene=0; gene<NUM_GENES; gene++){
+            if(  (int)fbuf.bufI(FEPIGEN) [particle + pnum*gene] ) {                      // if (this gene is active in this particle)
+                lists[gene][ offsets[gene][bin] + gene_counter[gene] ]=particle;
+                gene_counter[gene]++;
+                if( gene_counter[gene]>fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin] )   
+                    printf("\n\n overflow: particle=%u, gene=%u, bin=%u, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[bin]=%u \n",
+                           particle, gene, bin, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[bin]);
+            }
+        }
+    }
+}
 
 extern "C" __device__ float contributePressure ( int i, float3 p, int cell )  
 // pressure due to particles in 'cell'. NB for each particle there are 27 cells in which interacting particles might be.
@@ -208,11 +325,413 @@ extern "C" __global__ void computePressure ( int pnum )
 	fbuf.bufF(FDENSITY)[ i ] = 1.0f / sum;
 }
 
+/*
+extern "C" __global__ void computeEpigeneticSilencing ( int pnum )//ftemp.bufI(FEPIGEN) [pnum*gene +i];  // NB data ordered FEPIGEN[gene][particle] AND +ve int values -> active genes.
+{
+	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                          // particle index
+	if ( i >= pnum ) return;
+    
+    // for each (available) gene: read epigenetic data, compute spread of silencing, 
+   // uint *epigenPtr = fbuf.bufII(FEPIGEN)[i*NUM_TF];            // #### clash !  //#define FEPIGEN     17      //# uint[NUM_GENES]
+    bool continue_spread = false;
+    
+    for (int j=0;j<NUM_TF; j++){   
+        uint epigen = epigenPtr[j];  // best just to use 32bit int or float. Could still use signs as bools.
+        bool silence     ;
+        uint spread      ;
+        uint activation  ; 
+        
+        if (continue_spread && fgenome.delay[j]==UINT_MAX ) continue_spread = false; // use UINT_MAX as barrier to spread. 
+        if ((continue_spread || fgenome.delay[j]!=spread)&& !silence){ 
+            spread-- ;
+            continue_spread = (bool)!spread;    // i.e. if spread for this gene >0, don't spread to next gene yet, else do.
+            if (spread==0){
+                activation = 0;
+                silence = true;
+            }
+        }
+        // repack into FEPIGEN, mask and bitshift then sum
+        
+        //epigenPtr[j] =  ;
+    }
+    // ? Here : Make dense lists of particles for which each gene is active ?
+    // 
+    //
+    // Genome data: implied-> sequence of genes.
+    //              uint delay[NUM_GENES];     The original value of Epigenetic data,2nd portion -> spread/stop
+    // 
+    // Epigenetic data uint[NUM_GENES], per gene :  1st bit -> available/silenced
+    //                                              2nd portion -> spread/stop
+    //                                              3rd portion -> current activation
+}
+*/
+
+
+extern "C" __global__ void computeGeneAction ( int pnum, int gene, uint list_len )  //NB here pnum is for the dense list
+{
+	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                 // particle index
+	if ( i >= list_len ) return;
+    uint particle_index = fbuf.bufII(FDENSE_LISTS)[gene][i];
+    if (particle_index >= pnum){
+        printf("\ncomputeGeneAction: (particle_index >= pnum),  gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u .\t",
+            gene, i, list_len, particle_index, pnum
+        );
+    }
+    if(i==list_len-1)printf("\ncomputeGeneAction Chk : gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u .\t",
+            gene, i, list_len, particle_index, pnum);
+    // now work with particle_index & gene :-
+    int epigen_state = (int)fbuf.bufI(FEPIGEN) [particle_index + pnum*gene];
+    uint fconc[NUM_TF];
+    for (int tf=0;tf<NUM_TF;tf++) fconc[tf]=fbuf.bufI(FCONC)[particle_index + pnum*tf];
+    
+    // Gene execution kernel
+    // for each (active) gene:  read current epigenetic activation, read FCONC, FNERVEIDX, FELASTIDX strain, FPRESS, FDENSITY
+    //                          compute current activity of gene, & change in epigenetic activation
+    
+    //                          run gene function
+    //                              (i)modify  FCONC, FNERVEIDX, FPRESS, FDENSITY, FMASS_RADIUS,
+    //                                         FELASTIDX [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff
+    //                                      
+    //                              (ii)make/break bonds    - requires (i)search of neighbours, (ii)spare bonds on both 
+    //                                                      - run on dense list of particles
+    //
+    //                              (iii)add/remove particles from/to reserve list. NB ideally don't process particles in reserve list. 
+    
+    // Genome data:  uint sensitivity[NUM_GENES][NUM_GENES]  // for each gene, its sensitivity to each TF or morphogen
+    //
+    // Epigenetic data:  3rd portion -> current activation
+    //              
+    // 
+    
+}  
+
+/*
+    // what is current epigenetic state 
+    // which genes should run. 
+    
+    ////////////////////////////////
+    
+    // For a given cell (i.e. particle), there is a list of active genes – bit mask on an "active genes" uint. This could be a uint array if >32 genes are required.
+    // Genes may contain bit masks for activating other genes.
+    // These are equivalent to "Long non-coding RNA" transcription activators →  which help to form the "promotor initiator complex"
+    // (As opposed to general silencer/supressor/enhancer binding transcription factors.) NB silencing is permanent.
+    // This leads to dense lists for particles on which to execute each gene.
+    // For each gene : active/inactive & silenced/not_yet
+    
+    // Efficient tracking of particles for active gene lists:
+    // Copy bond tracking, 
+    // Use "update genes" flag to make dense list of changes at particle sorting time.
+    // Run update genes kernel on "changes" list -> add to 
+    
+    // Making dense lists: 
+    // # should hold particles in the same order as the general list
+    // # should require only processing of (i) existing dense list PLUS (ii) changes list
+    
+    // Have separate "reinitiate dense lists" kernel - to check / limit error propagation (rarely run).
+    // See section on Optimisation below.
+    
+    
+    ///////////////////////////////
+    
+    // Points from "New Biological Morphogenetic Methods..."
+    // 2.1) Mutation of Mutability - this is genome modification, outside of the simulation. 
+    //      However it constrains how genes can be implemented.
+    //
+    // 2.2.1) Epigenetic Cell Lines—Morphogenetic and Histological Identities
+    //
+    //  Epigenetic variables: 
+    //      (i) (float)current_activation, - 'phosphorylation'
+    //      (ii) (bool)available/silenced, - 'methylation' => epigenetic type.
+    //      (iii) (uint) spread count down - of silencing - e.g. Hox Genes stop spreading -> epigenetic type
+    //                                          NB requires sequence of genes on chromosome.
+    //      (iv) (bool) stop spreading
+    //      (v)  (bool) "Not yet activated"
+    //      => bool, bool, bool, uint, float. Could bitshift the uint to get the three bools.
+    //
+    //  Genetic parameters: 
+    //      (i) Mutability, - NB probability of mutation at all, not magnitude of change.
+    //                      - types: (a) cis-regulatory (I)degree of sensitivity, (II)to what - morphogen/stress
+    //                               (b) change of gene action (not req for morphogenesis, i.e. protien change)
+    //                               (c) genome architecture - (I) duplication/relocation of gene, 
+    //                                                         (II)repartition of chromosomes
+    //
+    //      (ii) Delay/insulator, barrier to spread of inactivation.
+    //
+    //      (iii) Cis-regulatory sensitivities (morphogens, stress & strain cycles) altering current activation.
+    //
+    //      (iv)  Cell actions - secrete morphogens, move, adhere, divide, secrete/resorb material 
+    //                          - dependent on current activation.
+    //                          - Q: how to implement ?
+    //                                  - move - NB risk of adding energy... 
+    //                                  - adhere - make/break springs
+    //                                  - divide - add particle from reserve.
+    //                                  - secrete/resorb - change particle mass, viscosity, fluid stiffness, 
+    //                                                   - spring length/stiffness -> anisotropy
+    //
+    // 2.2.2) Local Anatomical Coordinates—From Morphogen Gradients
+    //                         - implemented via secretion, diffusion, & breakdown of transcription factors
+    //                         - need genetic codes for:
+    //                                  (I&II) symmetry breaking - establish orthogonality of poles & layers 
+    //                                          (blastulation, primitive streak, gastrulation)
+    //                                          blastomere->cyst->embryonic disk->primitive streak....
+    //                                  
+    //                                  (III) clock & wave front -> Hox genes
+    //                                  (IV) gap and pair
+    //                                  (V) tissue layer co-growth
+    //                                  (VI) limb bud location
+    //                                  (VII) limb growth & segmentation
+    //                                  (VIII) digital ray lateral & lognitudinal segmentation
+    //                                  (IX) reuse of synovial joint 'module'
+    //                                  (X) location, migration & connection of of muscle-tendon
+    //                                  (XI) location & connection of ligaments - articular, retinacular, dermal
+    //                                  (XII) dermal specialization - palmar pads, nails, claws, hooves
+    //                                  (XIII) nervous system connection & construction 
+    //                          - NB epi-genetic branching tree, local coords, repeated patterns 
+    //                                                                  -> reuse of cell types & modules 
+    //
+    // 2.2.3) Remodeling - implemented through cell actions 2.2.1(iv), regulated through 2.2.1(iii).
+    // 
+    //
+    ///////////////////////////////////////////////////////////////////////////
+    
+    // Required genes: NB #define NUM_GENES  16.  NB tractability + evolvability
+    //
+    // Basic actions ://////  4+ ... but are these functions of celltype ?
+    //
+    // Add/remove particles - function of mass/radius
+    //
+    // Add remove mass/radius
+    //
+    // Increase/decrease matrix modulus & viscosity
+    //
+    // Incr/decr spring length, stiffness & damping - which springs? -> anisotropy & adhesion
+    // 
+    // 
+    
+    // Tissue modification rules 
+    //
+    // (i) prolonged tension causes lengthening, 
+    // (ii) cyclical loading causes strengthening, 
+    // (iii) low peak strain causes shortening of fibrous tissue, 
+    // (iv) low peak stress causes weakening.
+    // 
+    // ? rolling integrators for spring stress & stress^3 -> mean vs peak
+    // NB for muscles stress & strain are independent. => need to track strain for lengthening, stress for strengthening
+    
+    // Bone growth is regulated by morphogen diffusion at the growth plates and articular cartilage.
+    // Bone itself is shaped by 
+    //      * passive deformation of the bone primordia in the formation of the joints
+    //      * active remodeling in response to forces to form the ridges and protrusions where major muscles and tendons attach
+    //
+    // 
+    
+    //
+    // Cell type genes: 9+2
+    //
+    // bone, cartilage, tendon, muscle, ligament/fascia, loose tissue, dermis, epidermis, horn, 
+    //
+    // myotendinous junction, enthesis - poss double-expression
+    //
+    // 
+    //
+    // General anatomical modules:///////
+    // 
+    // articulation/synovial joint
+    // 
+    // bone primordia
+    // 
+    // endo/meso/ectoderm
+    //
+    // secretory
+    //
+    //
+    // 
+    // Epigenetic labels:
+    // 
+    // Hox genes - axial zoning - (6 used, 13x4 available)
+    //
+    // Limb bud fore/hind  (poss due to Hox combination)
+    // 
+    // Other homeobox genes - autopod, zeugoopod, stylopod, scapula/pelvis
+    //
+    // digit rays, carpus, metacarpus, phalanges, plalanx number, nail/claw/hoof
+    
+    
+    
+ */   
+    
+    // Data structures (fluid.h)
+    //
+    /*
+        struct FGenome{   
+                        // ## currently using fixed size genome for efficiency. 
+                                            // NB Particle data size depends on genome size.
+            uint mutability[NUM_GENES];
+            uint delay[NUM_GENES];
+            uint sensitivity[NUM_GENES][NUM_GENES]; // for each gene, its sensitivity to each TF or morphogen
+            uint difusability[NUM_GENES][2];// for each gene, the diffusion and breakdown rates of its TF.
+            //uint *function[NUM_GENES];    
+                        // Hard code a case-switch that calls each gene's function iff the gene is active.
+        };                                  // NB gene functions need to be in fluid_system_cuda.cu
+    */
+    
+    /*
+        struct FBufs {  // holds an array of pointers,
+            ..
+            char*				mcpu[ MAX_BUF ];
+            ..
+        }
+    */
+    
+    /*
+            #define FFORCE		3       //# 3DF        force 
+            #define FPRESS		4       //# F      32  pressure
+            #define FDENSITY	5       //# F          density
+
+            #define FELASTIDX   14      //# currently [0]current index, [1]elastic limit, [2]restlength, 
+                                                    [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
+            #define FPARTICLEIDX 29     //# uint[BONDS_PER_PARTICLE *2]  
+                                                    list of other particles' bonds connecting to this particle AND their indices 
+            #define FPARTICLE_ID 30     //# uint original pnum,
+            #define FMASS_RADIUS 31     //# uint holding modulus 16bit and limit 16bit.  
+            #define FNERVEIDX   15      //# uint
+            #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
+            #define FEPIGEN     17      //# uint[NUM_GENES]
+    */
+/*    ///////////////////////////////////////////////////////////////////////////////
+    
+    
+    // Code Optimisation:
+    // Making dense lists
+    //           part of particle sorting, build particle index arrays for 
+    //                  (i) available genes (ii) active genes (iii) diffusion particles (iv) active/reserve particles. 
+    //                   NB sequence of kernels called bu fluid_system::run()
+    //                   InsertParticlesCUDA - sort particles into bins
+    //                   PrefixSumCellsCUDA - count particles in bins - need to count (i&ii) above. (NB FUNC_FPREFIXSUM & FUNC_FPREFIXFIXUP)
+    //                   CountingSortFullCUDA - build arrays - need (NB TransferToTempCUDA(..) for each fbuf array )
+    
+    // NB bitonic merge sort _may_ be useful to sort particles in active gene lists wrt to their location in the main particle list.
+    // This is sorting particles in gene bins, on their particle bin FGNDX.
+    // _Alternatively_, could loop on particles in bin and write each to gene bin. Max time : max num particles/bin. 
+    
+    // could write to a list of particles per gene, then run dense blocks for each gene.
+    // NB all particles in block execute identical code.
+    // Build active gene arrays during sorting
+    // NB sequence : InsertParticles, PrefixSumCells, CountingSortFullCUDA  
+
+    // NB generally in C/C++/Cuda types <32bit have to be converted to 32bit for processing. 
+    // => use 32bit int/float, except where there is explicit support.
+    
+    // ############ convert to FP16 - NB Minimum spec: SM 5.3, so on Tesla-P100 (SM 6.0), NOT on GTX970m (SM 5.2)
+    // NB P100 has GP100 with FP16, but the GTX 10xx series have GP104 with INT8 instead.
+    // see https://docs.nvidia.com/cuda/pascal-tuning-guide/index.html#arithmetic-primitives
+    // see https://github.com/tpn/cuda-samples/tree/master/v8.0/0_Simple/fp16ScalarProduct
+    // 
+    
+    // ############ convert to BFLOAT16 - only available on RTX cores,  i.e. not Tesla-P100
+    // see  https://mc.ai/fp64-fp32-fp16-bfloat16-tf32-and-other-members-of-the-zoo/ 
+    // https://docs.nvidia.com/cuda/cuda-math-api/modules.html
+    // also https://medium.com/@prrama/an-introduction-to-writing-fp16-code-for-nvidias-gpus-da8ac000c17f
+    // NB this also applies to much of the data in Morphogenesis.
+    ///////////////////////////////////////////////////////////////////////////////
+    
+    
+    
+    // Epigenetic data uint[NUM_GENES], per gene :  1st bit -> available/silenced
+    //                                              2nd portion -> spread/stop
+    //                                              3rd portion -> current activation
+    
+    // Genome data (once for all particles):    uint sensitivity[NUM_GENES][NUM_GENES]; // cis-regulatory sensitivity to each TF, register for automata kernel 
+    //
+    //                                          uint difusability[NUM_GENES][2];        // diffusion rates of FCONC, register for diffusion kernel
+    //                                          
+    //                                          uint delay[NUM_GENES];                  // sets intial spread/stop
+    //                                          uint mutability[NUM_GENES];             // used only for mutation
+    
+    // Epigenetics kernel
+    // for each (available) gene: read epigenetic data, compute spread of silencing,  
+    
+    // Gene execution kernels
+    // for each (active) gene:
+    // for each particle in dense list of particles where that gene is active:
+    //                          read current epigenetic activation, read FCONC, FNERVEIDX, FELASTIDX strain, FPRESS, FDENSITY
+    //                          compute current activity of gene, & change in epigenetic activation
+    //                          run gene function
+    //                              (i)modify  FCONC, FNERVEIDX, FPRESS, FDENSITY, FMASS_RADIUS,
+    //                                         FELASTIDX [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff
+    //                                      
+    //                              (ii)make/break bonds    - requires (i)search of neighbours, (ii)spare bonds on both 
+    //                                                      - run on dense list of particles
+    //
+    //                              (iii)add/remove particles from/to reserve list. NB ideally don't process particles in reserve list. 
+    
+    
+    // NB difference between sparse representation of gene sensitivities for efficient simulation
+    // vs dense representation for mutation.
+*/  
+
+    // New plan:
+    // 1) make _densely_packed_lists_ 
+    //      (i) for each gene
+    //      NB needs mods to prefixSum to count for bins of each gene.
+    //      Run only on: existing list + changes list. NB most particles run only a few genes at a time.
+    // 
+    //      i.e. for each particle in list atomic_add to bin count
+    //      Then for each bin in main list, write particle index to dense list of each active gene. 
+    //      NB running this kernel on bins avoids the need to sort or atomic add.
+    //
+    //      (ii) Likewise make dense list(s) for epigenetics.
+    //      (iii) also for elastic vs fluid,  diffusion vs non-diffusion, reserve vs in use.
+    //      NB cuda malloc for list sizes, when enlargement req.
+    //
+    // 2) call epigenetics kernel for dense list. 
+    //          - Used for Hox genes in somites, and probably limb segments.
+    // 
+    // 3) call gene kernel for each dense list
+    //      NB each 'gene' is equivalent to a biological gene cluster under common cis regulatory control.
+    //      Each gene has a list of operations :
+    //      (i) packed sparse list of sensitivities to TFs.
+    //      (ii) gene action(s) ?
+    //          - modify params for property update kernel
+    //          - activate other genes
+    //          - silence self
+    //          - secrete a few TFs
+    //          - move cell i.e. change which particles it is bonded to.
+    //      (iii) nervous interactions
+    //          - send sensory data - to nervous system
+    //          - contract muscle - on nerve stimulus, NB temporary change of stiffness & rest ln.
+    //           
+    // 4) call property update kernel for all particles 
+    //      reads parameters for each particle to modify properties - tissue type: ectoderm, mesoderm, cartilage, bone, muscle, tendon, fascia, fat, horn.
+    //      avoids multiple calculations & edits.
+    //          - mass/radius, divide/combine/delete
+    //          - bonds - form/break/length/stiffness/elastic limit
+    //          - fluid - stiffness & viscosity
+    //
+    // Automatic genotype Optimisation: (In lieu of full differentiability).  
+    // ? Record gradients ? wrt to what ? parameters of genome - but select which. 
+    // Record snap shots. Replay to find _when_ change most affected desired result. 
+    // i.e. gradient of result wrt time.
+    // Replay from snap shot - which genes are active? 
+    // Find gradients of result wrt to genes
+    // For most significant genes, What are they sensitive to? -> gradient of gene wrt factor
+    // Options (1) adjust sensitivity, (2) increase the source of the stimulus
+    // 
+    
+ 
+ 
+ 
+//////////////////////////////////////////////////////////
+
+    // Diffusion kernel: (i) read & use uint difusability[NUM_GENES][2];    // for each gene, the diffusion and breakdown rates of its TF.
+    //                   (ii) non-difusability of morphogens outside body, yet we may want fluid & womb fluid-elastic simulation
+    //                   (iii) non-difusibility of internal transcription factors
+    //                   (iv) breakdown rate of morphogens and transcription factors, ?
 //! constant diffusion rate (as a percentage, 0.0 to 1.0) of chemical exchanged per step. change this in future!
-#define DIFFUSE_RATE 10.0
+#define DIFFUSE_RATE 10.0   // - replace with: FGenome->difusability[NUM_GENES][2] (above)
 
 //! loops over all the chemicals in the given particle and exchanges chemicals
-extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const float currentConc[NUM_TF], float newConc[NUM_TF]){
+extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const float currentConc[NUM_TF], float newConc[NUM_TF]){  
     // if the cell is empty, skip it
     if (fbuf.bufI(FGRIDCNT)[cell] == 0) return;
 
@@ -707,50 +1226,4 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
     
 }
 
-
-extern "C" __global__ void prefixFixup(uint *input, uint *aux, int len)     // merge *aux into *input  
-{
-	unsigned int t = threadIdx.x;
-	unsigned int start = t + 2 * blockIdx.x * SCAN_BLOCKSIZE;
-	if (start < len)					input[start] += aux[blockIdx.x];      
-	if (start + SCAN_BLOCKSIZE < len)   input[start + SCAN_BLOCKSIZE] += aux[blockIdx.x];
-}
-
-extern "C" __global__ void prefixSum(uint* input, uint* output, uint* aux, int len, int zeroff) // sum *input, write to *output
-{
-	__shared__ uint scan_array[SCAN_BLOCKSIZE << 1];
-	unsigned int t1 = threadIdx.x + 2 * blockIdx.x * SCAN_BLOCKSIZE;
-	unsigned int t2 = t1 + SCAN_BLOCKSIZE;
-
-	// Pre-load into shared memory
-	scan_array[threadIdx.x] = (t1<len) ? input[t1] : 0.0f;
-	scan_array[threadIdx.x + SCAN_BLOCKSIZE] = (t2<len) ? input[t2] : 0.0f;
-	__syncthreads();
-
-	// Reduction
-	int stride;
-	for (stride = 1; stride <= SCAN_BLOCKSIZE; stride <<= 1) {
-		int index = (threadIdx.x + 1) * stride * 2 - 1;
-		if (index < 2 * SCAN_BLOCKSIZE)
-			scan_array[index] += scan_array[index - stride];
-		__syncthreads();
-	}
-
-	// Post reduction
-	for (stride = SCAN_BLOCKSIZE >> 1; stride > 0; stride >>= 1) {
-		int index = (threadIdx.x + 1) * stride * 2 - 1;
-		if (index + stride < 2 * SCAN_BLOCKSIZE)
-			scan_array[index + stride] += scan_array[index];
-		__syncthreads();
-	}
-	__syncthreads();
-
-	// Output values & aux
-	if (t1 + zeroff < len)	output[t1 + zeroff] = scan_array[threadIdx.x];
-	if (t2 + zeroff < len)	output[t2 + zeroff] = (threadIdx.x == SCAN_BLOCKSIZE - 1 && zeroff) ? 0 : scan_array[threadIdx.x + SCAN_BLOCKSIZE];
-	if (threadIdx.x == 0) {
-		if (zeroff) output[0] = 0;
-		if (aux) aux[blockIdx.x] = scan_array[2 * SCAN_BLOCKSIZE - 1];
-	}
-}
 
