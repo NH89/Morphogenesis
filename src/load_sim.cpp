@@ -77,7 +77,7 @@ std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
     
     fluid.TransferFromCUDA ();
     fluid.SavePointsCSV2 ( outPath, file_num );
-    fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+    //fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
     file_num++;
  
 std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
@@ -88,7 +88,7 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
          */
         fluid.Freeze ();       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
-        if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+        //if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
         if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
         file_num+=10;
     }
@@ -107,7 +107,7 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         auto begin = std::chrono::steady_clock::now();
         
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
-        if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+        //if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
         if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
         
         auto end = std::chrono::steady_clock::now();

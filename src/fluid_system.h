@@ -41,24 +41,18 @@
 	#include <math.h>	
 	#include <vtk-9.0/vtkCellArray.h>
     #include <vtk-9.0/vtkPoints.h>
-    #include <vtk-9.0/vtkXMLPolyDataWriter.h>//"/usr/local/include/vtk-9.0/vtkXMLPPolyDataWriter.h"
-    #include <vtk-9.0/vtkPolyData.h>//"/usr/local/include/vtk-9.0/vtkPolyData.h"//
-    #include <vtk-9.0/vtkSmartPointer.h>//"/usr/local/include/vtk-9.0/vtkSmartPointer.h"//
+    #include <vtk-9.0/vtkXMLPolyDataWriter.h>
+    #include <vtk-9.0/vtkPolyData.h>
+    #include <vtk-9.0/vtkSmartPointer.h>
     #include <vtk-9.0/vtkLine.h>
     #include <vtk-9.0/vtkDataSet.h>
     #include <vtk-9.0/vtkUnsignedIntArray.h>
     #include <vtk-9.0/vtkUnsignedCharArray.h>
     #include <vtk-9.0/vtkFloatArray.h>
     #include <vtk-9.0/vtkPointData.h>
-    //#include <vtk-9.0/vtkSOADataArrayTemplate.h>
     #include <vtk-9.0/vtkCellData.h>
-
 	#include "fluid.h"
-//	#include "gvdb_vec.h"
-//	#include "gvdb_camera.h"
-//	using namespace nvdb;
-//    #define TWO_POW_16 65536                    // used to bit mask 1st 16 bits of uint
-    
+
 	#define MAX_PARAM			50             // used for m_Param[], m_Vec[], m_Toggle[]
 	#define GRID_UCHAR			0xFF           // used in void FluidSystem::InsertParticles (){.. memset(..); ...}
 	#define GRID_UNDEF			4294967295	
@@ -177,19 +171,8 @@
     #define FUNC_TALLYLISTS     11
     #define FUNC_COMPUTE_DIFFUSION 12
     #define FUNC_COUNT_SORT_LISTS  13
-    
     #define FUNC_COMPUTE_GENE_ACTION 14
-
-	
 	#define FUNC_MAX			16
-
-	
-	// nb COLORA defined in 'vector.h"
-	//#define COLORA(r,g,b,a)	( (uint((a)*255.0f)<<24) | (uint((b)*255.0f)<<16) | (uint((g)*255.0f)<<8) | uint((r)*255.0f) )
-	/*#define ALPH(c)			(float(((c)>>24) & 0xFF)/255.0f)
-	#define BLUE(c)			(float(((c)>>16) & 0xFF)/255.0f)
-	#define GRN(c)			(float(((c)>>8)  & 0xFF)/255.0f)
-	#define RED(c)			(float( (c)      & 0xFF)/255.0f)	*/
 
     //  used for AllocateBuffer(  .... )
 	#define GPU_OFF				0
@@ -208,31 +191,15 @@
         void InitializeCuda ();                             // used for load_sim
         void LoadSimulation (const char * relativePath);    // start sim from a folder of data
 
-// 		// Rendering
-// 		void Draw ( int frame, Camera3D& cam, float rad );
-// 		void DrawDomain ();
-// 		void DrawGrid ();
-// 		void DrawText ();
-// 		void DrawCell ( int gx, int gy, int gz );
-// 		void DrawParticle ( int p, int r1, int r2, Vector3DF clr2 );
-// 		void DrawParticleInfo ()		{ DrawParticleInfo ( mSelected ); }
-// 		void DrawParticleInfo ( int p );
-// 		void DrawNeighbors ( int p );
-// 		void DrawCircle ( Vector3DF pos, float r, Vector3DF clr, Camera3D& cam );
-
 		// Particle Utilities
 		void AllocateBuffer(int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode);		
         void AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt );
 		void TransferToTempCUDA ( int buf_id, int sz );
-		//void AllocateParticles ( int cnt );
         void AllocateParticles ( int cnt, int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES );
 		int AddParticle ();
-        int AddParticle (Vector3DF* Pos, Vector3DF* Vel);
-        int AddParticleMorphogenesis ();
-        int AddParticleMorphogenesis(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint* _ElastIdx, uint NerveIdx, float* _Conc, uint* _EpiGen);
         int AddParticleMorphogenesis2(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float* _ElastIdx, uint* _Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen);
         
-		void AddEmit ( float spacing );
+		//void AddEmit ( float spacing );
 		int NumPoints ()				{ return mNumPoints; }
 		Vector3DF* getPos ( int n )	    { return &m_Fluid.bufV3(FPOS)[n]; }
 		Vector3DF* getVel ( int n )	    { return &m_Fluid.bufV3(FVEL)[n]; }
@@ -248,81 +215,40 @@
 		
 		// Setup
 		void Start ( int num );
-		void SetupRender ();
 		void SetupKernels ();
 		void SetupDefaultParams ();
 		void SetupExampleParams ();
         void SetupExampleGenome();
 		void SetupSpacing ();
 		void SetupAddVolume ( Vector3DF min, Vector3DF max, float spacing, float offs, int total );
-        void SetupAddVolumeMorphogenesis(Vector3DF min, Vector3DF max, float spacing, float offs, int total );
         void SetupAddVolumeMorphogenesis2(Vector3DF min, Vector3DF max, float spacing, float offs, int total );  // NB ony used in WriteDemoSimParams()
 		void SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, float cell_size, float border );		
 		void AllocateGrid ();
         void AllocateGrid(int gpu_mode, int cpu_mode);
-		void IntegrityCheck();
-
-		// Neighbor Search
-		void Search ();
-		void InsertParticles ();
-		void BasicSortParticles ();
-		void BinSortParticles ();
-		void FindNbrsSlow ();
-		void FindNbrsGrid ();
 
 		// Simulation
 		void Run ();	
         void Run( const char * relativePath, int frame );
         void Freeze ();
         void Freeze (const char * relativePath, int frame );
-		void ValidateCUDA ();		
-		void RunPlayback ();
 		void AdvanceTime ();
 		
-		void Advance ();
-		void EmitParticles ();
 		void Exit ();
 		void TransferToCUDA ();
 		void TransferFromCUDA ();
-		void ValidateSortCUDA ();
-		float Sample ( Vector3DF p );
 		double GetDT()		{ return m_DT; }
 
 		// Debugging
-		void SaveResults ();
-		void CaptureVideo (int width, int height);
-		void ValidateResults ();
-		void TestPrefixSum ( int num );
-		void DebugPrintMemory ();		
-		//int SelectParticle ( int x, int y, int wx, int wy, Camera3D& cam );
 		int GetSelected ()		{ return mSelected; }
-
 		
 		// Acceleration Grid
-		int getGridCell ( int p, Vector3DI& gc );
-		int getGridCell ( Vector3DF& p, Vector3DI& gc );
-		int getGridTotal ()		{ return m_GridTotal; }
-		int getSearchCnt ()		{ return m_GridAdjCnt; }
-		Vector3DI getCell ( int gc );
 		Vector3DF GetGridRes ()		{ return m_GridRes; }
 		Vector3DF GetGridMin ()		{ return m_GridMin; }
 		Vector3DF GetGridMax ()		{ return m_GridMax; }
 		Vector3DF GetGridDelta ()	{ return m_GridDelta; }
 
 		// Acceleration Neighbor Tables
-		void AllocateNeighborTable ();
 		void ClearNeighborTable ();
-		void ResetNeighbors ();
-		int GetNeighborTableSize ()	{ return m_NeighborNum; }
-		void ClearNeighbors ( int i );
-		int AddNeighbor();
-		int AddNeighbor( int i, int j, float d );
-		
-		// Smoothed Particle Hydrodynamics		
-		void ComputePressureGrid ();			// O(kn) - spatial grid
-		void ComputeForceGrid ();				// O(kn) - spatial grid
-		void ComputeForceGridNC ();				// O(cn) - neighbor table		
-		
 
 		// GPU Support functions
 /*remove this line ?*/void AllocatePackBuf ();
@@ -337,50 +263,24 @@
 		void CountingSortFullCUDA ( Vector3DF* gpos );
 		void ComputePressureCUDA ();
 		void ComputeDiffusionCUDA();
-		void ComputeQueryCUDA ();
-		void ComputeForceCUDA ();	
-        //void FreezeCUDA ();
+		void ComputeForceCUDA ();
         void ComputeGenesCUDA ();
         void ComputeParticleChangesCUDA ();
-        
-		void SampleParticlesCUDA ( float* outbuf, uint3 res, float3 bmin, float3 bmax, float scalar );		
 		void AdvanceCUDA ( float time, float dt, float ss );
 		void EmitParticlesCUDA ( float time, int cnt );
-
-		int ResizeBrick ( uint3 res );
-
-
-		//void SPH_ComputePressureSlow ();			// O(n^2)	
-		//void SPH_ComputeForceSlow ();				// O(n^2)
-		//void SPH_ComputeForceGrid ();				// O(kn) - spatial grid
-
-		// Recording  -  not used 
-		void StartRecord ();
-		void StartRecordBricks ();
-		void StartPlayback ();
-		void SavePoints ( int frame );
-		void SaveBricks ( int frame );
 
 		int getMode ()		{ return (int) m_Param[PMODE]; }
 		std::string getModeStr ();
 		void getModeClr ();
         
 		// I/O Files
-        void SavePointsVTP ( const char * relativePath, int frame );
         void SavePointsVTP2 ( const char * relativePath, int frame );
-        void SavePointsVTP3 ( const char * relativePath, int frame );// Struct_of_Arrays matching FBufs 
-        
-		void SavePointsCSV ( const char * relativePath, int frame );
         void SavePointsCSV2 ( const char * relativePath, int frame );
         void ReadSimParams ( const char * relativePath );    // path to folder containing simparams and .csv files
         void WriteDemoSimParams ( const char * relativePath, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim  ); // Write standard demo to file, as demonstration of file format. 
         void WriteSimParams ( const char * relativePath );
-        void ReadPointsCSV ( const char * relativePath, int gpu_mode, int cpu_mode);
         void ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);
-		void SavePoints_asciiPLY ( const char * relativePath, int frame );
-        void SavePoints_asciiPLY_with_edges ( const char * relativePath, int frame );
-		//int WriteParticlesToHDF5File(int filenum);
-        
+
         // Genome for Morphogenesis
         void UpdateGenome ();
         void SetGenome ( FGenome newGenome );
@@ -416,7 +316,6 @@
 		void SetDebug(bool b) { mbDebug = b; }
 	
 	private:
-	//	bool						m_Cmds[10];  /*not used*/
 		Vector3DI					m_FrameRange;
 		Vector3DI					m_VolRes;
 		int							m_BrkRes;

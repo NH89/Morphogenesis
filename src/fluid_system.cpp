@@ -1,18 +1,11 @@
 
 #include <assert.h>
-#include <iostream>//<stdio.h>
+#include <iostream>
 #include <cuda.h>
 #include "cutil_math.h"
 #include "fluid_system.h"
-
-    #include <stdlib.h>
-    #include <unistd.h>
-//#include <vtk-9.0/vtkFloatArray.h>
-//#include <vtk-9.0/vtkPointData.h>
-
-
-
-//#include <GL/glew.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 extern bool gProfileRend;
 
@@ -511,111 +504,6 @@ int FluidSystem::AddParticle ()
     return n;
 }
 
-int FluidSystem::AddParticle (Vector3DF* Pos, Vector3DF* Vel)
-{
-    if ( mNumPoints >= mMaxPoints ) return -1;
-    int n = mNumPoints;
-    (m_Fluid.bufV3(FPOS) + n)->Set ( Pos->x,Pos->y,Pos->z );
-    (m_Fluid.bufV3(FVEL) + n)->Set ( Vel->x,Vel->y,Vel->z );
-    (m_Fluid.bufV3(FVEVAL) + n)->Set ( 0,0,0 );
-    (m_Fluid.bufV3(FFORCE) + n)->Set ( 0,0,0 );
-    *(m_Fluid.bufF(FPRESS) + n) = 0;
-    *(m_Fluid.bufF(FDENSITY) + n) = 0;
-    *(m_Fluid.bufI(FGNEXT) + n) = -1;
-    *(m_Fluid.bufI(FCLUSTER)  + n) = -1;
-    *(m_Fluid.bufF(FSTATE) + n ) = (float) rand();
-    *(m_Fluid.bufI(FPARTICLE_ID)+n) = n+1;
-    mNumPoints++;
-    return n;
-}
-
-int FluidSystem::AddParticleMorphogenesis ()
-{
-    //std::cout << "\n AddParticleMorphogenesis () " << std::flush ;
-    
-    if ( mNumPoints >= mMaxPoints ) return -1;
-    int n = mNumPoints;
-    (m_Fluid.bufV3(FPOS) + n)->Set ( 0,0,0 );
-    (m_Fluid.bufV3(FVEL) + n)->Set ( 0,0,0 );
-    (m_Fluid.bufV3(FVEVAL) + n)->Set ( 0,0,0 );
-    (m_Fluid.bufV3(FFORCE) + n)->Set ( 0,0,0 );
-    *(m_Fluid.bufF(FPRESS) + n) = 0;
-    *(m_Fluid.bufF(FDENSITY) + n) = 0;
-    *(m_Fluid.bufI(FAGE) + n) = 0;                  //# Ushort 16  particle age
-    *(m_Fluid.bufI(FGNEXT) + n) = -1;
-    *(m_Fluid.bufI(FCLUSTER)  + n) = -1;
-    *(m_Fluid.bufF(FSTATE) + n ) = (float) rand();
-
-    //#define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
-    //#define FNERVEIDX   15      //# uint
-    //#define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
-    //#define FEPIGEN     17      //# uint[NUM_GENES]
-
-    //*(m_Fluid.bufI(FAGE) + n) = 0;
-    *(m_Fluid.bufI(FCLR) + n) = 0;
-
-    uint* ElastIdx = (m_Fluid.bufI(FELASTIDX) + n * BOND_DATA);
-    ElastIdx[0] = n;                                        // ElastIdx[0] = particle ID
-    for(int j=1; j<(BOND_DATA); j++) {
-        ElastIdx[j] = 0;
-    }
-
-    *(m_Fluid.bufI(FNERVEIDX) + n) = 0;
-
-    float* Conc = (m_Fluid.bufF(FCONC) + n * NUM_TF);
-    for(int j=0; j<(NUM_TF); j++) {
-        Conc[j] = 0.0f;
-    }
-
-    uint* EpiGen = (m_Fluid.bufI(FEPIGEN) + n * NUM_GENES);
-    for(int j=0; j<(NUM_GENES); j++) {
-        EpiGen[j]= 0;
-    }
-    *(m_Fluid.bufI(FPARTICLE_ID)+n) = n+1;
-    
-    mNumPoints++;
-    return n;
-}
-
-
-int FluidSystem::AddParticleMorphogenesis (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint *_ElastIdx, uint NerveIdx, /* Particle_ID, mass, radius, */ float* _Conc, uint* _EpiGen )
-{
-    if ( mNumPoints >= mMaxPoints ) return -1;
-    int n = mNumPoints;
-    (m_Fluid.bufV3(FPOS) + n)->Set ( Pos->x,Pos->y,Pos->z );
-    (m_Fluid.bufV3(FVEL) + n)->Set ( Vel->x,Vel->y,Vel->z );
-    (m_Fluid.bufV3(FVEVAL) + n)->Set ( 0,0,0 );
-    (m_Fluid.bufV3(FFORCE) + n)->Set ( 0,0,0 );
-    *(m_Fluid.bufF(FPRESS) + n) = 0;
-    *(m_Fluid.bufF(FDENSITY) + n) = 0;
-    *(m_Fluid.bufI(FGNEXT) + n) = -1;
-    *(m_Fluid.bufI(FCLUSTER)  + n) = -1;
-    *(m_Fluid.bufF(FSTATE) + n ) = (float) rand();
-
-    *(m_Fluid.bufI(FAGE) + n) = Age;
-    *(m_Fluid.bufI(FCLR) + n) = Clr;
-
-    uint* ElastIdx = (m_Fluid.bufI(FELASTIDX) + n * BOND_DATA );
-    for(int j=0; j<(BOND_DATA); j++) {
-        ElastIdx[j] = _ElastIdx[j] ;
-    }
-    
-    //fprintf(fp, "\t%u, \t", *NerveIdx);
-    *(m_Fluid.bufI(FNERVEIDX) + n) = NerveIdx;
-
-    float* Conc = (m_Fluid.bufF(FCONC) + n * NUM_TF);
-    for(int j=0; j<(NUM_TF); j++) {
-        Conc[j] = _Conc[j];
-    }
-    uint* EpiGen = (m_Fluid.bufI(FEPIGEN) + n * NUM_GENES);
-    for(int j=0; j<(NUM_GENES); j++) { EpiGen[j]= _EpiGen[j];}
-    
-    *(m_Fluid.bufI(FPARTICLE_ID)+n) = n+1;
-
-    mNumPoints++;
-    return n;
-}
-
 
 int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float *_ElastIdx, uint *_Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen )  // called by :ReadPointsCSV2 (...) where :    uint Particle_Idx[BONDS_PER_PARTICLE * 2];  AND SetupAddVolumeMorphogenesis2(....)
 {
@@ -704,51 +592,6 @@ void FluidSystem::SetupAddVolume ( Vector3DF min, Vector3DF max, float spacing, 
     }
 }
 
-void FluidSystem::SetupAddVolumeMorphogenesis(Vector3DF min, Vector3DF max, float spacing, float offs, int total )  // NB ony used in WriteDemoSimParams()
-{
-    Vector3DF pos;
-    int p;
-    float dx, dy, dz;
-    int cntx, cntz;
-    cntx = (int) ceil( (max.x-min.x-offs) / spacing );
-    cntz = (int) ceil( (max.z-min.z-offs) / spacing );
-    int cnt = cntx * cntz;
-    int c2;
-
-    min += offs;
-    max -= offs;
-
-    dx = max.x-min.x;
-    dy = max.y-min.y;
-    dz = max.z-min.z;
-
-    Vector3DF rnd;
-
-    c2 = cnt/2;
-    
-    std::cout << " chk1.2.1 " << std::flush ;
-    for (pos.y = min.y; pos.y <= max.y; pos.y += spacing ) {
-        
-        for (int xz=0; xz < cnt; xz++ ) {
-            
-            pos.x = min.x + (xz % int(cntx))*spacing;
-            pos.z = min.z + (xz / int(cntx))*spacing;
-            p = AddParticleMorphogenesis (); // AddParticle (); //
-
-            if ( p != -1 ) {
-                rnd.Random ( 0, spacing, 0, spacing, 0, spacing );
-                *(m_Fluid.bufV3(FPOS)+p) = pos + rnd;
-
-                Vector3DF clr ( (pos.x-min.x)/dx, 0, (pos.z-min.z)/dz );
-                clr *= 0.8;
-                clr += 0.2;
-                clr.Clamp (0, 1.0);
-                m_Fluid.bufI(FCLR) [p] = COLORA( clr.x, clr.y, clr.z, 1);
-                // = COLORA( 0.25, +0.25 + (y-min.y)*.75/dy, 0.25 + (z-min.z)*.75/dz, 1);  // (x-min.x)/dx
-            }
-        }
-    }
-}
 
 void FluidSystem::SetupAddVolumeMorphogenesis2(Vector3DF min, Vector3DF max, float spacing, float offs, int total )  // NB ony used in WriteDemoSimParams() called by make_demo.cpp . Creates a cuboid with all particle values definable.
 {
@@ -843,48 +686,6 @@ std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
         }
     }
     std::cout << "\n SetupAddVolumeMorphogenesis2 finished \n" << std::flush ;
-}
-
-
-////////////////////////////////////////////////////////////////
-
-
-
-void FluidSystem::AddEmit ( float spacing )
-{
-    int p;
-    Vector3DF dir;
-    Vector3DF pos;
-    float ang_rand, tilt_rand;
-    float rnd = m_Vec[PEMIT_RATE].y * 0.15f;
-    int x = (int) sqrt(m_Vec[PEMIT_RATE].y);
-
-    for ( int n = 0; n < m_Vec[PEMIT_RATE].y; n++ ) {
-        ang_rand = (float(rand()*2.0f/RAND_MAX) - 1.0f) * m_Vec[PEMIT_SPREAD].x;
-        tilt_rand = (float(rand()*2.0f/RAND_MAX) - 1.0f) * m_Vec[PEMIT_SPREAD].y;
-        dir.x = cos ( ( m_Vec[PEMIT_ANG].x + ang_rand) * DEGtoRAD ) * sin( ( m_Vec[PEMIT_ANG].y + tilt_rand) * DEGtoRAD ) * m_Vec[PEMIT_ANG].z;
-        dir.y = sin ( ( m_Vec[PEMIT_ANG].x + ang_rand) * DEGtoRAD ) * sin( ( m_Vec[PEMIT_ANG].y + tilt_rand) * DEGtoRAD ) * m_Vec[PEMIT_ANG].z;
-        dir.z = cos ( ( m_Vec[PEMIT_ANG].y + tilt_rand) * DEGtoRAD ) * m_Vec[PEMIT_ANG].z;
-        pos = m_Vec[PEMIT_POS];
-        pos.x += spacing * (n/x);
-        pos.y += spacing * (n%x);
-
-        p = AddParticle ();
-        *(m_Fluid.bufV3(FPOS)+n) = pos;
-        *(m_Fluid.bufV3(FVEL)+n) = dir;
-        *(m_Fluid.bufV3(FVEVAL)+n) = dir;
-        *(m_Fluid.bufI(FAGE)+n) = 0;
-        *(m_Fluid.bufI(FCLR)+n) = COLORA ( m_Time/10.0, m_Time/5.0, m_Time /4.0, 1 );
-    }
-}
-
-
-void FluidSystem::EmitParticles ()
-{
-    if ( m_Vec[PEMIT_RATE].x > 0 && (++m_Frame) % (int) m_Vec[PEMIT_RATE].x == 0 ) {
-        float ss = m_Param [ PDIST ] / m_Param[ PSIMSCALE ];		// simulation scale (not Schutzstaffel)
-        AddEmit ( ss );
-    }
 }
 
 
@@ -1047,7 +848,6 @@ void FluidSystem::AdvanceTime ()
 
 ///////////////////////////////////////////////////
 
-
 void FluidSystem::AllocatePackBuf ()
 {
     if ( mPackBuf != 0x0 ) free ( mPackBuf );
@@ -1057,239 +857,6 @@ void FluidSystem::AllocatePackBuf ()
 
 /////////////////////////////////////////////////////
 
-
-void FluidSystem::Advance ()
-{
-    Vector3DF norm, z;
-    Vector3DF dir, accel;
-    Vector3DF vnext;
-    Vector3DF bmin, bmax;
-    Vector4DF clr;
-    float adj;
-    float AL, AL2, SL, SL2, ss, radius;
-    float stiff, damp, speed, diff;
-
-    AL = m_Param[PACCEL_LIMIT];
-    AL2 = AL*AL;
-    SL = m_Param[PVEL_LIMIT];
-    SL2 = SL*SL;
-
-    stiff = m_Param[PEXTSTIFF];
-    damp = m_Param[PEXTDAMP];
-    radius = m_Param[PRADIUS];
-    bmin = m_Vec[PBOUNDMIN];
-    bmax = m_Vec[PBOUNDMAX];
-    ss = m_Param[PSIMSCALE];
-
-    // Get particle buffers
-    Vector3DF*	ppos =		m_Fluid.bufV3(FPOS);
-    Vector3DF*	pvel =		m_Fluid.bufV3(FVEL);
-    Vector3DF*	pveleval =	m_Fluid.bufV3(FVEVAL);
-    Vector3DF*	pforce =	m_Fluid.bufV3(FFORCE);
-    uint*		pclr =		m_Fluid.bufI(FCLR);
-    float*		ppress =	m_Fluid.bufF(FPRESS);
-    float*		pdensity =	m_Fluid.bufF(FDENSITY);
-
-    // Advance each particle
-    for ( int n=0; n < NumPoints(); n++ ) {
-
-        if ( m_Fluid.bufI(FGCELL)[n] == GRID_UNDEF) continue;
-
-        // Compute Acceleration
-        accel = *pforce;
-        accel *= m_Param[PMASS];
-
-        // Boundary Conditions
-        // Y-axis walls
-        diff = radius - ( ppos->y - (bmin.y+ (ppos->x-bmin.x)*m_Param[PGROUND_SLOPE] ) )*ss;
-        if (diff > EPSILON ) {
-            norm.Set ( -m_Param[PGROUND_SLOPE], 1.0f - m_Param[PGROUND_SLOPE], 0 );
-            adj = stiff * diff - damp * (float) norm.Dot ( *pveleval );
-            accel.x += adj * norm.x;
-            accel.y += adj * norm.y;
-            accel.z += adj * norm.z;
-        }
-        diff = radius - ( bmax.y - ppos->y )*ss;
-        if (diff > EPSILON) {
-            norm.Set ( 0, -1, 0 );
-            adj = stiff * diff - damp * (float) norm.Dot ( *pveleval );
-            accel.x += adj * norm.x;
-            accel.y += adj * norm.y;
-            accel.z += adj * norm.z;
-        }
-
-        // X-axis walls
-        if ( !m_Toggle[PWRAP_X] ) {
-            diff = radius - ( ppos->x - (bmin.x + (sin(m_Time*m_Param[PFORCE_FREQ])+1)*0.5f * m_Param[PFORCE_MIN]) )*ss;
-            //diff = 2 * radius - ( p->pos.x - min.x + (sin(m_Time*10.0)-1) * m_Param[FORCE_XMIN_SIN] )*ss;
-            if (diff > EPSILON ) {
-                norm.Set ( 1.0, 0, 0 );
-                adj = (m_Param[ PFORCE_MIN ]+1) * stiff * diff - damp * (float) norm.Dot ( *pveleval ) ;
-                accel.x += adj * norm.x;
-                accel.y += adj * norm.y;
-                accel.z += adj * norm.z;
-            }
-
-            diff = radius - ( (bmax.x - (sin(m_Time*m_Param[PFORCE_FREQ])+1)*0.5f* m_Param[PFORCE_MAX]) - ppos->x )*ss;
-            if (diff > EPSILON) {
-                norm.Set ( -1, 0, 0 );
-                adj = (m_Param[ PFORCE_MAX ]+1) * stiff * diff - damp * (float) norm.Dot ( *pveleval );
-                accel.x += adj * norm.x;
-                accel.y += adj * norm.y;
-                accel.z += adj * norm.z;
-            }
-        }
-
-        // Z-axis walls
-        diff = radius - ( ppos->z - bmin.z )*ss;
-        if (diff > EPSILON) {
-            norm.Set ( 0, 0, 1 );
-            adj = stiff * diff - damp * (float) norm.Dot ( *pveleval );
-            accel.x += adj * norm.x;
-            accel.y += adj * norm.y;
-            accel.z += adj * norm.z;
-        }
-        diff = radius - ( bmax.z - ppos->z )*ss;
-        if (diff > EPSILON) {
-            norm.Set ( 0, 0, -1 );
-            adj = stiff * diff - damp * (float) norm.Dot ( *pveleval );
-            accel.x += adj * norm.x;
-            accel.y += adj * norm.y;
-            accel.z += adj * norm.z;
-        }
-
-
-        // Wall barrier
-        if ( m_Toggle[PWALL_BARRIER] ) {
-            diff = 2 * radius - ( ppos->x - 0 )*ss;
-            if (diff < 2*radius && diff > EPSILON && fabs(ppos->y) < 3 && ppos->z < 10) {
-                norm.Set ( 1.0, 0, 0 );
-                adj = 2*stiff * diff - damp * (float) norm.Dot ( *pveleval ) ;
-                accel.x += adj * norm.x;
-                accel.y += adj * norm.y;
-                accel.z += adj * norm.z;
-            }
-        }
-
-        // Levy barrier
-        if ( m_Toggle[PLEVY_BARRIER] ) {
-            diff = 2 * radius - ( ppos->x - 0 )*ss;
-            if (diff < 2*radius && diff > EPSILON && fabs(ppos->y) > 5 && ppos->z < 10) {
-                norm.Set ( 1.0, 0, 0 );
-                adj = 2*stiff * diff - damp * (float) norm.Dot ( *pveleval ) ;
-                accel.x += adj * norm.x;
-                accel.y += adj * norm.y;
-                accel.z += adj * norm.z;
-            }
-        }
-        // Drain barrier
-        if ( m_Toggle[PDRAIN_BARRIER] ) {
-            diff = 2 * radius - ( ppos->z - bmin.z-15 )*ss;
-            if (diff < 2*radius && diff > EPSILON && (fabs(ppos->x)>3 || fabs(ppos->y)>3) ) {
-                norm.Set ( 0, 0, 1);
-                adj = stiff * diff - damp * (float) norm.Dot ( *pveleval );
-                accel.x += adj * norm.x;
-                accel.y += adj * norm.y;
-                accel.z += adj * norm.z;
-            }
-        }
-
-        // Plane gravity
-        accel += m_Vec[PPLANE_GRAV_DIR] * m_Param[PGRAV];
-
-        // Point gravity
-        if ( m_Vec[PPOINT_GRAV_POS].x > 0 && m_Param[PGRAV] > 0 ) {
-            norm.x = ( ppos->x - m_Vec[PPOINT_GRAV_POS].x );
-            norm.y = ( ppos->y - m_Vec[PPOINT_GRAV_POS].y );
-            norm.z = ( ppos->z - m_Vec[PPOINT_GRAV_POS].z );
-            norm.Normalize ();
-            norm *= m_Param[PGRAV];
-            accel -= norm;
-        }
-
-        // Acceleration limiting
-        speed = accel.x*accel.x + accel.y*accel.y + accel.z*accel.z;
-        if ( speed > AL2 ) {
-            accel *= AL / sqrt(speed);
-        }
-
-        // Velocity limiting
-        speed = pvel->x*pvel->x + pvel->y*pvel->y + pvel->z*pvel->z;
-        if ( speed > SL2 ) {
-            speed = SL2;
-            (*pvel) *= SL / sqrt(speed);
-        }
-
-        // Leapfrog Integration ----------------------------
-        vnext = accel;
-        vnext *= m_DT;
-        vnext += *pvel;						// v(t+1/2) = v(t-1/2) + a(t) dt
-
-        *pveleval = *pvel;
-        *pveleval += vnext;
-        *pveleval *= 0.5;					// v(t+1) = [v(t-1/2) + v(t+1/2)] * 0.5		used to compute forces later
-        *pvel = vnext;
-        vnext *= m_DT/ss;
-        *ppos += vnext;						// p(t+1) = p(t) + v(t+1/2) dt
-
-        /*if ( m_Param[PCLR_MODE]==1.0 ) {
-        	adj = fabs(vnext.x)+fabs(vnext.y)+fabs(vnext.z) / 7000.0;
-        	adj = (adj > 1.0) ? 1.0 : adj;
-        	*pclr = COLORA( 0, adj, adj, 1 );
-        }
-        if ( m_Param[PCLR_MODE]==2.0 ) {
-        	float v = 0.5 + ( *ppress / 1500.0);
-        	if ( v < 0.1 ) v = 0.1;
-        	if ( v > 1.0 ) v = 1.0;
-        	*pclr = COLORA ( v, 1-v, 0, 1 );
-        }*/
-        if ( speed > SL2*0.1f) {
-            adj = SL2*0.1f;
-            clr.fromClr ( *pclr );
-            clr += Vector4DF( 2/255.0f, 2/255.0f, 2/255.0f, 2/255.0f);
-            clr.Clamp ( 1, 1, 1, 1);
-            *pclr = clr.toClr();
-        }
-        if ( speed < 0.01 ) {
-            clr.fromClr ( *pclr);
-            clr.x -= float(1/255.0f);
-            if ( clr.x < 0.2f ) clr.x = 0.2f;
-            clr.y -= float(1/255.0f);
-            if ( clr.y < 0.2f ) clr.y = 0.2f;
-            *pclr = clr.toClr();
-        }
-
-        // Euler integration -------------------------------
-        /* accel += m_Gravity;
-        accel *= m_DT;
-        p->vel += accel;				// v(t+1) = v(t) + a(t) dt
-        p->vel_eval += accel;
-        p->vel_eval *= m_DT/d;
-        p->pos += p->vel_eval;
-        p->vel_eval = p->vel;  */
-
-
-        if ( m_Toggle[PWRAP_X] ) {
-            diff = ppos->x - (m_Vec[PBOUNDMIN].x + 2);			// -- Simulates object in center of flow
-            if ( diff <= 0 ) {
-                ppos->x = (m_Vec[PBOUNDMAX].x - 2) + diff*2;
-                ppos->z = 10;
-            }
-        }
-
-        ppos++;
-        pvel++;
-        pveleval++;
-        pforce++;
-        pclr++;
-        ppress++;
-        pdensity++;
-    }
-
-}
-///////////////////////////////////////////
-
-
 void FluidSystem::ClearNeighborTable ()
 {
     if ( m_NeighborTable != 0x0 )	free (m_NeighborTable);
@@ -1298,48 +865,6 @@ void FluidSystem::ClearNeighborTable ()
     m_NeighborDist = 0x0;
     m_NeighborNum = 0;
     m_NeighborMax = 0;
-}
-
-void FluidSystem::ResetNeighbors ()
-{
-    m_NeighborNum = 0;
-}
-
-// Allocate new neighbor tables, saving previous data
-int FluidSystem::AddNeighbor ()
-{
-    if ( m_NeighborNum >= m_NeighborMax ) {
-        m_NeighborMax = 2*m_NeighborMax + 1;
-        int* saveTable = m_NeighborTable;
-        m_NeighborTable = (int*) malloc ( m_NeighborMax * sizeof(int) );
-        if ( saveTable != 0x0 ) {
-            memcpy ( m_NeighborTable, saveTable, m_NeighborNum*sizeof(int) );
-            free ( saveTable );
-        }
-        float* saveDist = m_NeighborDist;
-        m_NeighborDist = (float*) malloc ( m_NeighborMax * sizeof(float) );
-        if ( saveDist != 0x0 ) {
-            memcpy ( m_NeighborDist, saveDist, m_NeighborNum*sizeof(int) );
-            free ( saveDist );
-        }
-    };
-    m_NeighborNum++;
-    return m_NeighborNum-1;
-}
-
-void FluidSystem::ClearNeighbors ( int i )
-{
-    *(m_Fluid.bufI(FNBRCNT)+i) = 0;
-}
-
-int FluidSystem::AddNeighbor( int i, int j, float d )
-{
-    int k = AddNeighbor();
-    m_NeighborTable[k] = j;
-    m_NeighborDist[k] = d;
-    if (*(m_Fluid.bufI(FNBRCNT)+i) == 0 ) *(m_Fluid.bufI(FNBRCNT)+i) = k;
-    (*(m_Fluid.bufI(FNBRCNT)+i))++;
-    return k;
 }
 
 // Ideal grid cell size (gs) = 2 * smoothing radius = 0.02*2 = 0.04
@@ -1402,364 +927,6 @@ void FluidSystem::SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, flo
 
 
 ///////////////////////////////////////////////////////////////
-
-
-
-int FluidSystem::getGridCell ( int p, Vector3DI& gc )
-{
-    return getGridCell ( m_Fluid.bufV3(FPOS)[p], gc );
-}
-int FluidSystem::getGridCell ( Vector3DF& pos, Vector3DI& gc )
-{
-    gc.x = (int)( (pos.x - m_GridMin.x) * m_GridDelta.x);			// Cell in which particle is located
-    gc.y = (int)( (pos.y - m_GridMin.y) * m_GridDelta.y);
-    gc.z = (int)( (pos.z - m_GridMin.z) * m_GridDelta.z);
-    return (int)( (gc.y*m_GridRes.z + gc.z)*m_GridRes.x + gc.x);
-}
-Vector3DI FluidSystem::getCell ( int c )
-{
-    Vector3DI gc;
-    int xz = m_GridRes.x*m_GridRes.z;
-    gc.y = c / xz;
-    c -= gc.y*xz;
-    gc.z = c / m_GridRes.x;
-    c -= gc.z*m_GridRes.x;
-    gc.x = c;
-    return gc;
-}
-
-
-
-////////////////////////////////////////////////////////
-
-
-void FluidSystem::InsertParticles ()  /* CPU version. May not be used */
-{
-    int gs;
-
-    // Reset all grid pointers and neighbor tables to empty 
-    // Sets the first num bytes of the block of memory pointed by ptr to the specified value (interpreted as an unsigned char).
-    memset ( m_Fluid.bufC(FGNEXT),		GRID_UCHAR, NumPoints()*sizeof(uint) );
-    memset ( m_Fluid.bufC(FGCELL),		GRID_UCHAR, NumPoints()*sizeof(uint) );
-    memset ( m_Fluid.bufC(FCLUSTER),	GRID_UCHAR, NumPoints()*sizeof(uint) );
-
-    // Reset all grid cells to empty
-    memset( m_Fluid.bufC(FGRID),		GRID_UCHAR, m_GridTotal*sizeof(uint));
-    memset( m_Fluid.bufI(FGRIDCNT),		0, m_GridTotal*sizeof(uint));
-
-    // Insert each particle into spatial grid
-    Vector3DI gc;
-    Vector3DF* ppos =	m_Fluid.bufV3(FPOS);
-    uint* pgrid =		m_Fluid.bufI(FGCELL);
-    uint* pnext =		m_Fluid.bufI(FGNEXT);
-    uint* pcell =		m_Fluid.bufI(FCLUSTER);
-
-    float poff = m_Param[PSMOOTHRADIUS] / m_Param[PSIMSCALE];
-
-    int ns = (int) pow ( (float) m_GridAdjCnt, 1.0f/3.0f );
-    register int xns, yns, zns;
-    xns = m_GridRes.x - m_GridSrch;
-    yns = m_GridRes.y - m_GridSrch;
-    zns = m_GridRes.z - m_GridSrch;
-
-    m_Param[ PSTAT_OCCUPY ] = 0.0;
-    m_Param [ PSTAT_GRIDCNT ] = 0.0;
-    uint* m_Grid = m_Fluid.bufI(FGRID);
-    uint* m_GridCnt = m_Fluid.bufI(FGRIDCNT);
-
-    for ( int n=0; n < NumPoints(); n++ ) {
-        gs = getGridCell ( *ppos, gc );
-        if ( gc.x >= 1 && gc.x <= xns && gc.y >= 1 && gc.y <= yns && gc.z >= 1 && gc.z <= zns ) {
-            // put current particle at head of grid cell, pointing to next in list (previous head of cell)
-            *pgrid = gs;
-            *pnext = m_Grid[gs];
-            if ( *pnext == GRID_UNDEF ) m_Param[ PSTAT_OCCUPY ] += 1.0;
-            m_Grid[gs] = n;
-            m_GridCnt[gs]++;
-            m_Param [ PSTAT_GRIDCNT ] += 1.0;
-            /* -- 1/2 cell offset search method
-            gx = (int)( (-poff + ppos->x - m_GridMin.x) * m_GridDelta.x);
-            if ( gx < 0 ) gx = 0;
-            if ( gx > m_GridRes.x-2 ) gx = m_GridRes.x-2;
-            gy = (int)( (-poff + ppos->y - m_GridMin.y) * m_GridDelta.y);
-            if ( gy < 0 ) gy = 0;
-            if ( gy > m_GridRes.y-2 ) gx = m_GridRes.y-2;
-            gz = (int)( (-poff + ppos->z - m_GridMin.z) * m_GridDelta.z);
-            if ( gz < 0 ) gz = 0;
-            if ( gz > m_GridRes.z-2 ) gz = m_GridRes.z-2;
-            *pcell = (int)( (gy*m_GridRes.z + gz)*m_GridRes.x + gx) ;	// Cell in which to start 2x2x2 search*/
-        } else {
-            Vector3DF vel, ve;
-            vel = m_Fluid.bufV3(FVEL) [n];
-            ve = m_Fluid.bufV3(FVEVAL) [n];
-            float pr, dn;
-            pr = m_Fluid.bufF(FPRESS) [n];
-            dn = m_Fluid.bufF(FDENSITY) [n];
-            //printf ( "WARNING: Out of Bounds: %d, P<%f %f %f>, V<%f %f %f>, prs:%f, dns:%f\n", n, ppos->x, ppos->y, ppos->z, vel.x, vel.y, vel.z, pr, dn );
-            //ppos->x = -1; ppos->y = -1; ppos->z = -1;
-        }
-        pgrid++;
-        ppos++;
-        pnext++;
-        pcell++;
-    }
-
-    // STATS
-    /*m_Param[ PSTAT_OCCUPY ] = 0;
-    m_Param[ PSTAT_GRIDCNT ] = 0;
-    for (int n=0; n < m_GridTotal; n++) {
-    	if ( m_GridCnt[n] > 0 )  m_Param[ PSTAT_OCCUPY ] += 1.0;
-    	m_Param [ PSTAT_GRIDCNT ] += m_GridCnt[n];
-    }*/
-}
-
-
-
-///////////////////////////////////////
-
-
-void FluidSystem::SaveResults ()
-{
-    if ( mSaveNdx != 0x0 ) free ( mSaveNdx );
-    if ( mSaveCnt != 0x0 ) free ( mSaveCnt );
-    if ( mSaveNeighbors != 0x0 )	free ( mSaveNeighbors );
-
-    mSaveNdx = (uint*) malloc ( sizeof(uint) * NumPoints() );
-    mSaveCnt = (uint*) malloc ( sizeof(uint) * NumPoints() );
-    mSaveNeighbors = (uint*) malloc ( sizeof(uint) * m_NeighborNum );
-    memcpy ( mSaveNdx, m_Fluid.bufC(FNBRNDX), sizeof(uint) * NumPoints() );
-    memcpy ( mSaveCnt, m_Fluid.bufC(FNBRCNT), sizeof(uint) * NumPoints() );
-    memcpy ( mSaveNeighbors, m_NeighborTable, sizeof(uint) * m_NeighborNum );
-}
-
-
-//////////////////////////////////////////
-
-// Compute Pressures - Using spatial grid, and also create neighbor table
-void FluidSystem::ComputePressureGrid ()
-{
-    int i, j, cnt = 0;
-    float sum, dsq, c;
-    float d = m_Param[PSIMSCALE];
-    float d2 = d*d;
-    float radius = m_Param[PSMOOTHRADIUS] / m_Param[PSIMSCALE];
-
-    // Get particle buffers
-    Vector3DF*	ipos =		m_Fluid.bufV3(FPOS);
-    float*		ipress =	m_Fluid.bufF(FPRESS);
-    float*		idensity =	m_Fluid.bufF(FDENSITY);
-    uint*		inbr =		m_Fluid.bufI(FNBRNDX);
-    uint*		inbrcnt =	m_Fluid.bufI(FNBRCNT);
-
-    Vector3DF	dst;
-    int			nadj = (m_GridRes.z + 1)*m_GridRes.x + 1;
-    uint*		m_Grid = m_Fluid.bufI(FGRID);
-    uint*		m_GridCnt = m_Fluid.bufI(FGRIDCNT);
-
-    int nbrcnt = 0;
-    int srch = 0;
-
-    for ( i=0; i < NumPoints(); i++ ) {
-
-        sum = 0.0;
-
-        if ( m_Fluid.bufI(FGCELL)[i] != GRID_UNDEF ) {
-            for (int cell=0; cell < m_GridAdjCnt; cell++) {
-                j = m_Grid [   m_Fluid.bufI(FGCELL)[i] - nadj + m_GridAdj[cell] ] ;
-                while ( j != GRID_UNDEF ) {
-                    if ( i==j ) {
-                        j = m_Fluid.bufI(FGNEXT)[j];
-                        continue;
-                    }
-                    dst = m_Fluid.bufV3(FPOS)[j];
-                    dst -= *ipos;
-                    dsq = d2*(dst.x*dst.x + dst.y*dst.y + dst.z*dst.z);
-                    if ( dsq <= m_R2 ) {
-                        c =  m_R2 - dsq;
-                        sum += c * c * c;
-                        nbrcnt++;
-                        /*nbr = AddNeighbor();			// get memory for new neighbor
-                        *(m_NeighborTable + nbr) = j;
-                        *(m_NeighborDist + nbr) = sqrt(dsq);
-                        inbr->num++;*/
-                    }
-                    srch++;
-                    j = m_Fluid.bufI(FGNEXT)[j];
-                }
-            }
-        }
-        *idensity = sum * m_Param[PMASS] * m_Poly6Kern ;
-        *ipress = ( *idensity - m_Param[PRESTDENSITY] ) * m_Param[PINTSTIFF];
-        *idensity = 1.0f / *idensity;
-
-        ipos++;
-        idensity++;
-        ipress++;
-    }
-    // Stats:
-    m_Param [ PSTAT_NBR ] = float(nbrcnt);
-    m_Param [ PSTAT_SRCH ] = float(srch);
-    if ( m_Param[PSTAT_NBR] > m_Param [ PSTAT_NBRMAX ] ) m_Param [ PSTAT_NBRMAX ] = m_Param[PSTAT_NBR];
-    if ( m_Param[PSTAT_SRCH] > m_Param [ PSTAT_SRCHMAX ] ) m_Param [ PSTAT_SRCHMAX ] = m_Param[PSTAT_SRCH];
-}
-
-// Compute Forces - Using spatial grid with saved neighbor table. Fastest.
-void FluidSystem::ComputeForceGrid ()
-{
-    Vector3DF force;
-    register float pterm, vterm, dterm;
-    int i, j;
-    float c, d;
-    float dx, dy, dz;
-    float mR, visc;
-
-    d = m_Param[PSIMSCALE];
-    mR = m_Param[PSMOOTHRADIUS];
-    visc = m_Param[PVISC];
-
-    // Get particle buffers
-    Vector3DF*	ipos =		m_Fluid.bufV3(FPOS);
-    Vector3DF*	iveleval =	m_Fluid.bufV3(FVEVAL);
-    Vector3DF*	iforce =	m_Fluid.bufV3(FFORCE);
-    float*		ipress =	m_Fluid.bufF(FPRESS);
-    float*		idensity =	m_Fluid.bufF(FDENSITY);
-
-    Vector3DF	jpos;
-    float		jdist;
-    float		jpress;
-    float		jdensity;
-    Vector3DF	jveleval;
-    float		dsq;
-    float		d2 = d*d;
-    int			nadj = (m_GridRes.z + 1)*m_GridRes.x + 1;
-    uint* m_Grid = m_Fluid.bufI(FGRID);
-    uint* m_GridCnt = m_Fluid.bufI(FGRIDCNT);
-
-    for ( i=0; i < NumPoints(); i++ ) {
-
-        iforce->Set ( 0, 0, 0 );
-
-        if ( m_Fluid.bufI(FGCELL)[i] != GRID_UNDEF ) {
-            for (int cell=0; cell < m_GridAdjCnt; cell++) {
-                j = m_Grid [  m_Fluid.bufI(FGCELL)[i] - nadj + m_GridAdj[cell] ];
-                while ( j != GRID_UNDEF ) {
-                    if ( i==j ) {
-                        j = m_Fluid.bufI(FGNEXT)[j];
-                        continue;
-                    }
-                    jpos = m_Fluid.bufV3(FPOS)[j];
-                    dx = ( ipos->x - jpos.x);		// dist in cm
-                    dy = ( ipos->y - jpos.y);
-                    dz = ( ipos->z - jpos.z);
-                    dsq = d2*(dx*dx + dy*dy + dz*dz);
-                    if ( dsq <= m_R2 ) {
-
-                        jdist = sqrt(dsq);
-
-                        jpress = m_Fluid.bufF(FPRESS)[j];
-                        jdensity = m_Fluid.bufF(FDENSITY)[j];
-                        jveleval = m_Fluid.bufV3(FVEVAL)[j];
-                        dx = ( ipos->x - jpos.x);		// dist in cm
-                        dy = ( ipos->y - jpos.y);
-                        dz = ( ipos->z - jpos.z);
-                        c = (mR-jdist);
-                        pterm = d * -0.5f * c * m_SpikyKern * ( *ipress + jpress ) / jdist;
-                        dterm = c * (*idensity) * jdensity;
-                        vterm = m_LapKern * visc;
-                        iforce->x += ( pterm * dx + vterm * ( jveleval.x - iveleval->x) ) * dterm;
-                        iforce->y += ( pterm * dy + vterm * ( jveleval.y - iveleval->y) ) * dterm;
-                        iforce->z += ( pterm * dz + vterm * ( jveleval.z - iveleval->z) ) * dterm;
-                    }
-                    j = m_Fluid.bufI(FGNEXT)[j];
-                }
-            }
-        }
-        ipos++;
-        iveleval++;
-        iforce++;
-        ipress++;
-        idensity++;
-    }
-}
-
-
-// Compute Forces - Using spatial grid with saved neighbor table. Fastest.
-void FluidSystem::ComputeForceGridNC ()
-{
-    Vector3DF force;
-    register float pterm, vterm, dterm;
-    int i, j;
-    float c, d;
-    float dx, dy, dz;
-    float mR, visc;
-
-    d = m_Param[PSIMSCALE];
-    mR = m_Param[PSMOOTHRADIUS];
-    visc = m_Param[PVISC];
-
-    // Get particle buffers
-    Vector3DF*	ipos =		m_Fluid.bufV3(FPOS);
-    Vector3DF*	iveleval =	m_Fluid.bufV3(FVEVAL);
-    Vector3DF*	iforce =	m_Fluid.bufV3(FFORCE);
-    float*		ipress =	m_Fluid.bufF(FPRESS);
-    float*		idensity =	m_Fluid.bufF(FDENSITY);
-    uint*		inbr =		m_Fluid.bufI(FNBRNDX);
-    uint*		inbrcnt =	m_Fluid.bufI(FNBRCNT);
-
-    int			jndx;
-    Vector3DF	jpos;
-    float		jdist;
-    float		jpress;
-    float		jdensity;
-    Vector3DF	jveleval;
-
-    for ( i=0; i < NumPoints(); i++ ) {
-
-        iforce->Set ( 0, 0, 0 );
-
-        jndx = *inbr;
-        for (int nbr=0; nbr < (int) *inbrcnt; nbr++ ) {
-            j = *(m_NeighborTable+jndx);
-            jpos =		m_Fluid.bufV3(FPOS)[j];
-            jpress =	m_Fluid.bufF(FPRESS)[j];
-            jdensity =  m_Fluid.bufF(FDENSITY)[j];
-            jveleval =  m_Fluid.bufV3(FVEVAL)[j];
-            jdist = *(m_NeighborDist + jndx);
-            dx = ( ipos->x - jpos.x);		// dist in cm
-            dy = ( ipos->y - jpos.y);
-            dz = ( ipos->z - jpos.z);
-            c = ( mR - jdist );
-            pterm = d * -0.5f * c * m_SpikyKern * ( *ipress + jpress ) / jdist;
-            dterm = c * (*idensity) * jdensity;
-            vterm = m_LapKern * visc;
-            iforce->x += ( pterm * dx + vterm * ( jveleval.x - iveleval->x) ) * dterm;
-            iforce->y += ( pterm * dy + vterm * ( jveleval.y - iveleval->y) ) * dterm;
-            iforce->z += ( pterm * dz + vterm * ( jveleval.z - iveleval->z) ) * dterm;
-            jndx++;
-        }
-        ipos++;
-        iveleval++;
-        iforce++;
-        ipress++;
-        idensity++;
-        inbr++;
-    }
-}
-
-
-
-////////////////////////////////////////////////////////
-
-
-
-void FluidSystem::StartRecord ()
-{
-    mbRecord = !mbRecord;
-}
-void FluidSystem::StartRecordBricks ()
-{
-    mbRecordBricks = !mbRecordBricks;
-}
 
 void FluidSystem::ReadGenome( const char * relativePath, int gpu_mode, int cpu_mode)
 // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
@@ -1847,219 +1014,6 @@ void FluidSystem::WriteGenome( const char * relativePath)
     }
 }
 
-
-void FluidSystem::SavePoints ( int frame )
-{
-    char buf[256];
-    sprintf ( buf, "jet%04d.pts", frame );
-    FILE* fp = fopen ( buf, "wb" );
-
-    int numpnt = NumPoints();
-    int numfield = 3;
-    int ftype;		// 0=char, 1=int, 2=float, 3=double
-    int fcnt;
-    fwrite ( &numpnt, sizeof(int), 1, fp );
-    fwrite ( &numfield, sizeof(int), 1, fp );
-
-    // write positions
-    ftype = 2;
-    fcnt = 3;		// float, 3 channel
-    fwrite ( &ftype, sizeof(int), 1, fp );
-    fwrite ( &fcnt,  sizeof(int), 1, fp );
-    fwrite ( m_Fluid.bufC(FPOS),  numpnt*sizeof(Vector3DF), 1, fp );
-
-    // write velocities
-    ftype = 2;
-    fcnt = 3;		// float, 3 channel
-    fwrite ( &ftype, sizeof(int), 1, fp );
-    fwrite ( &fcnt,  sizeof(int), 1, fp );
-    fwrite ( m_Fluid.bufC(FVEL),  numpnt*sizeof(Vector3DF), 1, fp );
-
-    // write colors
-    ftype = 0;
-    fcnt = 4;		// char, 4 channel
-    fwrite ( &ftype, sizeof(int), 1, fp );
-    fwrite ( &fcnt,  sizeof(int), 1, fp );
-    fwrite ( m_Fluid.bufC(FCLR),  numpnt*sizeof(unsigned char)*4, 1, fp );
-
-    fclose ( fp );
-
-    fflush ( fp );
-}
-
-void FluidSystem::SavePointsVTP ( const char * relativePath, int frame ){
-    std::cout << "\n  SavePointsVTP ( const char * relativePath = "<< relativePath << ", int frame = "<< frame << " );  started \n" << std::flush;
-    char buf[256];
-    frame += 100000;    // ensures numerical and alphabetic order match
-    sprintf ( buf, "%s/particles_pos_vel_color%04d.vtp", relativePath, frame );
-    FILE* fp = fopen ( buf, "w" );
-    if (fp == NULL) {
-        std::cout << "\nvoid FluidSystem::SavePointsVTP ( const char * relativePath, int frame )  Could not open file "<< fp <<"\n"<< std::flush;
-        assert(0);
-    }
-
-    uint numpnt = NumPoints();
-    uint numlines = numpnt * BONDS_PER_PARTICLE;
-    Vector3DF* Pos;
-    Vector3DF* Vel;
-    uint* Age, *Clr, *NerveIdx, *ElastIdx, *Particle_Idx, *Particle_ID, *Mass_Radius,  *EpiGen;                  // Q: why are these pointers? A: they get dereferenced below.
-    uint mass, radius;
-    float *ElastIdxPtr, *Conc;
-//// file header    
-    fprintf(fp, "x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", BONDS_PER_PARTICLE, DATA_PER_BOND);  // This system inserts commas to align header with csv data
-    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index,,  ");
-    fprintf(fp, "\t"); 
-    fprintf(fp, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u*2]", BONDS_PER_PARTICLE);    
-    for (int i=0; i<BONDS_PER_PARTICLE*3; i++)fprintf(fp, ", ");
-    fprintf(fp, "\t\tFCONC[%u]", NUM_TF);
-    for (int i=0; i<NUM_TF; i++)fprintf(fp, ", ");
-    fprintf(fp, "\t\tFEPIGEN[%u] \n", NUM_GENES);
-    
-//// vtp xml file header
-/*
-<VTKFile type=”ImageData” version=”0.1” byte_order=”LittleEndian”>
-...
-</VTKFile>
-*/
-/*
-type            — The type of the file (the bulleted items in the previous list)..
-version         — File version number in “major.minor” format.
-byte_order      — Machine byte order in which data are stored. This is either “BigEndian” or “LittleEndian”.
-compressor      — Some data in the file may be compressed. This specifies the subclass of vtkDataCompressor that was used to compress the data.
-*/
-/*
-<VTKFile type=”PolyData”  version=”0.1” byte_order=”LittleEndian”>
-<PolyData>
-<Piece
- NumberOfPoints=”#”
- NumberOfVerts=”#”
- NumberOfLines=”#”
- NumberOfStrips=”#” 
- NumberOfPolys=”#”>
-<PointData>...</PointData>
-<CellData>...</CellData>
-<Points>...</Points>
-<Verts>...</Verts>
-<Lines>...</Lines>
-<Strips>...</Strips>
-<Polys>...</Polys>
-</Piece>
-</PolyData>
-</VTKFile>
-*/
-fprintf(fp, "<VTKFile type=\"PolyData\" version=\"0.1\" byte_order=\"LittleEndian\">" );
-fprintf(fp, "\n\t<PolyData>" );
-fprintf(fp, "\n\t\t<Piece NumberOfPoints=\"%u\" NumberOfLines=\"%u\"  =\" \">",numpnt, numlines  );
-
-// pointData
-fprintf(fp, "\n\t<pointData> =\" \"  =\" \"  =\" \" ");// each DataArray holds data for different (sub)block of CSV file. 
-fprintf(fp, "\n\t\t<DataArray type=\"Float32\" Name=\"vectors\" NumberOfComponents=\"3\" format=\"appended\" offset=\"0\"/>");
-
-fprintf(fp, "\n\t\t<DataArray type=\"Float32\" Name=\"scalars\" format=\"binary\">");
-// for loop : write data
-fprintf(fp, "\n\t\t</DataArray>");
-
-fprintf(fp, "\n\t\t<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">");
-// for loop : write data
-fprintf(fp, "\n\t\t</DataArray>");
-
-fprintf(fp, "\n\t</pointData>");
-
-//points
-fprintf(fp, "\n\t<points> =\" \"  =\" \"  =\" \" ");// holds data for FPOS of each particle
-fprintf(fp, "\n\t\t<Coordinates>");
-fprintf(fp, "\n\t\t<DataArray type=\"Float32\" format=\"ascii\">");
-          // for loop : write x-coord data
-fprintf(fp, "\n\t\t</DataArray>");//x
-fprintf(fp, "\n\t\t<DataArray type=\"Float32\" .../>");//y
-fprintf(fp, "\n\t\t<DataArray type=\"Float32\" .../>");//z
-fprintf(fp, "\n\t\t</Coordinates>");
-fprintf(fp, "</points>");
-
-/*
-Points — The Points element explicitly defines coordinates for each point individually. It contains one
-DataArray element describing an array with three components per value, each specifying the coordinates of one
-point.
-<Points>
-<DataArray NumberOfComponents=\"3\" .../>
-</Points>
-
-Coordinates — The Coordinates element defines point coordinates for an extent by specifying the ordinate
-along each axis for each integer value in the extent’s range. It contains three DataArray elements describing the
-ordinates along the x-y-z axes, respectively.
-<Coordinates>
-<DataArray .../>
-<DataArray .../>
-<DataArray .../>
-</Coordinates>
-*/
-
-fprintf(fp, "\n\t<lines> =\" \"  =\" \"  =\" \"");// holds indices for self and other particle for each bond, i.e. edges of .ply file.
-fprintf(fp, "\n\t<DataArray type=\"UInt32\" Name=\"connectivity\" .../>" );
-fprintf(fp, "\n\t<DataArray type=\"UInt32\" Name=\"offsets\" .../>" );
-fprintf(fp, "\n\t<\\lines>");
-
-fprintf(fp, "\n\t\t</Piece>" );
-fprintf(fp, "\n\t</PolyData>" );
-fprintf(fp, "\n</VTKFile>" );
-
-
-
-    
-// need some whole sim data - re num particles, particles per bond etc     
-
-
-/// vtp file content
-// NB points, lines (springs as visible edges), data arrays for each   block of the CSV line. NB which are uint vs float32  
-    
-
-    
-//// file content    
-//std::cout << "\n SavePointsCSV2: 1 \n" << std::flush;    
-    for(int i=0; i<numpnt; i++) {       // nb need get..() accessors for private data.
-//std::cout << " "<<i<<" " << std::flush;    
-        Pos = getPos(i);                // e.g.  Vector3DF* getPos ( int n )	{ return &m_Fluid.bufV3(FPOS)[n]; }
-        Vel = getVel(i);
-        Age = getAge(i);
-        Clr = getClr(i);
-        ElastIdx = getElastIdx(i);      // NB [BONDS_PER_PARTICLE]
-        ElastIdxPtr = (float*)ElastIdx; // #############packing floats and uints into the same array - should replace with a struct.#################
-        Particle_Idx = getParticle_Idx(i);
-        
-        Particle_ID = getParticle_ID(i);//# uint  original pnum, used for bonds between particles. 32bit, track upto 4Bn particles.
-//std::cout << " Particle_ID ="<<*Particle_ID<<",\t"<< std::flush;
-        if(*Particle_ID==0){
-         std::cout << "Particle_ID = pointer not assigned. i="<<i<<". \t" << std::flush;
-         return;
-        }
-        // ? should I be splitting mass_radius with bitshift etc  OR just use two uit arrays .... where are/will these used anyway ?
-        Mass_Radius = getMass_Radius(i);//# uint holding modulus 16bit and limit 16bit.
-        if(*Mass_Radius==0){   mass = 0; }else{  mass = *Mass_Radius; }    // modulus          // '&' bitwise AND is bit masking. ;
-        radius = mass >> 16;
-        mass = mass & TWO_POW_16_MINUS_1;
-        
-        NerveIdx = getNerveIdx(i);      //# uint
-        Conc = getConc(i);              //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
-        EpiGen = getEpiGen(i);          //# uint[NUM_GENES]
-        
-        fprintf(fp, "%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t", Pos->x, Pos->y,Pos->z, Vel->x,Vel->y,Vel->z, *Age, *Clr );
-        
-        for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
-            fprintf(fp, "%u, %f, %f, %f, %f, %u, %u, ", ElastIdx[j], ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdx[j+5], ElastIdx[j+6] );
-                // print as int   [0]current index, [5]particle ID, [6]bond index 
-                // print as float [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff,   
-            fprintf(fp, "\t\t");
-        }
-
-        fprintf(fp, " \t%u, %u, %u, %u, \t\t", *Particle_ID, mass, radius, *NerveIdx );
-        for(int j=0; j<(BONDS_PER_PARTICLE*2); j+=2)   { fprintf(fp, "%u, %u,, ",  Particle_Idx[j], Particle_Idx[j+1] );}  fprintf(fp, "\t\t"); // NB index of other particle AND other particle's index of the bond
-        for(int j=0; j<(NUM_TF); j++)               { fprintf(fp, "%f, ",  Conc[j] ); }         fprintf(fp, "\t\t");    
-        for(int j=0; j<(NUM_GENES); j++)            { fprintf(fp, "%u, ",  EpiGen[j] );}        fprintf(fp, " \n");
-    }
-    fclose ( fp );
-    fflush ( fp );
-    
-}
 
 void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// uses vtk library to write binary vtp files
     // based on VtpWrite(....)demo at https://vtk.org/Wiki/Write_a_VTP_file  (30 April 2009)
@@ -2312,63 +1266,6 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
 }
 
 
-
-
-void FluidSystem::SavePointsCSV ( const char * relativePath, int frame )
-{
-    std::cout << "\n  SavePointsCSV ( const char * relativePath, int frame );  started \n" << std::flush;
-    char buf[256];
-    frame += 100000;    // ensures numerical and alphabetic order match
-    sprintf ( buf, "%s/particles_pos_vel_color%04d.csv", relativePath, frame );
-    FILE* fp = fopen ( buf, "w" );
-    if (fp == NULL) {
-        std::cout << "\nvoid FluidSystem::SavePointsCSV ( const char * relativePath, int frame )  Could not open file "<< fp <<"\n"<< std::flush;
-        assert(0);
-    }
-    int numpnt = NumPoints();
-    Vector3DF* Pos;
-    Vector3DF* Vel;
-    float *Conc;
-    uint* Age, *Clr, *NerveIdx, *ElastIdx, *EpiGen;
-
-    //#define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
-    //#define FNERVEIDX   15      //# uint
-    //#define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
-    //#define FEPIGEN     17      //# uint[NUM_GENES]
-
-    fprintf(fp, "x coord, y coord, z coord,\t x vel, y vel, z vel,\t age,  color, \tFELASTIDX[%u], \tFNERVEIDX\t, FCONC[%u], \tFEPIGEN[%u] \n",
-            (BOND_DATA), NUM_TF, NUM_GENES );
-
-    for(int i=0; i<numpnt; i++) {
-        Pos = getPos(i);
-        Vel = getVel(i);
-        Age = getAge(i);
-        Clr = getClr(i);
-        ElastIdx = getElastIdx(i);
-        NerveIdx = getNerveIdx(i);
-        Conc = getConc(i);
-        EpiGen = getEpiGen(i);
-        fprintf(fp, "%f,%f,%f,\t%f,%f,%f,\t %u, %u, \t", Pos->x, Pos->y,Pos->z, Vel->x,Vel->y,Vel->z, *Age, *Clr );
-
-        for(int j=0; j<(BOND_DATA); j++) {
-            fprintf(fp, "%u, ",  ElastIdx[j] );
-        }
-        fprintf(fp, "\t%u, \t", *NerveIdx);
-
-        for(int j=0; j<(NUM_TF); j++) {
-            fprintf(fp, "%f, ",  Conc[j] );
-        }
-        fprintf(fp, "\t");
-
-        for(int j=0; j<(NUM_GENES); j++) {
-            fprintf(fp, "%u, ",  EpiGen[j] );
-        }
-        fprintf(fp, " \n");
-    }
-    fclose ( fp );
-    fflush ( fp );
-}
-
 void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame )
 {
     std::cout << "\n  SavePointsCSV2 ( const char * relativePath = "<< relativePath << ", int frame = "<< frame << " );  started \n" << std::flush;
@@ -2455,121 +1352,6 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame )
     }
     fclose ( fp );
     fflush ( fp );
-}
-
-void FluidSystem::ReadPointsCSV ( const char * relativePath, int gpu_mode, int cpu_mode)     // NB allocates buffers as well.
-{
-    const char * points_file_path = relativePath;
-    printf("\n## opening file %s ", points_file_path);
-    FILE * points_file = fopen(points_file_path, "rb");
-    if (points_file == NULL) {
-        std::cout << "\nvoid FluidSystem::ReadPointsCSV ( const char * relativePath, int gpu_mode, int cpu_mode )  Could not read file "<< points_file_path <<"\n"<< std::flush;
-        assert(0);
-    }
-    // find number of lines = number of particles
-    int ch, number_of_lines = 0;
-    while (EOF != (ch=getc(points_file)))   if ('\n' == ch)  ++number_of_lines;
-
-    // Allocate buffers for points
-    m_Param [PNUM] = number_of_lines;
-    mMaxPoints = m_Param [PNUM];
-    m_Param [PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
-
-    SetupKernels ();
-    SetupSpacing ();
-    SetupGrid ( m_Vec[PVOLMIN]/*bottom corner*/, m_Vec[PVOLMAX]/*top corner*/, m_Param[PSIMSCALE], m_Param[PGRIDSIZE], 1.0f );
-
-    if (gpu_mode != GPU_OFF) {
-        FluidSetupCUDA ( mMaxPoints, m_GridSrch, *(int3*)& m_GridRes, *(float3*)& m_GridSize, *(float3*)& m_GridDelta, *(float3*)& m_GridMin, *(float3*)& m_GridMax, m_GridTotal, 0 );
-        UpdateParams();            //  sends simulation params to device.
-        UpdateGenome();            //  sends genome to device.              // NB need to initialize genome from file, or something.
-    }
-
-    AllocateParticles ( mMaxPoints, gpu_mode, cpu_mode );  // allocates only cpu buffer for particles
-    AllocateGrid(gpu_mode, cpu_mode);
-
-    uint Clr, Age;
-    Vector3DF Pos, Vel, PosMin, PosMax;
-    uint ElastIdx[BOND_DATA];
-    uint NerveIdx;
-    float Conc[NUM_TF];
-    uint EpiGen[NUM_GENES];
-
-    float vel_lim = GetParam ( PVEL_LIMIT );
-    PosMin = GetVec ( PBOUNDMIN );
-    PosMax = GetVec ( PBOUNDMAX );
-
-    std::fseek(points_file, 0, SEEK_SET);
-    //std::fscanf(points_file, "x coord, y coord, z coord, x vel, y vel, z vel,  color \n");
-    //fprintf(fp, "x coord, y coord, z coord,\t x vel, y vel, z vel,\t age,  color, \tFELASTIDX[%u], \tFNERVEIDX\t, FCONC[%u], \tFEPIGEN[%u] \n",
-    //        (BONDS_PER_PARTICLE +1), NUM_TF, NUM_GENES );
-    uint bonds_per_particle, num_TF, num_genes;
-    std::fscanf(points_file, "x coord, y coord, z coord,\t x vel, y vel, z vel,\t age,  color, \tFELASTIDX[%u], \tFNERVEIDX\t, FCONC[%u], \tFEPIGEN[%u] \n",
-                &bonds_per_particle, &num_TF, &num_genes );
-
-    if (bonds_per_particle != (BOND_DATA) || num_TF != NUM_TF || num_genes != NUM_GENES)   // ## later replace #defines with variables throughout.
-    {
-        std::cout << "\n! Miss-match of parameters !  (bonds_per_particle != (BOND_DATA) || num_TF != NUM_TF || num_genes != NUM_GENES) \n";
-        std::cout << "\n In .csv file  bonds_per_particle = " << bonds_per_particle << ".  In program (BOND_DATA) = " << (BOND_DATA) ;
-        std::cout << "\n num_TF  = " << num_TF << ",  NUM_TF = " << NUM_TF ;
-        std::cout << "\n num_genes  = " << num_genes << ",  NUM_GENES = " << NUM_GENES ;
-    }
-    ////////////////////
-    //Vector3DF* Pos;
-    //Vector3DF* Vel;
-    //uint /* *Age, *Clr, */ *NerveIdx, *ElastIdx, *Conc, *EpiGen;
-    int i;
-    for (i=1; i<number_of_lines; i++ ) {
-        // transcribe particle data from file to Pos, Vel and Clr
-        //int ret = std::fscanf(points_file, "%f,%f,%f,%f,%f,%f, %u \n", &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Clr);
-
-        int ret = std::fscanf(points_file, "%f,%f,%f,\t%f,%f,%f,\t %u, %u, \t", &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Age, &Clr );
-
-        for(int j=0; j<(BOND_DATA); j++) {
-            ret += std::fscanf(points_file, "%u, ",  &ElastIdx[j] );
-        }
-        ret += std::fscanf(points_file, "\t%u, \t", &NerveIdx);
-
-        for(int j=0; j<(NUM_TF); j++) {
-            ret += std::fscanf(points_file, "%f, ",  &Conc[j] );
-        }
-        ret += std::fscanf(points_file, "\t");
-
-        for(int j=0; j<(NUM_GENES); j++) {
-            ret += std::fscanf(points_file, "%u, ",  &EpiGen[j] );
-        }
-        ret += std::fscanf(points_file, " \n");
-        /////////////////////////////
-
-        if (ret != (8 + (BOND_DATA) + 1 + NUM_TF + NUM_GENES) ) {
-            std::cout << "\nvoid FluidSystem::ReadPointsCSV, read failure !  particle number = " << i;
-            std::cout << "\n " << std::flush;
-            fclose(points_file);
-            return;
-        }
-        // check particle is within simulation bounds
-        if (Pos.x < PosMin.x || Pos.y < PosMin.y || Pos.z < PosMin.z
-                || Pos.x > PosMax.x   || Pos.y > PosMax.y || Pos.z > PosMax.z
-                || (Vel.x * Vel.x + Vel.y * Vel.y + Vel.z * Vel.z) > vel_lim * vel_lim )
-        {
-            std::cout << "\n void FluidSystem::ReadPointsCSV, out of bounds !  particle number = " << i;
-            std::cout << "\n Pos.x = " << Pos.x << "  Pos.y = " << Pos.y << "  Pos.z = " << Pos.z;
-            std::cout << "\n PosMax.x = " << PosMax.x << "  PosMax.y = " << PosMax.y << "  PosMax.z = " << PosMax.z;
-            std::cout << "\n PosMin.x = " << PosMin.x << "  PosMin.y = " << PosMin.y << "  PosMin.z = " << PosMin.z;
-            std::cout << "\n velocity = " << sqrt(Vel.x * Vel.x + Vel.y * Vel.y + Vel.z * Vel.z) << "   vel_lim = " << vel_lim;
-            std::cout << "\n " << std::flush;
-            fclose(points_file);
-            return;
-        }
-        AddParticleMorphogenesis (&Pos, &Vel, Age, Clr, ElastIdx, NerveIdx, Conc, EpiGen );
-    }
-    std::cout << "\n" << i-1 << " particles read.\n" << std::flush;
-    fclose(points_file);
-
-    if (gpu_mode != GPU_OFF) {
-        TransferToCUDA ();		 // Initial transfer
-    }
-
 }
 
 
@@ -2910,7 +1692,7 @@ void FluidSystem::WriteSimParams ( const char * relativePath )
 }
 
 
-void FluidSystem::SavePoints_asciiPLY ( const char * relativePath, int frame )
+/*void FluidSystem::SavePoints_asciiPLY ( const char * relativePath, int frame )
 {
 //    std::cout << " FluidSystem::SavePoints_asciiPLY () \n";
 //    std::cout << "Chk4.0\n";
@@ -2953,8 +1735,8 @@ void FluidSystem::SavePoints_asciiPLY ( const char * relativePath, int frame )
     fflush ( fp );
 //    std::cout << "FluidSystem::SavePoints_asciiPLY ()   finished   \n";
 }
-
-void FluidSystem::SavePoints_asciiPLY_with_edges ( const char * relativePath, int frame )
+*/
+/*void FluidSystem::SavePoints_asciiPLY_with_edges ( const char * relativePath, int frame )
 {
 //    std::cout << " FluidSystem::SavePoints_asciiPLY () \n";
 //    std::cout << "Chk4.0\n";
@@ -3023,149 +1805,7 @@ void FluidSystem::SavePoints_asciiPLY_with_edges ( const char * relativePath, in
     fflush ( fp );
 //    std::cout << "FluidSystem::SavePoints_asciiPLY ()   finished   \n";
 }
-
-
-// Commented out hdf5 due to library path clashes for <hdf5.h> between Ubuntu and SUSE.
-////////////////////////
-// adapted from Example 1 of http://web.mit.edu/fwtools_v3.1.0/www/Intro/IntroExamples.html#CreateExample
-/*#include <hdf5/serial/hdf5.h>	//hdf5/serial/
-#include <stdio.h>
-#include <stdlib.h>
-
-#define DATASETNAME "Vec3DF_Array"
-#define NX     5                      / * dataset dimensions * /
-#define NY     3
-#define RANK   2
-
-int FluidSystem::WriteParticlesToHDF5File (int filenum)
-{
-    std::cout << "WriteParticlesToHDF5File \n" << std::flush;
-    hid_t       file, dataset;         / * file and dataset handles * /
-    hid_t       datatype, dataspace;   / * handles * /
-    hsize_t     dimsf[2];              / * dataset dimensions * /
-    herr_t      status;
-
-    const int NX =  NumPoints();
-
-    int         i, j;
-    float **    data = new float*[NX];  / * allocate data to write * /
-    for(i=0; i<NX; ++i)
-	data[i] =  new float[NY];
-
-    if (data == nullptr) {
-	std::cout << "Error: memory could not be allocated";
-	return -1;
-    }
-
-    / * Data  and output buffer initialization.  * /
-    for (j = 0; j < NX; j++) {
-	for (i = 0; i < NY; i++)
-	    data[j][i] = (float)(i + j);
-    }
-
-    edit filename
-    char filename[256];
-    filenum += 100000;    // ensures numerical and alphabetic order match
-	sprintf ( filename, "particles_pos_%04d.h5", filenum );
-
-    / * Create a new file using H5F_ACC_TRUNC access,
-     * default file creation properties, and default file
-     * access properties. * /
-    file = H5Fcreate(/ *FILE2 * /filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-
-    / * Describe the size of the array and create the data space for fixed
-     * size dataset. * /
-    dimsf[0] = NX;
-    dimsf[1] = NY;
-    dataspace = H5Screate_simple(RANK, dimsf, NULL);
-
-    / * Define datatype for the data in the file.
-     * We will store little endian INT numbers.* /
-    datatype = H5Tcopy(H5T_IEEE_F64LE / *H5T_NATIVE_INT   * /);
-    status = H5Tset_order(datatype, H5T_ORDER_LE);
-
-    / * Create a new dataset within the file using defined dataspace and
-     * datatype and default dataset creation properties. * /
-    dataset = H5Dcreate(file, DATASETNAME, datatype, dataspace,
-			H5P_DEFAULT,
-			H5P_DEFAULT,
-			H5P_DEFAULT);
-
-    / * Write the data to the dataset using default transfer properties.   * /
-    status = H5Dwrite(dataset, H5T_IEEE_F64LE / * H5T_NATIVE_INT  * /, H5S_ALL, H5S_ALL,
-		      H5P_DEFAULT, m_Fluid.bufV3(FPOS) / * data  * /);
-
-    / * Close/release resources. * /
-    H5Sclose(dataspace);
-    H5Tclose(datatype);
-    H5Dclose(dataset);
-    H5Fclose(file);
-
-    return 0;
-} */
-
-/* hdf5 notes
-// #include <iostream>
-// #include <string>
-// #include <hdf5>
-// #include <hdf5/serial/H5Cpp.h>//"H5Cpp.h"
-// using namespace H5;
-//
-// const H5std_string      FILE_NAME("h5tutr_dset.h5");
-// const H5std_string      DATASET_NAME("dset");
-// const int        NX = 4;                     // dataset dimensions
-// const int        NY = 6;
-// const int        RANK = 2;
-//
-// int main (void)
-// {
-//     Try block to detect exceptions raised by any of the calls inside it
-//     try
-//     {
-//         Turn off the auto-printing when failure occurs so that we can
-//         handle the errors appropriately
-//         Exception::dontPrint();
-//
-//         Create a new file using the default property lists.
-//         H5File file(FILE_NAME, H5F_ACC_TRUNC);
-//
-//         Create the data space for the dataset.
-//         hsize_t dims[2];               // dataset dimensions
-//         dims[0] = NX;
-//         dims[1] = NY;
-//         DataSpace dataspace(RANK, dims);
-//
-//         Create the dataset.
-//         DataSet dataset = file.createDataSet(DATASET_NAME, PredType::STD_I32BE, dataspace);
-//
-//     }  // end of try block
-//
-//     catch failure caused by the H5File operations
-//     catch(FileIException error)
-//     {
-//         error.printErrorStack();
-//         return -1;
-//     }
-//
-//     catch failure caused by the DataSet operations
-//     catch(DataSetIException error)
-//     {
-//         error.printErrorStack();
-//         return -1;
-//     }
-//
-//     catch failure caused by the DataSpace operations
-//     catch(DataSpaceIException error)
-//     {
-//         error.printErrorStack();
-//         return -1;
-//     }
-//
-//     return 0;  // successfully terminated
-// }
 */
-
-
 
 void FluidSystem::WriteDemoSimParams ( const char * relativePath, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim )
 {
@@ -3218,8 +1858,8 @@ std::cout << "\n WriteSimParams ( relativePath );  completed \n" << std::flush ;
 std::cout << "\n WriteGenome ( relativePath );  completed \n" << std::flush ;
     SavePointsCSV2 ( relativePath, 1 );                                                  //SavePointsCSV ( relativePath, 1 );
 std::cout << "\n SavePointsCSV ( relativePath, 1 );  completed \n" << std::flush ;
-    SavePoints_asciiPLY ( relativePath, 1 );
-std::cout << "\n SavePoints_asciiPLY ( relativePath, 1 );  completed \n" << std::flush ;
+//    SavePoints_asciiPLY ( relativePath, 1 );
+//std::cout << "\n SavePoints_asciiPLY ( relativePath, 1 );  completed \n" << std::flush ;
 }
 
 
@@ -3234,7 +1874,6 @@ void FluidSystem::SetupKernels ()
     m_SpikyKern = -45.0f / (3.141592f * pow( m_Param[PSMOOTHRADIUS], 6.0f) );			// Laplacian of viscocity (denominator): PI h^6
     m_LapKern = 45.0f / (3.141592f * pow( m_Param[PSMOOTHRADIUS], 6.0f) );
 }
-
 
 
 void FluidSystem::SetupDefaultParams ()
@@ -3412,7 +2051,6 @@ void FluidSystem::SetupExampleGenome()  // need to set up a demo genome
 //////////////////////////////////////////////////////
 
 
-
 void FluidSystem::SetupSpacing ()
 {
     m_Param [ PSIMSIZE ] = m_Param [ PSIMSCALE ] * (m_Vec[PVOLMAX].z - m_Vec[PVOLMIN].z);
@@ -3436,7 +2074,6 @@ void FluidSystem::SetupSpacing ()
 }
 
 
-
 int iDivUp (int a, int b) {
     return (a % b != 0) ? (a / b + 1) : (a / b);
 }
@@ -3447,21 +2084,11 @@ void computeNumBlocks (int numPnts, int minThreads, int &numBlocks, int &numThre
     numBlocks = (numThreads==0) ? 1 : iDivUp ( numPnts, numThreads );
 }
 
-/*
- * void FluidSystem::cudaExit ()
-{
-	cudaDeviceReset();
-}
-*/
-
 
 void FluidSystem::TransferToTempCUDA ( int buf_id, int sz )
 {
     cuCheck ( cuMemcpyDtoD ( m_FluidTemp.gpu(buf_id), m_Fluid.gpu(buf_id), sz ), "TransferToTempCUDA", "cuMemcpyDtoD", "m_FluidTemp", mbDebug);
 }
-
-
-///////////////////////////////////////////////
 
 
 void FluidSystem::FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, float3 delta, float3 gmin, float3 gmax, int total, int chk )
@@ -3504,9 +2131,6 @@ void FluidSystem::FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, fl
     //randomInit<<< blk, 16 >>> ( rand(), gFluidBufs., num );
 
 }
-
-
-/////////////////////////////
 
 
 void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, int emit )
@@ -3935,26 +2559,6 @@ std::cout<<"\n CountingSortFullCUDA : FUNC_COUNT_SORT_LISTS\n"<<std::flush;
     }
     */
 }
-
-
-/*
-void FluidSystem::AllocateCPUbufferAndCopyDenseLists( int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode )
-{
-        char* src_buf  = m_Fluid.bufC(buf_id);
-        char* dest_buf = (char*) malloc(cpucnt*stride);                   //  ####  malloc the buffer   ####
-
-        if (src_buf != 0x0) {
-            memcpy(dest_buf, src_buf, cpucnt*stride);
-            free(src_buf);
-        }
-        
-        m_Fluid.bufI(FDENSE_LISTS)[gene] = buf;
-        
-        //m_Fluid.setBuf(buf_id, dest_buf);                                 // stores pointer to buffer in mcpu[buf_id]
-                                            //NB  inline CALLFUNC void    setBuf (int n, char* buf )	{ mcpu[n] = buf; }		
-    }
-}
-*/
 
 void FluidSystem::ComputePressureCUDA ()
 {

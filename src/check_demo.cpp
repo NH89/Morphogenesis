@@ -44,7 +44,7 @@ int main ( int argc, const char** argv )
     fluid.WriteSimParams ( outPath ); 
     fluid.WriteGenome( outPath );
     fluid.SavePointsCSV2 ( outPath, 1 );                 //fluid.SavePointsCSV ( outPath, 1 );
-    fluid.SavePoints_asciiPLY ( outPath, 1 );
+    //fluid.SavePoints_asciiPLY ( outPath, 1 );
     fluid.SavePointsVTP2(outPath, 1 );
     
     fluid.Exit ();	
