@@ -68,7 +68,7 @@ int main ( int argc, const char** argv )
     fluid.InitializeCuda ();
 
     fluid.ReadSimParams ( paramsPath );
-    fluid.ReadGenome ( genomePath, GPU_DUAL, CPU_YES );
+    fluid.ReadGenome ( genomePath );
     // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
     fluid.ReadPointsCSV2 ( pointsPath, GPU_DUAL, CPU_YES );
 

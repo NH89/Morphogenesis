@@ -48,13 +48,6 @@ In the build subdirectory
 
 ### Within Morphogenesis branch executables (so far) include:
 
-#### fluids_m
-usage:
-
-    cd data
-    ../build/install/bin/morphogenesis    number_of_particles    output_folder
-    
-The hacked remnant of the original.
 
 #### make_demo
 usage:

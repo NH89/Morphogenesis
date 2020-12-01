@@ -73,7 +73,8 @@
     // # if elastic force is written to both interacting particles, then the effective number of bonds doubles.
     // # i.e. each particle stores three bonds, but the average bonds per atom would be six.
     #define BONDS_PER_PARTICLE  6// 6 enables triangulated cubic structure    4   // current: 4 bonds plus length and modulus of each NB written to both particles so average 8 bonds per particle //old: actually 3, [0] for self ID, mass & radius
-#define DATA_PER_BOND 7 //6 : [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index  // previously 3 : [0]current index, [1]mod_lim, [2]particle ID.
+#define DATA_PER_BOND 9 //6 : [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index [7]stress integrator [8]change-type binary indicator
+                        // previously 3 : [0]current index, [1]mod_lim, [2]particle ID.
 #define BOND_DATA BONDS_PER_PARTICLE * DATA_PER_BOND
 #define REST_LENGTH  1  // need to find suitable number relative to particle and bin size, plus elastic limits.
 
@@ -102,6 +103,8 @@
     #define NUM_GENES           16      //  >= NUM_TF NB each gene wll have a list of sensitivities to TFs & morphogens
     #define BITS_PER_EPIGENETIC_STATE 8 //i.e. 2 boolean + 6bit activation 2^6=64.
 
+    #define NUM_CHANGES 9   //  lengthen/shorten/weaken/strengthen * muscle/tissue + heal : lists for calling particle modification kernels
+    
     // NB Genome defined at bottom of this file.
     
     // Data costs:
@@ -151,8 +154,9 @@
 	#define FCLUSTER	13	    //# uint
 
     // additional buffers for morphogenesis   
-    #define FELASTIDX   14      //# currently [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
-    //old : BOND_DATA = BONDS_PER_PARTICLE*3 = 12 //uint[BONDS_PER_PARTICLE * 2 = 8 ]  particleID, modulus, elastic limit    /* old old : 0=self UID, mass, radius. >0= modulus & particle UID */
+    #define FELASTIDX   14      //# currently [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index [7]stress integrator [8]change-type binary indicator
+                                //old : BOND_DATA = BONDS_PER_PARTICLE*3 = 12 //uint[BONDS_PER_PARTICLE * 2 = 8 ]  particleID, modulus, elastic limit    
+                                /* old old : 0=self UID, mass, radius. >0= modulus & particle UID */
     #define FPARTICLEIDX 29    //# uint[BONDS_PER_PARTICLE *2]  list of other particles' bonds connecting to this particle AND their indices // NB risk of overwriting race condition, when making bonds.   
     #define FPARTICLE_ID 30     //# uint original pnum, used for bonds between particles. 32bit, track upto 4Bn particles.
     #define FMASS_RADIUS 31     //# uint holding modulus 16bit and limit 16bit.      
@@ -189,7 +193,14 @@
 	#define FAUXSCAN1   26		//!
 	#define FAUXARRAY2	27		//!
 	#define FAUXSCAN2	28		//!
-	#define MAX_BUF		37		//!
+	
+    #define FGRIDCNT_CHANGES            37     // for packing lists for particle change kenels
+    #define FGRIDOFF_CHANGES            38
+    #define FDENSE_LIST_LENGTHS_CHANGES 39
+    #define FDENSE_LISTS_CHANGES        40
+    #define FDENSE_BUF_LENGTHS_CHANGES  41
+	
+	#define MAX_BUF		                42
     
 
 	#ifdef CUDA_KERNEL                                                                   // fluid_system_cuda.cuh:37:	#define CUDA_KERNEL ,   fluid_system_cuda.cu:29:#define CUDA_KERNEL
@@ -282,7 +293,7 @@
 
 	// Fluid Parameters (stored on both host and device)
 	struct FParams {
-		int				numThreads, numBlocks;
+		int				numThreads, numBlocks, threadsPerBlock;
 		int				gridThreads, gridBlocks;	
 
 		int				szPnts, szHash, szGrid;
@@ -311,6 +322,39 @@
 		int				pemit;
 	};
     
+    //////////////////////
+    // material parameters for bonds, used in remodelling
+    struct FBondParams{             //  0=elastin, 1=collagen, 2=apatite //
+        enum params{  /*triggering bond parameter changes*/elongation_threshold, elongation_factor, strength_threshold, strengthening_factor, \
+                      /*triggering particle changes*/max_rest_length, min_rest_length, max_modulus, min_modulus, \
+                      /*initial values for new bonds*/elastLim, default_rest_length, default_modulus, default_damping 
+        };
+        static float param[12];
+        /*
+        // triggering bond parameter changes
+        static float elongation_threshold   ;// = { 0.1, 0.1, 0.1}; // stress   fraction of elastlim 
+        static float elongation_factor      ;// = { 0.1, 0.1, 0.1}; // length   fraction of restlength
+        static float strength_threshold     ;// = { 0.1, 0.1, 0.1}; // stress   fraction of modulus
+        static float strengthening_factor   ;// = { 0.1, 0.1, 0.1}; // modulus  fraction of current modulus
+        
+        // triggering particle changes
+        static float max_rest_length        ;// = { 0.8, 0.8, 0.8};
+        static float min_rest_length        ;// = { 0.3, 0.3, 0.3};
+        static float max_modulus            ;// = { 0.8, 0.8, 0.8};
+        static float min_modulus            ;// = { 0.3, 0.3, 0.3};
+        
+        // initial values for new bonds
+        static float elastLim               ;// = {2,   0.55,  0.05 };// 400%, 10%, 1%
+        static float default_rest_length    ;// = { 0.5, 0.5,    0.5  };
+        static float default_modulus        ;// = { 100000, 10000000, 10000000};
+        static float default_damping        ;// = { 10, 100, 1000};
+        */
+    }
+    // values from make demo
+    // [1]elastLim	 [2]restLn	 [3]modulus	 [4]damping
+    //    2	            0.5	        100000	    9.055386
+    
+    ///////////////////////
     // Genome 
     // (common to most cells, copied to 'local' SMP memory on GPU) for each gene: 
     // (i) mutability,              - Not used during morphogenesis
@@ -331,10 +375,18 @@
         uint mutability[NUM_GENES];
         uint delay[NUM_GENES];
         uint sensitivity[NUM_GENES][NUM_GENES]; // for each gene, its sensitivity to each TF or morphogen
-        uint difusability[NUM_GENES][2];// for each gene, the diffusion and breakdown rates of its TF.
+        uint tf_diffusability[NUM_TF];// for each transcription_factor, the diffusion and breakdown rates of its TF.
+        uint tf_breakdown_rate[NUM_TF];
+        // sparse lists final entry = num elem, other entries (elem_num, param)
+        int secrete[NUM_GENES][2*NUM_TF+1];        // -ve secretion => active breakdown. Can be useful for pattern formation.
+        int activate[NUM_GENES][2*NUM_GENES+1];
         //uint *function[NUM_GENES];    // Hard code a case-switch that calls each gene's function iff the gene is active.
+        enum {elastin,collagen,apatite};
+        FBondParams fbondparams[3];     //  0=elastin, 1=collagen, 2=apatite
     };                                  // NB gene functions need to be in fluid_system_cuda.cu
     
+    
+    ///////////////////////
     // Multi-scale particles    
     // - use radius parameter in FELASTIDX buffer, 0=self UID, mass, radius.
     // - requires a split/combine kernel
@@ -342,4 +394,8 @@
     // When finding particles in range for a small particle - consider (i) is the bin in range, (ii) iff particle x&y&z are in range 
     // When combining particles - (i) similar type ?, (ii) gradients, (iii) significance to simulation. 
     
+    
+
+
+
 #endif /*PARTICLE_H_*/

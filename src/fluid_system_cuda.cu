@@ -40,6 +40,7 @@ __constant__ FParams		fparam;			// CPU Fluid params
 __constant__ FBufs			fbuf;			// GPU Particle buffers (unsorted). An FBufs struct holds an array of pointers. 
 __constant__ FBufs			ftemp;			// GPU Particle buffers (sorted)
 __constant__ FGenome		fgenome;		// GPU Genome for particle automata behaviour. Also holds morphogen diffusability.
+__constant__ FBondParams    fbondparams;    // GPU copy of remodelling parameters. 
 __constant__ uint			gridActive;
 
 #define SCAN_BLOCKSIZE		512
@@ -89,6 +90,11 @@ extern "C" __global__ void insertParticles ( int pnum )     // decides which bin
 	}
 }
 
+extern "C" __global__ void insertChanges ( int pnum ) //TODO insertChanges
+{
+    
+}
+
 extern "C" __global__ void prefixFixup(uint *input, uint *aux, int len)     // merge *aux into *input  
 {
 	unsigned int t = threadIdx.x;
@@ -136,19 +142,12 @@ extern "C" __global__ void prefixSum(uint* input, uint* output, uint* aux, int l
 	}
 }
 
-extern "C" __global__ void tally_denselist_lengths( )
+extern "C" __global__ void tally_denselist_lengths(int num_lists, int fdense_list_lengths, int fgridcnt, int fgridoff )
 {
-    uint gene = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;            // gene index i.e. which dense list is being tallied.
-	if ( gene >= NUM_GENES ) return;
+    uint list = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;            // which dense list is being tallied.
+	if ( list >= num_lists ) return;
     register int gridTot =      fparam.gridTotal;
-    fbuf.bufI(FDENSE_LIST_LENGTHS)[gene] = fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[(gene+1)*gridTot -1] + fbuf.bufI(FGRIDOFF_ACTIVE_GENES)[(gene+1)*gridTot -1];
-    /*
-    printf("\ngene=%u,  fbuf.bufI(FDENSE_LIST_LENGTHS)[gene]=%u,  fbuf.bufI(FGRIDOFF_ACTIVE_GENES)[(gene+1)*gridTot -1]=%u,  fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[(gene+1)*gridTot -1]=%u .\t", 
-           gene, 
-           fbuf.bufI(FDENSE_LIST_LENGTHS)[gene], 
-           fbuf.bufI(FGRIDOFF_ACTIVE_GENES)[(gene+1)*gridTot -1], 
-           fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[(gene+1)*gridTot -1]);
-    */
+    fbuf.bufI(fdense_list_lengths)[list] = fbuf.bufI(fgridcnt)[(list+1)*gridTot -1] + fbuf.bufI(fgridoff)[(list+1)*gridTot -1];
 }
 
 // Counting Sort - Full (deep copy)
@@ -250,17 +249,10 @@ extern "C" __global__ void countingSortDenseLists ( int pnum )
     for (int gene=0; gene<NUM_GENES;gene++) lists[gene]=fbuf.bufII(FDENSE_LISTS)[gene]; // This element entry is a pointer
     
     register uint* offsets[NUM_GENES];
-    for (int gene=0; gene<NUM_GENES;gene++){ 
-        offsets[gene]=&fbuf.bufI(FGRIDOFF_ACTIVE_GENES)[gene * gridTot];                // The address of this element
-        //printf(", (gene%u,%p)",gene, fbuf.bufII(FGRIDOFF_ACTIVE_GENES)[gene] );
-    }
+    for (int gene=0; gene<NUM_GENES;gene++) offsets[gene]=&fbuf.bufI(FGRIDOFF_ACTIVE_GENES)[gene * gridTot];   // The address of this element
     
-    if (grdoffset+count > pnum){
-        printf("\n\n!!Overflow: (grdoffset+count > pnum), bin=%u \n",bin);
-        return;
-    }
-
-    uint* pointer;
+    if (grdoffset+count > pnum){    printf("\n\n!!Overflow: (grdoffset+count > pnum), bin=%u \n",bin);     return;}
+    
     for(int particle=grdoffset; particle<grdoffset+count; particle++){
         for(int gene=0; gene<NUM_GENES; gene++){
             if(  (int)fbuf.bufI(FEPIGEN) [particle + pnum*gene] ) {                      // if (this gene is active in this particle)
@@ -269,6 +261,39 @@ extern "C" __global__ void countingSortDenseLists ( int pnum )
                 if( gene_counter[gene]>fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin] )   
                     printf("\n\n overflow: particle=%u, gene=%u, bin=%u, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[bin]=%u \n",
                            particle, gene, bin, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[bin]);
+            }
+        }
+    }
+}
+
+extern "C" __global__ void countingSortChanges ( int pnum )
+{
+    unsigned int bin = threadIdx.x + blockIdx.x * SCAN_BLOCKSIZE/2;
+    register int gridTot =      fparam.gridTotal;
+	if ( bin >= gridTot ) return;                                    // for each bin, for each particle, for each change_list, 
+                                                                     // if change_list active, then write to dense list 
+    uint count = fbuf.bufI (FGRIDCNT_CHANGES)[bin];
+    if (count==0) return;                                            // return here means that if all bins in this threadblock are empty,
+                                                                     // then this multiprocessor is free for the next threadblock.
+    uint grdoffset = fbuf.bufI (FGRIDOFF)[bin];
+    uint change_list_counter[NUM_CHANGES]={0};
+    
+    register uint* lists[NUM_CHANGES];
+    for (int change_list=0; change_list<NUM_CHANGES;change_list++) lists[change_list]=fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list];           // This element entry is a pointer
+    
+    register uint* offsets[NUM_CHANGES];
+    for (int change_list=0; change_list<NUM_CHANGES;change_list++) offsets[change_list]=&fbuf.bufI(FGRIDOFF_CHANGES)[change_list * gridTot];   // The address of this element
+    
+    if (grdoffset+count > pnum){    printf("\n\n!!Overflow: (grdoffset+count > pnum), bin=%u \n",bin);     return;}
+    
+    for(int particle=grdoffset; particle<grdoffset+count; particle++){                                                                         // loop through particles in bin
+        uint change = fbuf.bufI(FELASTIDX) [particle*BOND_DATA + 8];                                                                           // binary change indicator per bond.
+        if(change) {
+            for (uint change_type=1, change_list=0; change_list<NUM_CHANGES; change_type*=2, change_list++){                                   // loop through change indicator  
+                if(change & change_type){                                                                                                      // bit mask to ID change type due to this bond
+                    lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list]) ]=particle;
+                    change_list_counter[change_list]++;                                                                                        // write particleIdx to change list 
+                } // TODO here we have discarded the information abvout which bond caused the change. Do we need this for the change kernels ? 
             }
         }
     }
@@ -325,85 +350,412 @@ extern "C" __global__ void computePressure ( int pnum )
 	fbuf.bufF(FDENSITY)[ i ] = 1.0f / sum;
 }
 
-/*
-extern "C" __global__ void computeEpigeneticSilencing ( int pnum )//ftemp.bufI(FEPIGEN) [pnum*gene +i];  // NB data ordered FEPIGEN[gene][particle] AND +ve int values -> active genes.
-{
-	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                          // particle index
-	if ( i >= pnum ) return;
-    
-    // for each (available) gene: read epigenetic data, compute spread of silencing, 
-   // uint *epigenPtr = fbuf.bufII(FEPIGEN)[i*NUM_TF];            // #### clash !  //#define FEPIGEN     17      //# uint[NUM_GENES]
-    bool continue_spread = false;
-    
-    for (int j=0;j<NUM_TF; j++){   
-        uint epigen = epigenPtr[j];  // best just to use 32bit int or float. Could still use signs as bools.
-        bool silence     ;
-        uint spread      ;
-        uint activation  ; 
-        
-        if (continue_spread && fgenome.delay[j]==UINT_MAX ) continue_spread = false; // use UINT_MAX as barrier to spread. 
-        if ((continue_spread || fgenome.delay[j]!=spread)&& !silence){ 
-            spread-- ;
-            continue_spread = (bool)!spread;    // i.e. if spread for this gene >0, don't spread to next gene yet, else do.
-            if (spread==0){
-                activation = 0;
-                silence = true;
-            }
-        }
-        // repack into FEPIGEN, mask and bitshift then sum
-        
-        //epigenPtr[j] =  ;
-    }
-    // ? Here : Make dense lists of particles for which each gene is active ?
-    // 
-    //
-    // Genome data: implied-> sequence of genes.
-    //              uint delay[NUM_GENES];     The original value of Epigenetic data,2nd portion -> spread/stop
-    // 
-    // Epigenetic data uint[NUM_GENES], per gene :  1st bit -> available/silenced
-    //                                              2nd portion -> spread/stop
-    //                                              3rd portion -> current activation
-}
-*/
-
-
 extern "C" __global__ void computeGeneAction ( int pnum, int gene, uint list_len )  //NB here pnum is for the dense list
 {
-	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                 // particle index
-	if ( i >= list_len ) return;
+    uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                                         // particle index
+    if ( i >= list_len ) return;
     uint particle_index = fbuf.bufII(FDENSE_LISTS)[gene][i];
     if (particle_index >= pnum){
         printf("\ncomputeGeneAction: (particle_index >= pnum),  gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u .\t",
-            gene, i, list_len, particle_index, pnum
-        );
-    }
-    if(i==list_len-1)printf("\ncomputeGeneAction Chk : gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u .\t",
             gene, i, list_len, particle_index, pnum);
-    // now work with particle_index & gene :-
-    int epigen_state = (int)fbuf.bufI(FEPIGEN) [particle_index + pnum*gene];
-    uint fconc[NUM_TF];
-    for (int tf=0;tf<NUM_TF;tf++) fconc[tf]=fbuf.bufI(FCONC)[particle_index + pnum*tf];
+    }    
+    int delay = (int)fbuf.bufI(FEPIGEN)[gene*pnum + particle_index];                                // Change in _epigenetic_ activation of this particle
+    if (delay < INT_MAX){                                                                           // (FEPIGEN==INT_MAX) => active & not counting down.
+        fbuf.bufI(FEPIGEN)[gene*pnum + particle_index]--;                                           // (FEPIGEN<1) => inactivated @ insertParticles(..)
+        if (delay==1  &&  gene<NUM_GENES && fbuf.bufI(FEPIGEN)[ (gene+1)*pnum + particle_index ] )  // If next gene is active, start count down to inactivate it.
+            fbuf.bufI(FEPIGEN)[(gene+1)*pnum + particle_index] = fgenome.delay[gene+1] ;            // Start countdown to silence next gene.
+    }                                                                                               // (fgenome.delay[gene+1]==INT_MAX) => barrier to spreading inactivation.
+    uint sensitivity[NUM_GENES];                                                                    // TF sensitivities : broadcast to threads
+    #pragma unroll                                                                                  // speed up by eliminating loop logic.
+    for(int j=0;j<NUM_GENES;j++) sensitivity[j]= fgenome.sensitivity[gene][j];                      // for each gene, its sensitivity to each TF or morphogen
+    if(i==list_len-1)printf("\ncomputeGeneAction Chk : gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u ,  sensitivity[15]=%u.\t",
+            gene, i, list_len, particle_index, pnum, sensitivity[15]);                              // debug chk 
+    float activity=0;                                                                               // compute current activity of gene
+    #pragma unroll
+    for (int tf=0;tf<NUM_TF;tf++){                                                                  // read FCONC
+        if(sensitivity[tf]!=0){                                                                     // skip reading unused fconc[]
+            activity +=  sensitivity[tf] * fbuf.bufI(FCONC)[particle_index + pnum*tf];
+        }                                                           
+    }
+    // Compute actions                                             // Non-difusible TFs inc instructions to particle modification kernel wrt behaviour (cell type). 
+    int numTF =  fgenome.secrete[gene][2*NUM_TF];                  // (i) secrete sparse list of TFs  => atomicAdd(ftemp...) to allow async gene kernels.
+    for (int j=0;j<numTF;j++){
+        int tf = fgenome.secrete[gene][j*2];
+        int secretion_rate = fgenome.secrete[gene][j*2 + 1];
+        atomicAdd( &ftemp.bufI(FCONC)[particle_index*NUM_TF +tf], secretion_rate*activity);
+    }
+    int numLRNA = fgenome.activate[gene][2*NUM_GENES];             // (ii) secrete spare list long RNA => activate other genes.  NB threshold.
+    for (int j=0;j<numLRNA;j++){
+        int other_gene = fgenome.activate[gene][j*2];
+        int threshold = fgenome.activate[gene][j*2 + 1];
+        if(threshold<activity)
+        atomicAdd( &fbuf.bufI(FEPIGEN)[other_gene*pnum + particle_index], 1);   // what should be the initial state of other_gene when activated ?
+    }
+}
+
+extern "C" __global__ void computeNerveActivation ( int pnum ) //TODO computeNerveActivation    // initially simple sparse random connections + STDP, later neurogenesis
+{                                                                 // NB (i) sensors concetrated in hands & feet (ii)stimuls from womb wall 
     
-    // Gene execution kernel
-    // for each (active) gene:  read current epigenetic activation, read FCONC, FNERVEIDX, FELASTIDX strain, FPRESS, FDENSITY
-    //                          compute current activity of gene, & change in epigenetic activation
+}
+
+extern "C" __global__ void computeMuscleContraction ( int pnum ) //TODO computeMuscleContraction  // read attached nerve, compute force  
+{
     
-    //                          run gene function
-    //                              (i)modify  FCONC, FNERVEIDX, FPRESS, FDENSITY, FMASS_RADIUS,
-    //                                         FELASTIDX [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff
-    //                                      
-    //                              (ii)make/break bonds    - requires (i)search of neighbours, (ii)spare bonds on both 
-    //                                                      - run on dense list of particles
-    //
-    //                              (iii)add/remove particles from/to reserve list. NB ideally don't process particles in reserve list. 
+}
+
+extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )  // todo make list for all living cells. (non senescent)// could do by designating special genes.
+{                                                               // call by cell type ?
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
+    if ( particle_index >= list_length ) return; // pnum should be length of list.
+    // ## TODO convert i to particle index _iff_ not called for all particles : use a special dense list for "living tissue", made at same time as gene lists
+    uint i = fbuf.bufII(FDENSE_LISTS)[2][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return; 
     
-    // Genome data:  uint sensitivity[NUM_GENES][NUM_GENES]  // for each gene, its sensitivity to each TF or morphogen
-    //
-    // Epigenetic data:  3rd portion -> current activation
-    //              
+    float * fbufFCONC = &fbuf.bufF(FCONC)[i*NUM_TF];
+    float * ftempFCONC = &ftemp.bufF(FCONC)[i*NUM_TF];
+    float * fbufFEPIGEN = &fbuf.bufF(FEPIGEN)[i*NUM_TF];
+    float * ftempFEPIGEN = &ftemp.bufF(FEPIGEN)[i*NUM_TF];
+    
+    for(int j=0; j<NUM_TF;j++)      fbufFCONC[j] += ftempFCONC[j];            // list of transcription factor conc for this particle
+    for(int j=0; j<NUM_GENES;j++) fbufFEPIGEN[j] += ftempFEPIGEN[j];// list of epigenetic activations for this particle
+    /*
+    // read FCONC, FNERVEIDX, , FPRESS, FDENSITY
+
+    // define FELASTIDX  14  // [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index [7]stress integrator
+    
+    //(i)modify  FCONC, FNERVEIDX, FPRESS, FDENSITY, FMASS_RADIUS,  FELASTIDX [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff
+    
+    ///// NB this is the new "freeze", responsible for bond formation.
+    // Read FCONC[0] "growth", FELASTIDX[all], FEPIGEN[2-10 & 14,15] 
+    
+    // Equation to modify spring parameters :   NB limit to modulus -> duplicate particles & fibres
+    //(i) principal fibre (tendons)                 i.e. spring[0]                      
+    //(ii) 1st 3 fibres (fibrocyte, elastocyte)     i.e. spring[0-2]
+    //(iii) all fibres (cartilage & bone)           i.e. spring[0-BONDS_PER_PARTICLE]
+    */
+    uint* bond_uint_ptr = &fbuf.bufI(FELASTIDX)[i*BOND_DATA];//fbuf.bufI(FELASTIDX)[i*BOND_DATA + bond*DATA_PER_BOND +  ] ;
+    float*bond_flt_ptr  = &fbuf.bufF(FELASTIDX)[i*BOND_DATA]; //FELASTIDX [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index [7]stress integrator
+    register int gridTot = fparam.gridTotal;
+    /*
+    // hold as a texture or similar. // part of fparams ? 
+    // 3 materials for bonds - elastin, collagen, apatite - depend on (i)tissue type (ii) additional bonds 
+    
+    // -- special genes, for simulation efficiency
+    // 0 active particles
+    // 1 solid  (has springs)
+    // 2 living/telomere (has genes)
+    
+    // -- behavioural celltypes
+    // 3 fat
+    // 4 nerves 
+    // 5 fibrocyte
+    // 6 tendon
+    // 7 muscle
+    // 8 cartilage
+    // 9 bone
+    // 10 elastic_lig
+    */
+    uint bond_type[BONDS_PER_PARTICLE] = {0}; //  0=elastin, 1=collagen, 2=apatite
+    // calculate material type for bond
+    if (fbufFEPIGEN[9]/*bone*/) for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 2;
+    else if (fbufFEPIGEN[6]/*tendon*/||fbufFEPIGEN[7]/*muscle*/||fbufFEPIGEN[10]/*elast lig*/) {bond_type[0] = 1; bond_type[3] = 1;}
+    else if (fbufFEPIGEN[6]/*cartilage*/)for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 1;
+    
+    for (uint bond=0; bond<BONDS_PER_PARTICLE;bond++, bond_uint_ptr+=DATA_PER_BOND, bond_flt_ptr+=DATA_PER_BOND ){                     
+        float stress = bond_flt_ptr[7];
+        FBondParams *params_ =  &fgenome.fbondparams[bond_type[bond]];
+        bond_flt_ptr[2]/*rest length*/ +=  (stress - params_[0].param[params_->elongation_threshold])   * params_->param[params_->elongation_factor];
+        bond_flt_ptr[2]/*rest length*/ +=  (stress - params_[0].param[params_->strength_threshold]  )   * params_->param[params_->strengthening_factor];
+        // "insert changes"
+        uint * fbufFGRIDCNT_CHANGES = fbuf.bufI(FGRIDCNT_CHANGES);
+        int m = 1 + (fbufFEPIGEN[7]>0/*muscle*/||fbufFEPIGEN[10]>0);  // i.e. if (fbufFEPIGEN[7]>0/*muscle*/) m=2 else m=1;
+        
+        if (bond_uint_ptr[0]/*other particle*/==UINT_MAX/*bond broken*/ && (bond < 3 || fbufFEPIGEN[8] ||  fbufFEPIGEN[9]/*cartilage OR bone*/)  ){
+            atomicAdd ( &fbufFGRIDCNT_CHANGES[ 0*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );//add to heal list 
+            bond_uint_ptr[8]+=1;
+        }
+        
+        if (bond_flt_ptr[2]>params_[0].param[params_->max_rest_length]) {  // NB two different lists for each change, for (muscle & elastic ligg  vs other tissues)
+            atomicAdd ( &fbufFGRIDCNT_CHANGES[ m*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );//add to elongate list , store particleIdx & bond 
+            bond_uint_ptr[8]+=2*m;
+        }
+        
+        if (bond_flt_ptr[2]<params_[0].param[params_->min_rest_length]) {  
+            atomicAdd ( &fbufFGRIDCNT_CHANGES[ (2+m)*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );//add to shorten list
+            bond_uint_ptr[8]+=8*m;
+        }
+                                                                            
+        if (bond_flt_ptr[3]>params_[0].param[params_->max_modulus])     {  
+            atomicAdd ( &fbufFGRIDCNT_CHANGES[ (4+m)*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );//add to strengthen list 
+            bond_uint_ptr[8]+=32*m;
+        }
+        
+        if (bond_flt_ptr[3]<params_[0].param[params_->min_modulus])     {  
+            atomicAdd ( &fbufFGRIDCNT_CHANGES[ (6+m)*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );//add to weaken list
+            bond_uint_ptr[8]+=64*m;
+        }
+        // bond_uint_ptr[8]+=2^n; is ELASTIDX for binary change indicator per bond. 
+    }
+}
+/////    Need buffers to hold lists - particle_idx and bond_idx
+//extern "C" __global__ void sort_changeLists ( int pnum ) { // Needs own sort otherwise messes up ordering because kernels change number of active particles. 
+//}                                                          // Actually use insertChanges() prefixSumChanges()  prefixFixupChanges() tally_changelist_lengths() CountingSortFullChanges() 
+
+//////   Particle modification kernels called together. Must make sure that they cannot clash. NB atomic operations. 
+
+
+extern "C" __global__ void heal ( int pnum, int list_length, int change_list) { //TODO heal ( int pnum ) 
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
+    if ( particle_index >= list_length ) return; // pnum should be length of list.
+    uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return;
+    
+    // A bond is broken and needs to be remade. (//NB this is micro-healing. Macro-healing requires inflamatory processes and remodelling)
+    // It would help to know which bond is broken.
+    
+}
+extern "C" __global__ void lengthen_muscle ( int pnum, int list_length, int change_list) { //TODO lengthen_muscle ( int pnum )  //NB elastic tissues (yellow ligments) are non-innervated muscle 
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
+    if ( particle_index >= list_length ) return; // pnum should be length of list.
+    uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return; 
+    
+    // Need to insert 3 new particles for a new turn of the helix. 
+    // NB muscle lengthening may be induced by (i) stretching the collagen chain, (ii) ? 
+    // Q what happens when side bonds are stretched?
+    // Q what happens when the chain branches (i) ahead, (ii) behind, (iii) on the adjacent particles nthe helix ?
+    
+    
+}
+extern "C" __global__ void lengthen_tissue ( int pnum, int list_length, int change_list) { //TODO lengthen_tissue ( int pnum )  // add particle in bond
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
+    if ( particle_index >= list_length ) return; // pnum should be length of list.
+    uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return; 
+    
+    // Insert 1 particle on axis of strecthed bond & share existing/new lateral bonds
+    // It would help to know which bond. => where to add new particle
+    
+    
+}
+extern "C" __global__ void shorten_muscle ( int pnum, int list_length, int change_list) { //TODO shorten_muscle ( int pnum )  // remove particle in chain & update contractile bonds
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
+    if ( particle_index >= list_length ) return; // pnum should be length of list.
+    uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return; 
+    
+    // Need to remove 3 particles, and close the gap.
+    
+    
+    
+}
+extern "C" __global__ void shorten_tissue ( int pnum, int list_length, int change_list) { //TODO shorten_tissue ( int pnum )  // remove particle and connect bonds along their axis
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
+    if ( particle_index >= list_length ) return; // pnum should be length of list.
+    uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return; 
+    
+    // Need to remove 1 particle and close the gap
+    // It would help to know which bond. => how to close the gap
+    
+    
+}
+extern "C" __global__ void strengthen_muscle ( int pnum, int list_length, int change_list) { //TODO strengthen_muscle ( int pnum )  // NB Y branching etc
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
+    if ( particle_index >= list_length ) return; // pnum should be length of list.
+    uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return; 
+    
+    // Need to doulble up the helix i.e. add particles and contractile bonds in parallel.
+    // Q Induced by ?
+    // Q double up How ? 
+    // NB difference between a helix and a zig-zag is only that the contractile bonds reach 2 particles ahead.
+    
+    
+    
+}
+extern "C" __global__ void strengthen_tissue ( int pnum, int list_length, int change_list) { //TODO strengthen_tissue ( int pnum )  // add particle and bonds in parallel AND reduce original bon's modulus
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
+    if ( particle_index >= list_length ) return; // pnum should be length of list.
+    uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return; 
+    
+    // Need to double up articles and bonds in parallel wrt the affected bond
+    // It would help to know which bond. => where to place the new particle i.e. orthogonal to the bond NB place where there is space in the plane.
+    
+    
+}
+extern "C" __global__ void weaken_muscle ( int pnum, int list_length, int change_list) { //TODO weaken_muscle ( int pnum )  // NB Y branching etc
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
+    if ( particle_index >= list_length ) return; // pnum should be length of list.
+    uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return; 
+    
+    // Need to remove a row of particles in parallel - i.e. form/propagate a branch 
     // 
     
-}  
+    
+}
+extern "C" __global__ void weaken_tissue ( int pnum, int list_length, int change_list) { //TODO weaken_tissue ( int pnum )  // remove particle & transfer bonds laterally  
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
+    if ( particle_index >= list_length ) return; // pnum should be length of list.
+    uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return; 
+    
+    // Need to remove a particle and close the gap by transfering load laterally
+    // It would help to know which bond. => how to close the gap
+    
+    
+}
+
+// NB aim to set particles to their 'correct' bond pattern for their tissue type(s)
+// What happens if different bonds cause a particle to be repeatedly created and deleted ? When/how could this happen ? 
+
+
+
+    
+    
+/*   
+//     #pragma unroll
+//     for(int j=0;j<BONDS_PER_PARTICLE;j++)
+//         modulus = (j==0 &&(FEPIGEN[6]/_*tendon*_/||FEPIGEN[7]/_*muscle*_/||FEPIGEN[10]/_*elast_lig*_/) 
+//                     ||(j<3&&FEPIGEN[5]/_*fibrocyte*_/)
+//                     ||FEPIGEN[8]/_*cartilage*_/)
+//                 *collagen_mod   
+//                 + FEPIGEN[9]*bone_mod
+//                 + elastin_mod; 
+//         
+//         FELASTIDX[j*DATA_PER_BOND +3]/_*modulus*_/ = FELASTIDX[j*DATA_PER_BOND +3] +  modulus * (FELASTIDX[j*DATA_PER_BOND+7]/_*stress_integrator*_/ - stregthThreshold);  
+//         
+//         if(FELASTIDX[3]>modulus) FCONC[0] = duplicate  // i.e. need to grow more tissue to dissipate the stress
+//     }
+//     
+//     for(int j=0;j<BONDS_PER_PARTICLE;j++){
+//         Adjust rest_length according to stress_integrator
+//         
+//         if too short, mark particle to remove
+//         if too long, du[licate particle along axis of stretch
+//     }
+//     
+//     
+//     if (FEPIGEN[6]/_*tendon*_/||FEPIGEN[7]/_*muscle*_/||FEPIGEN[10]/_*elast_lig*_/){
+//         NB FELASTIDX[0*DATA_PER_BOND +3] i.e. bond[0] is the principal collaen fibre
+//         In muscle & elast lig, bond[1] reaches ahead 2 steps in the chain 
+//         In muscle bond[1] will contract iff motor nerve is firing
+//         Elast lig has no motor nerve & does not contract
+//         
+//         moduli & lengths are fixed. 
+//         Strength => delete/duplicate particle in parallel.
+//         Length => delete/duplicate along bond[0] axis
+//         
+//         if((FEPIGEN[6]/_*tendon*_/){                              // danger that every particle in chain will elongate. ? elongate at myotendinous jxn?
+//             if ( integrator[0] > elongate_threshold ){
+//                 new_particle = atomicAdd( &particles_inuse  ); //e.g. atomicAdd ( &fbuf.bufI(FGRIDCNT)[ gs ], 1 ); 
+//             }
+//             if ( integrator[0] >   
+//         }
+//     }
+//     if (FEPIGEN[8]/_*cartilage*_/||FEPIGEN[9]/_*bone*_/){
+//     }
+*/   
+    
+/*    
+    // Equation to modify mass/radius:
+    // (i)   mass & radius  * TF[0] 
+    
+    // (ii)  if (radius > 1.36) split : make two new particles, position orthogonal to two strongest bonds 
+    
+    // (iii) if (radius < 1) combine : find another particle to combine with. closest particle with same cell type(s)
+    
+    
+    
+    // Equation to break/make springs, due to:
+    // (i) particle split/combine
+    // (ii) spring breakage
+    // (iii) particle migration  // modify rest length -> stress, break if too short
+    // For each unused bond:
+    //      Find new attachment in desired direction, at desired distance, and of desired cell type
+      
+    
+    // genes: (expect 64 to get from zygote-> hand)
+    
+    // -- special genes, for simulation efficiency
+    // 0 active particles
+    // 1 solid  (has springs)
+    // 2 living/telomere (has genes)
+    
+    // -- behavioural celltypes
+    // 3 fat
+    // 4 nerves 
+    // 5 fibrocyte
+    // 6 tendon
+    // 7 muscle
+    // 8 cartilage
+    // 9 bone
+    // 10 elastic_lig
+    
+    
+    // -- regulatory genes
+    // 11 pluripotency
+    // 12 Trophoblast
+    // 13 Amniotic Trophoblast
+    // 14 Epiblast/ectoderm
+    // 15 Hypoblast/endoderm
+    // 16 Primitive node
+    // 17 Primitive streak
+    // 18 Mesoderm
+    // 19 Notocord
+    // 20 Pre-somitic mesoderm → ‘clock’ 
+    // 21 Dorsal ectoderm
+    // 22 Somite
+    // 23 Hox 1
+    // 24 Hox 4
+    // 25 Hox 5
+    // 26 Hox 6
+    // 27 ZPA – zone of polarizing activity
+    // 28 AER – apical epidermal ridge
+    // 29
+    // 30
+    // 31
+    
+    
+    // Non-diffusible TFs 
+    // 0 growth - treat as int, INT_MIN => die
+    // 1 # not used: spring stress integrator_1 slow addition, fast decay, prolonged stress indicator // rather use per spring integrator
+    // 2 # not used: spring stress integrator_2 fast addition, slow decay, cyclical peak indicator    // rather use current stress?  
+    // 3 clock_1
+    // 4 clock_2
+    // 5 
+    // 6
+    // 7
+    
+    // matrix stiffness 
+    // hyaline & apatite => all bonds triangulated and stiff
+    // fribrocyte => 2 stiff bonds
+    // tenocyte & muscle => only one stiff bond
+    // elastin => medium stiffness & long yield strain
+    
+                                        
+    //(ii)make/break bonds - run on dense list of particles, requires (i)search of neighbours, (ii)spare bonds on both 
+    
+    
+    
+    //(iii)add/remove particles from/to reserve list. NB ideally don't process particles in reserve list. 
+    
+    
+    
+    // Remodelling rules
+    // Different cell types respond by secreting or resorbing their characteristic materials. 
+    // The general pattern of response is 
+    // (i) prolonged tension causes lengthening,                    i.e. slow addition, fast decay integrator_1.
+    // (ii) cyclical loading causes strengthening,                  i.e. fast addition, slow decay integrator_2.
+    // (iii) low peak strain causes shortening of fibrous tissue,  (low value on integrator_1)
+    // (iv) low peak stress causes weakening.                      (low value on integrator_2)
+    
+    // peak stress & strain can differ for muscle, not for other tissues.
+*/    
+    
+ 
 
 /*
     // what is current epigenetic state 
@@ -731,7 +1083,7 @@ extern "C" __global__ void computeGeneAction ( int pnum, int gene, uint list_len
 #define DIFFUSE_RATE 10.0   // - replace with: FGenome->difusability[NUM_GENES][2] (above)
 
 //! loops over all the chemicals in the given particle and exchanges chemicals
-extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const float currentConc[NUM_TF], float newConc[NUM_TF]){  
+extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const float currentConc[NUM_TF], float newConc[NUM_TF], uint diffusability[NUM_TF]){  
     // if the cell is empty, skip it
     if (fbuf.bufI(FGRIDCNT)[cell] == 0) return;
 
@@ -757,15 +1109,12 @@ extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const
 
             // chemical loop
             // for each chemical in this neighbour particle, exchange an amount relative to the diffusion rate with us
-            for (int j = 0; j < NUM_TF; j++){
-                // get the j'th chemical from this particle and exchange
-                float otherConc = fbuf.bufF(FCONC)[pndx * NUM_TF + j];
-                float localConc = otherConc * (DIFFUSE_RATE * c) - currentConc[j] * (DIFFUSE_RATE * c);
-                newConc[j] += localConc;
-            }
+            // get the j'th chemical from this particle and exchange
+            #pragma unroll
+            for (int j = 0; j < NUM_TF; j++) 
+                if(diffusability[j]) newConc[j] += diffusability[j] * c * (fbuf.bufF(FCONC)[pndx * NUM_TF + j] - currentConc[j]);
         }
     }
-
     // method:
     // add to ourselves 1% of what they have, and give away 1% of what we have
     // compute calls contribute once per bin
@@ -791,6 +1140,8 @@ extern "C" __global__ void computeDiffusion(int pnum){
     for (int j = 0; j < NUM_TF; j++){
         currentConc[j] = fbuf.bufF(FCONC)[i * NUM_TF + j];
     }
+    uint diffusability[NUM_TF];
+    for (int j = 0; j < NUM_TF; j++) diffusability[j]=fgenome.tf_diffusability[j];
 
     // Get search cell
     int nadj = (1 * fparam.gridRes.z + 1) * fparam.gridRes.x + 1;
@@ -802,14 +1153,14 @@ extern "C" __global__ void computeDiffusion(int pnum){
     float3 pos = fbuf.bufF3(FPOS) [i];
     // bin loop: visit the bins
     for (int c = 0; c < fparam.gridAdjCnt; c++) {
-        contributeDiffusion(i, pos, gc + fparam.gridAdj[c], currentConc, newConc);
+        contributeDiffusion(i, pos, gc + fparam.gridAdj[c], currentConc, newConc, diffusability);
     }
     __syncthreads();
 
     // for this particular particle, loop over chemicals and write to global memory
     // TODO could also be memcpy
     for (int j = 0; j < NUM_TF; j++){
-        fbuf.bufF(FCONC)[i * NUM_TF + j] += newConc[j];
+        fbuf.bufF(FCONC)[i * NUM_TF + j] = fgenome.tf_breakdown_rate[j] * (currentConc[j] + newConc[j]);
     }
 }
 
@@ -829,6 +1180,7 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
 			c = ( fparam.psmoothradius - sdist ); 
 			pterm = fparam.psimscale * -0.5f * c * fparam.spikykern * ( ipress + fbuf.bufF(FPRESS)[ j ] ) / sdist;                       // pressure term
 			force += ( pterm * dist + fparam.vterm * ( fbuf.bufF3(FVEVAL)[ j ] - iveleval )) * c * idens * (fbuf.bufF(FDENSITY)[ j ] );  // fluid force
+            
             if (_bondsToFill >0 && dist.x+dist.y+dist.z > 0.0 && freeze==true){                             // collect particles, in the x+ve hemisphere, for potential bond formation 
                 bool known = false;
                 uint bond_index = UINT_MAX;
@@ -897,7 +1249,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
             // j is a particle, bond_idx is in range, AND j's reciprocal record matches i's record of the bond
             if(j<pnum && bond_idx<BONDS_PER_PARTICLE && i==fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + bond_idx*2] && a==fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + bond_idx*2 +1])intact=true; 
             if(i==j)fbuf.bufI(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND]=false;
-            if(intact==false){                                                      // remove missing _outgoing_ bonds 
+            if(intact==false){                                                      // remove missing _outgoing_ bonds // ## may not want to lose all this data.
                 fbuf.bufI(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND]=UINT_MAX;         // [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping_coeff, [5]particle ID, [6]bond index 
                 fbuf.bufF(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+1]=0.0;
                 fbuf.bufF(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+2]=1.0;
@@ -925,10 +1277,14 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
             dist = ( fbuf.bufF3(FPOS)[ i ] - j_pos  );                              // dist in cm (Rama's comment)  /*fbuf.bufF3(FPOS)[ j ]*/
             dsq  = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                 // scalar distance squared
             abs_dist = sqrt(dsq) + FLT_MIN;                                         // FLT_MIN adds minimum +ve float, to prevent division by abs_dist=zero
-            float3 rel_vel = fbuf.bufF3(FVEVAL)[ j ] - pvel;                        // add optimal damping:  -l*v , were v is relative velocity, and l= 2*sqrt(m*k)  where k is the spring stiffness.
+            float3 rel_vel = fbuf.bufF3(FVEVAL)[ j ] - pvel;                        // add optimal damping:  -l*v , were v is relative velocity, and l= 2*sqrt(m*k)  
+                                                                                    // where k is the spring stiffness.
                                                                                     // eterm = (bool within elastic limit) * (spring force + damping)
-                                                                                     
-            eterm = ((float)(abs_dist < elastic_limit)) * ( ((dist/abs_dist) * modulus * (abs_dist-restlength)/restlength) - damping_coeff*rel_vel); // Elastic force due to bond ####
+            float spring_stress = modulus * (abs_dist-restlength)/restlength;
+            #define DECAY_FACTOR 0.99                                                                                   // could be a gene.
+            fbuf.bufI(FELASTIDX)[bond + 7] = (fbuf.bufI(FELASTIDX)[bond + 7] + spring_stress) * DECAY_FACTOR;           // spring stress integrator
+            
+            eterm = ((float)(abs_dist < elastic_limit)) * ( ((dist/abs_dist) * spring_stress) - damping_coeff*rel_vel); // Elastic force due to bond ####
             force -= eterm;                                                         // elastic force towards other particle, if (rest_len -abs_dist) is -ve
             atomicAdd( &fbuf.bufF3(FFORCE)[ j ].x, eterm.x);                        // NB Must send equal and opposite force to the other particle
             atomicAdd( &fbuf.bufF3(FFORCE)[ j ].y, eterm.y);
@@ -1001,7 +1357,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
     }                                                                               // end loop around FELASTIDX bonds
 }                                                                                   // end computeForce (..)
 
-extern "C" __global__ void randomInit ( int seed, int numPnts )
+extern "C" __global__ void randomInit ( int seed, int numPnts )                                                                 // NB not currently used
 {
 	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;	// particle index				
 	if ( i >= numPnts ) return;
@@ -1013,7 +1369,7 @@ extern "C" __global__ void randomInit ( int seed, int numPnts )
 
 #define CURANDMAX		2147483647
 
-extern "C" __global__ void emitParticles ( float frame, int emit, int numPnts )
+extern "C" __global__ void emitParticles ( float frame, int emit, int numPnts )                                                 // NB not currently used, may be a useful template
 {
 	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;	// particle index				
 	if ( i >= emit ) return;
@@ -1037,7 +1393,7 @@ extern "C" __global__ void emitParticles ( float frame, int emit, int numPnts )
 	
 }
 
-__device__ uint getGridCell ( float3 pos, uint3& gc )
+__device__ uint getGridCell ( float3 pos, uint3& gc )                                                                           // NB not currently used
 {	
 	gc.x = (int)( (pos.x - fparam.gridMin.x) * fparam.gridDelta.x);			// Cell in which particle is located
 	gc.y = (int)( (pos.y - fparam.gridMin.y) * fparam.gridDelta.y);
@@ -1045,7 +1401,7 @@ __device__ uint getGridCell ( float3 pos, uint3& gc )
 	return (int) ( (gc.y*fparam.gridRes.z + gc.z)*fparam.gridRes.x + gc.x);	
 }
 
-extern "C" __global__ void sampleParticles ( float* brick, uint3 res, float3 bmin, float3 bmax, int numPnts, float scalar )
+extern "C" __global__ void sampleParticles ( float* brick, uint3 res, float3 bmin, float3 bmax, int numPnts, float scalar )     // NB not currently used
 {
 	float3 dist;
 	float dsq;
@@ -1092,7 +1448,7 @@ extern "C" __global__ void sampleParticles ( float* brick, uint3 res, float3 bmi
 	//brick[ (i.z*int(res.y) + i.y)*int(res.x) + i.x ] = length(v) * scalar;
 }
 
-extern "C" __global__ void computeQuery ( int pnum )
+extern "C" __global__ void computeQuery ( int pnum )                                                                            // NB not currently used
 {
 	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;	// particle index				
 	if ( i >= pnum ) return;
@@ -1181,7 +1537,6 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 		
 	// Gravity
 	accel += fparam.pgravity;
-//    printf(" accel+gravity=%f,%f,%f  gravity=%f,%f,%f\t",accel.x,accel.y,accel.z,fparam.pgravity.x,fparam.pgravity.y,fparam.pgravity.z);
 
 	// Accel Limit
 	speed = accel.x*accel.x + accel.y*accel.y + accel.z*accel.z;
@@ -1196,26 +1551,6 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 		speed = fparam.VL2;
 		vel *= fparam.VL / sqrt(speed);
 	}
-
-	// Ocean colors
-	/*uint clr = fbuf.bufI(FCLR)[i];
-	if ( speed > fparam.VL2*0.2) {
-		adj = fparam.VL2*0.2;		
-		clr += ((  clr & 0xFF) < 0xFD ) ? +0x00000002 : 0;		// decrement R by one
-		clr += (( (clr>>8) & 0xFF) < 0xFD ) ? +0x00000200 : 0;	// decrement G by one
-		clr += (( (clr>>16) & 0xFF) < 0xFD ) ? +0x00020000 : 0;	// decrement G by one
-		fbuf.bufI(FCLR)[i] = clr;
-	}
-	if ( speed < 0.03 ) {		
-		int v = int(speed/.01)+1;
-		clr += ((  clr & 0xFF) > 0x80 ) ? -0x00000001 * v : 0;		// decrement R by one
-		clr += (( (clr>>8) & 0xFF) > 0x80 ) ? -0x00000100 * v : 0;	// decrement G by one
-		fbuf.bufI(FCLR)[i] = clr;
-	}*/
-	
-	//-- surface particle density 
-	//fbuf.mclr[i] = fbuf.mclr[i] & 0x00FFFFFF;
-	//if ( fbuf.mdensity[i] > 0.0014 ) fbuf.mclr[i] += 0xAA000000;
 
 	// Leap-frog Integration
 	float3 vnext = accel*dt + vel;					// v(t+1/2) = v(t-1/2) + a(t) dt		

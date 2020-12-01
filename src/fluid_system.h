@@ -57,12 +57,6 @@
 	#define GRID_UCHAR			0xFF           // used in void FluidSystem::InsertParticles (){.. memset(..); ...}
 	#define GRID_UNDEF			4294967295	
 
-	// not used, remnant of gvdb-voxels
-	#define CMD_SIM				0   /*remove this line ?*/
-	#define CMD_PLAYBACK		1   /*remove this line ?*/  
-	#define CMD_WRITEPTS		2   /*remove this line ?*/
-	#define CMD_WRITEVOL		3	/*remove this line ?*/
-	#define CMD_WRITEIMG		4   /*remove this line ?*/
 
     // Run params : values for m_Param[PMODE]
 	#define RUN_PAUSE			0
@@ -156,7 +150,6 @@
 	// kernel function   "m_Func[]"
 	#define FUNC_INSERT			0
 	#define	FUNC_COUNTING_SORT	1
-//    #define FUNC_SORT_BONDIDX   12
 	#define FUNC_QUERY			2
 	#define FUNC_COMPUTE_PRESS	3
 	#define FUNC_COMPUTE_FORCE	4
@@ -166,13 +159,34 @@
 	#define FUNC_SAMPLE			8
 	#define FUNC_FPREFIXSUM		9
 	#define FUNC_FPREFIXFIXUP	10
-	
-//	#define FUNC_FREEZE         11
     #define FUNC_TALLYLISTS     11
-    #define FUNC_COMPUTE_DIFFUSION 12
-    #define FUNC_COUNT_SORT_LISTS  13
-    #define FUNC_COMPUTE_GENE_ACTION 14
-	#define FUNC_MAX			16
+    #define FUNC_COMPUTE_DIFFUSION          12
+    #define FUNC_COUNT_SORT_LISTS           13
+    #define FUNC_COMPUTE_GENE_ACTION        14
+    #define FUNC_COMPUTE_BOND_CHANGES       15
+    
+    #define FUNC_INSERT_CHANGES             16 //insertChanges
+    #define FUNC_PREFIXUP_CHANGES           17 //prefixFixupChanges
+    #define FUNC_PREFIXSUM_CHANGES          18 //prefixSumChanges
+    #define FUNC_TALLYLISTS_CHANGES         19 //tally_changelist_lengths
+    #define FUNC_COUNTING_SORT_CHANGES      20 //countingSortChanges 
+    #define FUNC_COMPUTE_NERVE_ACTION       21 //computeNerveActivation
+    
+    #define FUNC_COMPUTE_MUSCLE_CONTRACTION 22 //computeMuscleContraction
+    #define FUNC_HEAL                       23 //heal
+    #define FUNC_LENGTHEN_MUSCLE            24 //lengthen_muscle
+    #define FUNC_LENGTHEN_TISSUE            25 //lengthen_tissue
+    #define FUNC_SHORTEN_MUSCLE             26 //shorten_muscle
+    #define FUNC_SHORTEN_TISSUE             27 //shorten_tissue
+    
+    #define FUNC_STRENGTHEN_MUSCLE          28 //strengthen_muscle
+    #define FUNC_STRENGTHEN_TISSUE          29 //strengthen_tissue
+    #define FUNC_WEAKEN_MUSCLE              30 //weaken_muscle
+    #define FUNC_WEAKEN_TISSUE              31 //weaken_tissue
+//    #define FUNC_      32 //
+//    #define FUNC_      33 //
+    
+    #define FUNC_MAX			            32
 
     //  used for AllocateBuffer(  .... )
 	#define GPU_OFF				0
@@ -189,14 +203,12 @@
 		void LoadKernel ( int id, std::string kname );
 		void Initialize ();
         void InitializeCuda ();                             // used for load_sim
-        void LoadSimulation (const char * relativePath);    // start sim from a folder of data
 
 		// Particle Utilities
 		void AllocateBuffer(int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode);		
-        void AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt );
+        void AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt, int lists );
 		void TransferToTempCUDA ( int buf_id, int sz );
         void AllocateParticles ( int cnt, int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES );
-		int AddParticle ();
         int AddParticleMorphogenesis2(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float* _ElastIdx, uint* _Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen);
         
 		//void AddEmit ( float spacing );
@@ -210,17 +222,15 @@
         uint* getParticle_ID(int n )    { return &m_Fluid.bufI(FPARTICLE_ID)[n]; }
         uint* getMass_Radius(int n )    { return &m_Fluid.bufI(FMASS_RADIUS)[n]; }
         uint* getNerveIdx( int n )      { return &m_Fluid.bufI(FNERVEIDX)[n]; }          //#define FNERVEIDX        15      //# uint
-        float* getConc(int n)           { return &m_Fluid.bufF(FCONC)[n*NUM_TF];}        //note #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
-        uint* getEpiGen(int gene)       { return &m_Fluid.bufI(FEPIGEN)[gene*m_FParams.pnum];}   //note #define FEPIGEN     17    //# uint[NUM_GENES] // used in savePoints... 
-		
+        float* getConc(int gene)        { return &m_Fluid.bufF(FCONC)[gene*mMaxPoints];}        //note #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
+        uint* getEpiGen(int gene)       { return &m_Fluid.bufI(FEPIGEN)[gene*mMaxPoints];}   //note #define FEPIGEN     17    //# uint[NUM_GENES] // used in savePoints... 
+                                                                                             //NB int mMaxPoints is set even if FluidSetupCUDA(..) isn't called, e.g. in makedemo ..
 		// Setup
-		void Start ( int num );
 		void SetupKernels ();
 		void SetupDefaultParams ();
 		void SetupExampleParams ();
         void SetupExampleGenome();
 		void SetupSpacing ();
-		void SetupAddVolume ( Vector3DF min, Vector3DF max, float spacing, float offs, int total );
         void SetupAddVolumeMorphogenesis2(Vector3DF min, Vector3DF max, float spacing, float offs, int total );  // NB ony used in WriteDemoSimParams()
 		void SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, float cell_size, float border );		
 		void AllocateGrid ();
@@ -247,31 +257,26 @@
 		Vector3DF GetGridMax ()		{ return m_GridMax; }
 		Vector3DF GetGridDelta ()	{ return m_GridDelta; }
 
-		// Acceleration Neighbor Tables
-		void ClearNeighborTable ();
-
-		// GPU Support functions
-/*remove this line ?*/void AllocatePackBuf ();
-/*remove this line ?*/void PackParticles ();
-/*remove this line ?*/void UnpackParticles ();
-
 		void FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, float3 delta, float3 gmin, float3 gmax, int total, int chk );
 		void FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, int emit );
 
 		void InsertParticlesCUDA ( uint* gcell, uint* ccell, uint* gcnt );	
 		void PrefixSumCellsCUDA ( uint* goff, int zero_offsets );		
 		void CountingSortFullCUDA ( Vector3DF* gpos );
+        
+        void InsertChangesCUDA ( /*uint* gcell, uint* gndx, uint* gcnt*/ );
+        void PrefixSumChangesCUDA ( int zero_offsets );
+        void CountingSortChangesCUDA ( );
+        
 		void ComputePressureCUDA ();
 		void ComputeDiffusionCUDA();
 		void ComputeForceCUDA ();
         void ComputeGenesCUDA ();
+        void ComputeBondChangesCUDA ();
         void ComputeParticleChangesCUDA ();
+        
 		void AdvanceCUDA ( float time, float dt, float ss );
 		void EmitParticlesCUDA ( float time, int cnt );
-
-		int getMode ()		{ return (int) m_Param[PMODE]; }
-		std::string getModeStr ();
-		void getModeClr ();
         
 		// I/O Files
         void SavePointsVTP2 ( const char * relativePath, int frame );
@@ -284,9 +289,8 @@
         // Genome for Morphogenesis
         void UpdateGenome ();
         void SetGenome ( FGenome newGenome );
-        void ReadGenome( const char * relativePath, int gpu_mode, int cpu_mode);
+        void ReadGenome( const char * relativePath);
         void WriteGenome( const char * relativePath);
-        
         
 		// Parameters
 		void UpdateParams ();
@@ -338,8 +342,8 @@
         
 		// Simulation Parameters                                //  NB MAX_PARAM = 50 
 		float						m_Param [ MAX_PARAM ];	    // 0-47 used.  see defines above. NB m_Param[1] = maximum number of points.
-		Vector3DF					m_Vec [ MAX_PARAM ];        // 0-12 used 
-		bool						m_Toggle [ MAX_PARAM ];		// 0-13 used. 
+		Vector3DF					m_Vec   [ MAX_PARAM ];      // 0-12 used 
+		bool						m_Toggle[ MAX_PARAM ];		// 0-13 used. 
 
 		// SPH Kernel functions
 		float						m_R2, m_Poly6Kern, m_LapKern, m_SpikyKern;		
