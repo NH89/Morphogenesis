@@ -123,10 +123,11 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         //printf ( "\nsaved file_num=%u, frame number =%i \n",file_num,  file_num*steps_per_file );
     }
     
+    file_num++;
     fluid.WriteSimParams ( outPath ); 
     fluid.WriteGenome( outPath );
-    //fluid.SavePointsCSV2 ( outPath, 20*30 );                 //fluid.SavePointsCSV ( outPath, 1 );
-    //fluid.SavePointsVTP2 ( outPath, 20*30 );
+    fluid.SavePointsCSV2 ( outPath, file_num );                 //fluid.SavePointsCSV ( outPath, 1 );
+    fluid.SavePointsVTP2 ( outPath, file_num );
 
     fluid.Exit ();                                      // Clean up and close
     CUresult cuResult = cuCtxDestroy ( cuContext ) ;

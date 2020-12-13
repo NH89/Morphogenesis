@@ -209,7 +209,9 @@
         void AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt, int lists );
 		void TransferToTempCUDA ( int buf_id, int sz );
         void AllocateParticles ( int cnt, int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES );
-        int AddParticleMorphogenesis2(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float* _ElastIdx, uint* _Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen);
+        void AddNullPoints ();
+        int  AddParticleMorphogenesis2(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float* _ElastIdx, uint* _Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen);
+        
         
 		//void AddEmit ( float spacing );
 		int NumPoints ()				{ return mNumPoints; }
@@ -261,7 +263,7 @@
 		void FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, int emit );
 
 		void InsertParticlesCUDA ( uint* gcell, uint* ccell, uint* gcnt );	
-		void PrefixSumCellsCUDA ( uint* goff, int zero_offsets );		
+		void PrefixSumCellsCUDA ( int zero_offsets );		
 		void CountingSortFullCUDA ( Vector3DF* gpos );
         
         void InsertChangesCUDA ( /*uint* gcell, uint* gndx, uint* gcnt*/ );
@@ -351,7 +353,7 @@
 		// Particle Buffers
 		int						mNumPoints;
 		int						mMaxPoints;
-		int						mGoodPoints;
+		int						mAvailablePoints;
 		FBufs					m_Fluid;				// Fluid buffers - NB this is an array of pointers (in mPackBuf ?)
 		FBufs					m_FluidTemp;			// Fluid buffers (temporary)
 		FParams					m_FParams;				// Fluid parameters struct - that apply to all particles 

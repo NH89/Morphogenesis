@@ -81,7 +81,16 @@
         __global__ void computeNerveActivation ( int pnum );
         
         __global__ void computeMuscleContraction ( int pnum );
-        __global__ void heal                ( int pnum, int list_length, int change_list);
+        __device__ void addParticle         (uint parent_Idx, uint &new_particle_Idx);
+        __device__ void find_potential_bonds (int i, float3 ipos, int cell, uint _bonds[BONDS_PER_PARTICLE][2], float _bond_dsq[BONDS_PER_PARTICLE], float max_len_sq);
+        __device__ void find_potential_bond (int i, float3 ipos, uint _thisParticleBonds[BONDS_PER_PARTICLE], float3 tpos, int cell, uint &_otherParticleIdx, uint &_otherParticleBondIdx, float &_bond_dsq, float max_len_sq);
+        __device__ void makeBond (uint thisParticleIdx, uint otherParticleIdx, uint bondIdx, uint otherParticleBondIdx, uint bondType /* elastin, collagen, apatite */);
+         __device__ int atomicMakeBond(uint thisParticleIndx,  uint otherParticleIdx, uint bondIdx, uint otherParticleBondIndex, uint bond_type);
+        __device__ int insertNewParticle(float3 newParticlePos, uint parentParticleIndx, uint bondIdx, uint otherParticleBondIndex, uint bond_type[BONDS_PER_PARTICLE]);
+        __device__ void find_closest_particle_per_axis(uint particle, float3 pos, uint neighbours[6]);
+        __device__ void makeBondIndxMap( uint parentParticleIndx, int bondInxMap[6]);
+        
+        __global__ void heal                ( int pnum, uint list_length, int change_list);
         __global__ void lengthen_muscle     ( int pnum, int list_length, int change_list);
         __global__ void lengthen_tissue     ( int pnum, int list_length, int change_list);
         __global__ void shorten_muscle      ( int pnum, int list_length, int change_list);

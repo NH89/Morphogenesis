@@ -197,7 +197,7 @@
     #define FGRIDCNT_CHANGES            37     // for packing lists for particle change kenels
     #define FGRIDOFF_CHANGES            38
     #define FDENSE_LIST_LENGTHS_CHANGES 39
-    #define FDENSE_LISTS_CHANGES        40
+    #define FDENSE_LISTS_CHANGES        40     //# *uint [NUM_CHANGES] holds pointers to change_list buffers [2][list_length] holding : particleIDx and bondIDx TODO edit buffer allocation & use  
     #define FDENSE_BUF_LENGTHS_CHANGES  41
 	
 	#define MAX_BUF		                42
@@ -297,7 +297,7 @@
 		int				gridThreads, gridBlocks;	
 
 		int				szPnts, szHash, szGrid;
-		int				stride, pnum;
+		int				stride, pnum, pnumActive;
         bool            freeze;
         uint            frame;
 		int				chk;
@@ -349,7 +349,7 @@
         static float default_modulus        ;// = { 100000, 10000000, 10000000};
         static float default_damping        ;// = { 10, 100, 1000};
         */
-    }
+    };
     // values from make demo
     // [1]elastLim	 [2]restLn	 [3]modulus	 [4]damping
     //    2	            0.5	        100000	    9.055386
@@ -375,16 +375,21 @@
         uint mutability[NUM_GENES];
         uint delay[NUM_GENES];
         uint sensitivity[NUM_GENES][NUM_GENES]; // for each gene, its sensitivity to each TF or morphogen
-        uint tf_diffusability[NUM_TF];// for each transcription_factor, the diffusion and breakdown rates of its TF.
+        uint tf_diffusability[NUM_TF];  // for each transcription_factor, the diffusion and breakdown rates of its TF.
         uint tf_breakdown_rate[NUM_TF];
         // sparse lists final entry = num elem, other entries (elem_num, param)
         int secrete[NUM_GENES][2*NUM_TF+1];        // -ve secretion => active breakdown. Can be useful for pattern formation.
         int activate[NUM_GENES][2*NUM_GENES+1];
         //uint *function[NUM_GENES];    // Hard code a case-switch that calls each gene's function iff the gene is active.
         enum {elastin,collagen,apatite};
-        FBondParams fbondparams[3];     //  0=elastin, 1=collagen, 2=apatite
+        //FBondParams fbondparams[3];   // 0=elastin, 1=collagen, 2=apatite
+        
+        enum params{  /*triggering bond parameter changes*/elongation_threshold, elongation_factor, strength_threshold, strengthening_factor, \
+                      /*triggering particle changes*/max_rest_length, min_rest_length, max_modulus, min_modulus, \
+                      /*initial values for new bonds*/elastLim, default_rest_length, default_modulus, default_damping 
+        };
+        float param[3][12];      // TODO update all uses of FBondParams & test.
     };                                  // NB gene functions need to be in fluid_system_cuda.cu
-    
     
     ///////////////////////
     // Multi-scale particles    

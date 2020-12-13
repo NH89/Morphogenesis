@@ -51,6 +51,7 @@ add_library(fluid_systemPTX OBJECT  fluid_system_cuda.cu  fluid_system_cuda.cuh)
 #target_compile_features(fluid_systemPTX PUBLIC cxx_std_11)
 #set_target_properties( fluid_system  PROPERTIES CUDA_SEPARABLE_COMPILATION ON )
 set_property(TARGET fluid_systemPTX PROPERTY CUDA_PTX_COMPILATION ON)
+#target_compile_options(fluid_systemPTX PRIVATE $<$<COMPILE_LANGUAGE:CUDA>: --expt-relaxed-constexpr>)
 set(output_file ${CMAKE_CURRENT_BINARY_DIR}/embedded_objs.h)
 
 get_filename_component(cuda_compiler_bin "${CMAKE_CUDA_COMPILER}" DIRECTORY)

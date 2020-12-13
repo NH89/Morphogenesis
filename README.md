@@ -85,7 +85,7 @@ New launch program to load data from files, and run simulation on GPU.
 usage:
 
     cd data
-    ../build/install/bin/load_sim  demo  out  num_files steps_per_file  freeze_steps save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)
+    ../build/install/bin/load_sim  demo  out   num_files   steps_per_file   freeze_steps   save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)
     
 e.g.
 
