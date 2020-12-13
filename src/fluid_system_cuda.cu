@@ -205,6 +205,10 @@ extern "C" __global__ void countingSortFull ( int pnum )                        
             for (int b=1;b<DATA_PER_BOND;b++){                                          // copy [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, iff unbroken
                 fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +b] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + b]  * ( jcell != GRID_UNDEF ) ; 
             }                                                                           // old: copy the modulus & length
+            if (fbuf.bufI(FPARTICLE_ID)[sort_ndx]<10){
+                printf("\ncountingSortFull(): (jcell != GRID_UNDEF)=%u,  ParticleID=%u,  bond=%u,  rest_length=%f, strain_integrator=%f, ftemp_strain_integrator=%f", 
+                       (jcell != GRID_UNDEF), fbuf.bufI(FPARTICLE_ID)[sort_ndx], a, fbuf.bufF(FELASTIDX)[sort_ndx*BOND_DATA + a*DATA_PER_BOND + 2], fbuf.bufF(FELASTIDX)[sort_ndx*BOND_DATA + a*DATA_PER_BOND + 7], ftemp.bufF(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND + 7]);
+            }
         }
         for (int a=0;a<BONDS_PER_PARTICLE;a++){                                         // The list of bonds from other particles 
             uint k = ftemp.bufI(FPARTICLEIDX) [i*BONDS_PER_PARTICLE*2 + a*2];           // NB j is valid only in ftemp.*
@@ -360,10 +364,10 @@ extern "C" __global__ void computeGeneAction ( int pnum, int gene, uint list_len
     uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                                         // particle index
     if ( i >= list_len ) return;
     uint particle_index = fbuf.bufII(FDENSE_LISTS)[gene][i];
-    if (particle_index >= pnum){
+    /*if (particle_index >= pnum){
         printf("\ncomputeGeneAction: (particle_index >= pnum),  gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u .\t",
             gene, i, list_len, particle_index, pnum);
-    }    
+    } */   
     int delay = (int)fbuf.bufI(FEPIGEN)[gene*pnum + particle_index];                                // Change in _epigenetic_ activation of this particle
     if (delay < INT_MAX){                                                                           // (FEPIGEN==INT_MAX) => active & not counting down.
         fbuf.bufI(FEPIGEN)[gene*pnum + particle_index]--;                                           // (FEPIGEN<1) => inactivated @ insertParticles(..)
@@ -373,8 +377,8 @@ extern "C" __global__ void computeGeneAction ( int pnum, int gene, uint list_len
     uint sensitivity[NUM_GENES];                                                                    // TF sensitivities : broadcast to threads
     #pragma unroll                                                                                  // speed up by eliminating loop logic.
     for(int j=0;j<NUM_GENES;j++) sensitivity[j]= fgenome.sensitivity[gene][j];                      // for each gene, its sensitivity to each TF or morphogen
-    if(i==list_len-1)printf("\ncomputeGeneAction Chk : gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u ,  sensitivity[15]=%u.\t",
-            gene, i, list_len, particle_index, pnum, sensitivity[15]);                              // debug chk 
+    /*if(i==list_len-1)printf("\ncomputeGeneAction Chk : gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u ,  sensitivity[15]=%u.\t",
+            gene, i, list_len, particle_index, pnum, sensitivity[15]); */                             // debug chk 
     float activity=0;                                                                               // compute current activity of gene
     #pragma unroll
     for (int tf=0;tf<NUM_TF;tf++){                                                                  // read FCONC
@@ -470,8 +474,13 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
         float stress = bond_flt_ptr[7];
         
         //FBondParams *params_ =  &fgenome.fbondparams[bond_type[bond]];    //fluid_system_cuda.cu(466): warning host member "FBondParams::param" cannot be directly read in a device function
-        bond_flt_ptr[2]/*rest length*/ +=  (stress - fgenome.param[bond_type[bond]][fgenome.elongation_threshold])   * fgenome.elongation_factor;
-        bond_flt_ptr[2]/*rest length*/ +=  (stress - fgenome.param[bond_type[bond]][fgenome.elongation_threshold])   * fgenome.strengthening_factor;
+  //      bond_flt_ptr[2]/*rest length*/ +=  (stress - fgenome.param[bond_type[bond]][fgenome.elongation_threshold])   * fgenome.elongation_factor;
+  //      bond_flt_ptr[3]/*modulus*/     +=  (stress - fgenome.param[bond_type[bond]][fgenome.elongation_threshold])   * fgenome.strengthening_factor;
+        
+        if (fbuf.bufI(FPARTICLE_ID)[i]<10){
+            printf("\ncomputeBondChanges(): ParticleID=%u,  bond=%u,  rest_length=%f,  modulus=%f\t, strain_integrator=%f",
+                   fbuf.bufI(FPARTICLE_ID)[i], bond, bond_flt_ptr[2], bond_flt_ptr[3], fbuf.bufF(FELASTIDX)[i*BOND_DATA + bond*DATA_PER_BOND + 7]);
+        }
         // "insert changes"
   //      uint * fbufFGRIDCNT_CHANGES = fbuf.bufI(FGRIDCNT_CHANGES);
   //      int m = 1 + (fbufFEPIGEN[7]>0/*muscle*/||fbufFEPIGEN[10]>0);                                // i.e. if (fbufFEPIGEN[7]>0/*muscle*/) m=2 else m=1;
@@ -1876,8 +1885,9 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
                                                                                     // eterm = (bool within elastic limit) * (spring force + damping)
             float spring_strain = /* modulus * */ (abs_dist-restlength)/restlength; // NB this is now a strain accumulator, because stress is too large a number > FLT_MAX
             #define DECAY_FACTOR 0.99                                                                                   // could be a gene.
-            fbuf.bufF(FELASTIDX)[bond + 7] = (fbuf.bufI(FELASTIDX)[bond + 7] + spring_strain) * DECAY_FACTOR;           // spring strain integrator
-          if(i==0)printf("\ncomputeForce(): restlength=%f, modulus=%f , abs_dist=%f , spring_strain=%f , fbuf.bufI(FELASTIDX)[bond + 7]=%f  ",restlength , modulus , abs_dist , spring_strain , fbuf.bufF(FELASTIDX)[bond + 7]  );  
+            fbuf.bufF(FELASTIDX)[bond + 7] = (fbuf.bufF(FELASTIDX)[bond + 7] + spring_strain) * DECAY_FACTOR;           // spring strain integrator
+          
+          if(fbuf.bufI(FPARTICLE_ID)[i]<10) printf("\ncomputeForce(): ParticleID=%u, bond=%u, restlength=%f, modulus=%f , abs_dist=%f , spring_strain=%f , strain_integrator=%f  ",fbuf.bufI(FPARTICLE_ID)[i], a, restlength , modulus , abs_dist , spring_strain , fbuf.bufF(FELASTIDX)[bond + 7]  );  
             
             eterm = ((float)(abs_dist < elastic_limit)) * ( ((dist/abs_dist) * spring_strain * modulus) - damping_coeff*rel_vel); // Elastic force due to bond ####
             force -= eterm;                                                         // elastic force towards other particle, if (rest_len -abs_dist) is -ve
@@ -1919,7 +1929,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
     for (; a< BONDS_PER_PARTICLE; a++){
         int otherParticleBondIndex = BONDS_PER_PARTICLE*2*bonds[a][0] + 2*a /*bonds[a][1]*/; // fbuf.bufI(FPARTICLEIDX)[otherParticleBondIndex]
         
-        if((uint)bonds[a][0]==i) printf("\n (uint)bonds[a][0]==i, i=%u a=%u",i,a);  // float bonds[BONDS_PER_PARTICLE][3];  [0] = index of other particle, [1] = dsq, [2] = bond_index
+        if(i==0)/*(uint)bonds[a][i]==0*/ printf("\n (uint)bonds[a][0]==i, i=%u a=%u",i,a);  // float bonds[BONDS_PER_PARTICLE][3];  [0] = index of other particle, [1] = dsq, [2] = bond_index
                                                                                     // If outgoing bond empty && proposed bond for this quadrant is valid
         if( fbuf.bufF(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +1] == 0.0  &&  bonds[a][0] < pnum  && bonds[a][0]!=i  && bond_dsq[a]<3 ){  // ie dsq < 3D diagonal of cube ##### hack #####
                                                                                     // NB "bonds[b][0] = UINT_MAX" is used to indicate no candidate bond found
@@ -2160,14 +2170,16 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	fbuf.bufF3(FVEL)[i] = vnext;
 	fbuf.bufF3(FPOS)[i] += vnext * (dt/ss);			// p(t+1) = p(t) + v(t+1/2) dt		
     
+    /*
     if (i==0 ){
-        printf("\n\nadvanceParticles()2:");
+        printf("\n\nadvanceParticles():");
         printf("\nvel.x==%f",vel.x);
         printf("\naccel.x==%f",accel.x);
         printf("\ndt==%f",dt);
         printf("\nvnext.x==%f",vnext.x);
         printf("\nss==%f",ss);
     }
+    */
 }
 
 

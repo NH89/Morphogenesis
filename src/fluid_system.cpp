@@ -2233,10 +2233,10 @@ void FluidSystem::ComputeGenesCUDA (){  // for each gene, call a kernel wih the 
         int numBlocks, numThreads;
         computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
         
-        std::cout<<"\nComputeGenesCUDA (): gene ="<<gene<<", list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". args={mNumPoints="<<mNumPoints<<", list_length="<<list_length<<", gene ="<<gene<<"}\n"<<std::flush;
+   //     std::cout<<"\nComputeGenesCUDA (): gene ="<<gene<<", list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". args={mNumPoints="<<mNumPoints<<", list_length="<<list_length<<", gene ="<<gene<<"}\n"<<std::flush;
         
         if( numBlocks>0 && numThreads>0){
-            std::cout<<"\nCalling m_Func[FUNC_COMPUTE_GENE_ACTION]\n"<<std::flush;
+   //         std::cout<<"\nCalling m_Func[FUNC_COMPUTE_GENE_ACTION]\n"<<std::flush;
             
             cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_GENE_ACTION],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_COMPUTE_GENE_ACTION", mbDebug);
         }
