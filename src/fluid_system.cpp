@@ -406,7 +406,7 @@ void FluidSystem::AllocateGrid(int gpu_mode, int cpu_mode){ // NB void FluidSyst
     }
 }
 
-int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float *_ElastIdx, uint *_Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen ){  // called by :ReadPointsCSV2 (...) where :    uint Particle_Idx[BONDS_PER_PARTICLE * 2];  AND SetupAddVolumeMorphogenesis2(....)
+int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint *_ElastIdxU, float *_ElastIdxF, uint *_Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen ){  // called by :ReadPointsCSV2 (...) where :    uint Particle_Idx[BONDS_PER_PARTICLE * 2];  AND SetupAddVolumeMorphogenesis2(....)
     if ( mNumPoints >= mMaxPoints ) return -1;
     int n = mNumPoints;
     (m_Fluid.bufV3(FPOS) + n)->Set ( Pos->x,Pos->y,Pos->z );
@@ -422,8 +422,18 @@ int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint
     *(m_Fluid.bufI(FCLR) + n) = Clr;
 
     uint* ElastIdx = (m_Fluid.bufI(FELASTIDX) + n * BOND_DATA );
-    for(int j=0; j<(BOND_DATA); j++) {
-        ElastIdx[j] = _ElastIdx[j] ;                                                    // ## implicit cast float-> uint, what happens ? 
+    float* ElastIdxFlt = (m_Fluid.bufF(FELASTIDX) + n * BOND_DATA );
+    for (int i = 0; i<BONDS_PER_PARTICLE;i++){
+  printf("\t%u",_ElastIdxU[i*DATA_PER_BOND+0]);
+        ElastIdx[i*DATA_PER_BOND+0] = _ElastIdxU[i*DATA_PER_BOND+0] ;
+        ElastIdx[i*DATA_PER_BOND+5] = _ElastIdxU[i*DATA_PER_BOND+5] ;
+        ElastIdx[i*DATA_PER_BOND+6] = _ElastIdxU[i*DATA_PER_BOND+6] ;
+        ElastIdx[i*DATA_PER_BOND+8] = _ElastIdxU[i*DATA_PER_BOND+8] ;
+        ElastIdxFlt[i*DATA_PER_BOND+1] = _ElastIdxF[i*DATA_PER_BOND+1] ;
+        ElastIdxFlt[i*DATA_PER_BOND+2] = _ElastIdxF[i*DATA_PER_BOND+2] ;
+        ElastIdxFlt[i*DATA_PER_BOND+3] = _ElastIdxF[i*DATA_PER_BOND+3] ;
+        ElastIdxFlt[i*DATA_PER_BOND+4] = _ElastIdxF[i*DATA_PER_BOND+4] ;
+        ElastIdxFlt[i*DATA_PER_BOND+7] = _ElastIdxF[i*DATA_PER_BOND+7] ;
     }
     uint* Particle_Idx = (m_Fluid.bufI(FPARTICLEIDX) + n * BONDS_PER_PARTICLE *2 );     // index of incoming bonds
     for(int j=0; j<(BONDS_PER_PARTICLE *2); j++) {
@@ -449,7 +459,8 @@ void FluidSystem::AddNullPoints (){// fills unallocated particles with null data
     std::cout<<"\n AddNullPoints ()\n"<<std::flush;
     Vector3DF Pos, Vel;
     uint Age, Clr;
-    float ElastIdx[BOND_DATA];
+    uint  ElastIdxU[BOND_DATA];
+    float ElastIdxF[BOND_DATA];
     uint Particle_Idx[2*BONDS_PER_PARTICLE];
     uint Particle_ID, Mass_Radius, NerveIdx;
     float Conc[NUM_TF];
@@ -463,7 +474,9 @@ void FluidSystem::AddNullPoints (){// fills unallocated particles with null data
     Vel.z = 0;
     Age   = 0; 
     Clr   = 0; 
-    for (int j=0;j<BOND_DATA;j++)               ElastIdx[j]     = UINT_MAX;
+    for (int j=0;j<BOND_DATA;j++)               ElastIdxU[j]     = UINT_MAX;
+    ElastIdxU[8] = 0;
+    for (int j=0;j<BOND_DATA;j++)               ElastIdxF[j]     = 0;
     for (int j=0;j<2*BONDS_PER_PARTICLE;j++)    Particle_Idx[j] = UINT_MAX;
     Particle_ID = UINT_MAX;
     Mass_Radius = 0;
@@ -474,7 +487,7 @@ void FluidSystem::AddNullPoints (){// fills unallocated particles with null data
     // TODO FPARTICLE_ID   // should equal mNumPoints when created
     std::cout<<"\n AddNullPoints (): mNumPoints="<<mNumPoints<<", mMaxPoints="<<mMaxPoints<<"\n"<<std::flush;
     while (mNumPoints < mMaxPoints){
-        AddParticleMorphogenesis2 (&Pos, &Vel, Age, Clr, ElastIdx, Particle_Idx, Particle_ID, Mass_Radius,  NerveIdx, Conc, EpiGen );
+        AddParticleMorphogenesis2 (&Pos, &Vel, Age, Clr, ElastIdxU, ElastIdxF, Particle_Idx, Particle_ID, Mass_Radius,  NerveIdx, Conc, EpiGen );
         std::cout<<"\n AddNullPoints (): mNumPoints="<<mNumPoints<<", mMaxPoints="<<mMaxPoints<<"\n"<<std::flush;
     }
 }
@@ -496,7 +509,8 @@ std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
     c2 = cnt/2;
     Vector3DF Pos, Vel; 
     uint Age, Clr, Particle_ID, Mass_Radius, NerveIdx;
-    float ElastIdx[BOND_DATA];
+    uint  ElastIdxU[BOND_DATA];
+    float ElastIdxF[BOND_DATA];
     uint Particle_Idx[BONDS_PER_PARTICLE*2]; // FPARTICLE_IDX : other particles with incoming bonds attaching here. 
     float Conc[NUM_TF];
     uint EpiGen[NUM_GENES];
@@ -521,7 +535,15 @@ std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
                 length = uint(1000 * m_Param [ PSMOOTHRADIUS ]); // m_Param [ PSMOOTHRADIUS ] =	0.015f;	// m // related to spacing, but also max particle range i.e. ....
                 mod_len = ( modulus <<16 | length ); // NB should mask length to prevent it exceeding 16bits, i.e. 255*255
                 
-                for (int i = 0; i<BONDS_PER_PARTICLE;i++){ for (int j = 0; j< DATA_PER_BOND; j++){ ElastIdx[i*DATA_PER_BOND +j] = 0; } }
+                for (int i = 0; i<BONDS_PER_PARTICLE;i++){ 
+                    for (int j = 0; j< DATA_PER_BOND; j++){ ElastIdxU[i*DATA_PER_BOND +j] = UINT_MAX; ElastIdxF[i*DATA_PER_BOND +j] = 0; } 
+                    ElastIdxU[i*DATA_PER_BOND +8] = 0;
+                    //uint * uint_ptr = (uint*)ElastIdx;
+                    //uint_ptr[i*DATA_PER_BOND +0] = UINT_MAX;
+                    //uint_ptr[i*DATA_PER_BOND +5] = UINT_MAX;
+                    //uint_ptr[i*DATA_PER_BOND +6] = UINT_MAX;
+                    //  FELASTIDX[6*9]	[0]curIdx	 [1]elastLim	 [2]restLn	 [3]modulus	 [4]damping	 [5]partID	 [6]bond index	 [7]stress integrator	 [8]change-type
+                }
                 //NB #define DATA_PER_BOND 6 //6 : [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index
                 for (int i = 0; i<BONDS_PER_PARTICLE*2;i++) { Particle_Idx[i] = UINT_MAX; }
                 if (Particle_ID % 10 == 0){NerveIdx = Particle_ID/10;} else {NerveIdx = 0;} // Every 10th particle has nerve connection
@@ -539,7 +561,8 @@ std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
                 /* Vector3DF* */ &Vel, 
                 /* uint */ Age, 
                 /* uint */ Clr, 
-                /* uint *_*/ ElastIdx, 
+                /* uint *_*/ ElastIdxU, 
+                /* uint *_*/ ElastIdxF, 
                 /* unit * */ Particle_Idx,
                 /* uint */ Particle_ID, 
                 /* uint */ Mass_Radius, 
@@ -608,18 +631,18 @@ std::cout << "\n\n Chk8 \n"<<std::flush;
     //cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertChangesCUDA", mbDebug);
 
 std::cout << "\n\n Chk9 \n"<<std::flush;
-//#    PrefixSumChangesCUDA ( 1 );
+    PrefixSumChangesCUDA ( 1 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumChangesCUDA", mbDebug);
     
 std::cout << "\n\n Chk10 \n"<<std::flush;
-//#    CountingSortChangesCUDA (  );
+    CountingSortChangesCUDA (  );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortChangesCUDA", mbDebug);
     
     
     //  execute particle changes // _should_ be able to run concurrently => no cuCtxSynchronize()
     // => single fn ComputeParticleChangesCUDA ()
 std::cout << "\n\n Chk11 \n"<<std::flush;
-//#    ComputeParticleChangesCUDA ();
+    ComputeParticleChangesCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeParticleChangesCUDA", mbDebug);
 
 
@@ -827,7 +850,10 @@ void FluidSystem::ReadGenome( const char * relativePath){
     std::cout << "\n" << i << " transcription factors read.\n" << std::flush;
     
     ret=0;
-    std::fscanf(genes_file, "\nRemodelling parameters \n" );
+    std::fscanf(genes_file, "\nRemodelling parameters, rows : elastin,collagen,apatite\n" );
+    std::fscanf(genes_file, "/*triggering bond parameter changes*/ elongation_threshold,   elongation_factor,      strength_threshold,     strengthening_factor, \
+                      /*triggering particle changes*/       max_rest_length,        min_rest_length,        max_modulus,            min_modulus, \
+                      /*initial values for new bonds*/      elastLim,               default_rest_length,    default_modulus,        default_damping \n");
     for(i=0; i<3; i++){
         for(j=0; j<12;j++) ret += std::fscanf(genes_file, "\t%f,\t", &m_FGenome.param[i][j] ); 
         std::fscanf(genes_file, "\n");
@@ -863,7 +889,10 @@ void FluidSystem::WriteGenome( const char * relativePath){
         fprintf(fp, "\t%i,\t", m_FGenome.tf_diffusability[i] );
         fprintf(fp, "%i,\t", m_FGenome.tf_breakdown_rate[i] );
     }
-    fprintf(fp, "\nRemodelling parameters \n" );
+    fprintf(fp, "\nRemodelling parameters, rows : elastin,collagen,apatite\n" );
+    fprintf(fp, "/*triggering bond parameter changes*/ elongation_threshold,   elongation_factor,      strength_threshold,     strengthening_factor, \
+                      /*triggering particle changes*/       max_rest_length,        min_rest_length,        max_modulus,            min_modulus, \
+                      /*initial values for new bonds*/      elastLim,               default_rest_length,    default_modulus,        default_damping \n");
     for(int i=0; i<3; i++){
         for(int j=0; j<12;j++) fprintf(fp, "\t%f,\t", m_FGenome.param[i][j]);
         fprintf(fp, "\n");
@@ -900,8 +929,8 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
         ElastIdx = getElastIdx(i);   
         for(int j=0; j<(BONDS_PER_PARTICLE ); j++) { 
             int secondParticle = ElastIdx[j * DATA_PER_BOND];
-            int bond = ElastIdx[j * DATA_PER_BOND +1];          // NB [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
-            if (bond==0) secondParticle = i;                    // i.e. if [1]elastic limit, then bond is broken, therefore bond to self.
+            int bond = ElastIdx[j * DATA_PER_BOND +2];          // NB [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
+            if (bond==0) secondParticle = i;                    // i.e. if [2]restlength, then bond is broken, therefore bond to self.
             vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
             line->GetPointIds()->SetId(0,i);
             line->GetPointIds()->SetId(1,secondParticle);
@@ -1134,8 +1163,8 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
     uint mass, radius;
     float *ElastIdxPtr;
     
-    fprintf(fp, "x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", BONDS_PER_PARTICLE, DATA_PER_BOND);  // This system inserts commas to align header with csv data
-    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator,,  ");
+    fprintf(fp, "i,, x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", BONDS_PER_PARTICLE, DATA_PER_BOND);  // This system inserts commas to align header with csv data
+    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator, [8]change-type,,  ");
     fprintf(fp, "\t"); 
     fprintf(fp, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u*2]", BONDS_PER_PARTICLE);    
     for (int i=0; i<BONDS_PER_PARTICLE*3; i++)fprintf(fp, ", ");
@@ -1150,6 +1179,7 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
         Age = getAge(i);
         Clr = getClr(i);
         ElastIdx = getElastIdx(i);      // NB [BONDS_PER_PARTICLE]
+      printf("\t%u,",ElastIdx[0]);
         ElastIdxPtr = (float*)ElastIdx; // #############packing floats and uints into the same array - should replace with a struct.#################
         Particle_Idx = getParticle_Idx(i);
         Particle_ID = getParticle_ID(i);//# uint  original pnum, used for bonds between particles. 32bit, track upto 4Bn particles.
@@ -1167,10 +1197,11 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
         //Conc = getConc(i);              //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
         //EpiGen = getEpiGen(i);          //# uint[NUM_GENES]  see below.
         
-        fprintf(fp, "%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t", Pos->x, Pos->y,Pos->z, Vel->x,Vel->y,Vel->z, *Age, *Clr );
+        fprintf(fp, "%u,,%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t", i, Pos->x, Pos->y,Pos->z, Vel->x,Vel->y,Vel->z, *Age, *Clr );
         
         for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
             fprintf(fp, "%u, %f, %f, %f, %f, %u, %u, %f, %u, ", ElastIdx[j], ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdx[j+5], ElastIdx[j+6], ElastIdxPtr[j+7], ElastIdx[j+8] );
+            
            /*
             // if ((j%DATA_PER_BOND==0)||((j+1)%DATA_PER_BOND==0))  fprintf(fp, "%u, ",  ElastIdx[j] );  // print as int   [0]current index, [5]particle ID, [6]bond index 
            // else  fprintf(fp, "%f, ",  ElastIdxPtr[j] );                                              // print as float [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, 
@@ -1225,7 +1256,8 @@ void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int 
     //////////////////////////////////////// 
     uint Clr, Age;
     Vector3DF Pos, Vel, PosMin, PosMax;
-    float ElastIdx[BOND_DATA];
+    uint  ElastIdxU[BOND_DATA];
+    float ElastIdxF[BOND_DATA];
     uint Particle_Idx[BONDS_PER_PARTICLE * 2];
     uint Particle_ID, mass, radius, Mass_Radius, NerveIdx;
     float Conc[NUM_TF];
@@ -1238,29 +1270,33 @@ void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int 
     std::fseek(points_file, 0, SEEK_SET);
     uint bond_data=999, data_per_bond=999, bonds_per_particle=999, num_TF=999, num_genes=999;
     int result=-2;
-    result = std::fscanf(points_file, "x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", &bond_data, &data_per_bond);
-    
-    for (int i=0; i<data_per_bond; i++)std::fscanf(points_file, ",[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator,,  ");
+    result = std::fscanf(points_file, "i,, x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", &bond_data, &data_per_bond);
+std::cout<<"\n\n ReadPointsCSV2() line 1241: scanf result="<<result<<"\n"<<std::flush; 
+    for (int i=0; i<data_per_bond; i++) result+=std::fscanf(points_file, ",[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator, [8]change-type,,  ");
     bond_data = bond_data * data_per_bond;
     fscanf(points_file, "\t");
-    
+std::cout<<"\n ReadPointsCSV2() line 1246: scanf result="<<result<<"\n"<<std::flush; 
     result = std::fscanf(points_file, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u*2]", &bonds_per_particle);
-    for (int i=0; i<BONDS_PER_PARTICLE*3; i++)fscanf(points_file, ", ");
-    
+    for (int i=0; i<BONDS_PER_PARTICLE*3; i++) result+=fscanf(points_file, ", ");
+std::cout<<"\n ReadPointsCSV2() line 1249: scanf result="<<result<<"\n"<<std::flush;     
     result = std::fscanf(points_file, "\t\tFCONC[%u]",&num_TF);
     for (int i=0; i<NUM_TF; i++)fscanf(points_file, ", ");
-    
+std::cout<<"\n ReadPointsCSV2() line 1252: scanf result="<<result<<"\n"<<std::flush;     
     result = std::fscanf(points_file, "\t\tFEPIGEN[%u] \n", &num_genes );
+std::cout<<"\n ReadPointsCSV2() line 1254: scanf result="<<result<<"\n"<<std::flush;     
+    
 std::cout<<"\n\n ReadPointsCSV2() starting loop: number_of_lines="<<number_of_lines<<"\n"<<std::flush;
     ////////////////////
     int i;
+    int index;
     for (i=1; i<number_of_lines; i++ ) {
         // transcribe particle data from file to Pos, Vel and Clr
-        int ret = std::fscanf(points_file, "%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t", &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Age, &Clr );
+        int ret = std::fscanf(points_file, "%u,,%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t",&index, &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Age, &Clr );
 std::cout<<"\n ReadPointsCSV2() row="<< i <<", (line 1259, ret="<<ret<<"),\t"<<std::flush;
-        for(int j=0; j<(BOND_DATA); j++) {// BONDS_PER_PARTICLE * DATA_PER_BOND
-            ret += std::fscanf(points_file, "%f, ",  &ElastIdx[j] );
+        for(int j=0; j<BOND_DATA; j+=DATA_PER_BOND) {// BONDS_PER_PARTICLE * DATA_PER_BOND
+            ret += std::fscanf(points_file, "%u, %f, %f, %f, %f, %u, %u, %f, %u, ", &ElastIdxU[j+0], &ElastIdxF[j+1], &ElastIdxF[j+2], &ElastIdxF[j+3], &ElastIdxF[j+4], &ElastIdxU[j+5], &ElastIdxU[j+6], &ElastIdxF[j+7], &ElastIdxU[j+8] );
         }
+      printf("\t%u\t",ElastIdxU[0]);
 std::cout<<"(line 1263, ret="<<ret<<")\t"<<std::flush;
         ret += std::fscanf(points_file, " \t%u, %u, %u, %u, \t\t", &Particle_ID, &mass, &radius, &NerveIdx);
         Mass_Radius = mass + (radius << 16);                                    // pack two 16bit uint  into one 32bit uint.
@@ -1273,8 +1309,9 @@ std::cout<<"(ReadPointsCSV2() line 1270, ret="<<ret<<"),\t"<<std::flush;
 std::cout<<"(ReadPointsCSV2() line 1272, ret="<<ret<<"),\t"<<std::flush;
         for(int j=0; j<(NUM_GENES); j++)    {    ret += std::fscanf(points_file, "%u, ",  &EpiGen[j] ); } ret += std::fscanf(points_file, " \n");
 std::cout<<"(ReadPointsCSV2() line 1274, ret="<<ret<<"),\t"<<std::flush;
-        if (ret != (8 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  
-            std::cout<<"\n ReadPointsCSV2() fail line 1276, ret="<<ret<<"\n"<<std::flush;
+
+if (ret != (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  
+            std::cout<<"\n ReadPointsCSV2() fail line 1276, ret="<<ret<<"\n"<<std::flush;// ret=39
             fclose(points_file);
             return;
         } // ret=8 ret=32 ret=36 ret=48 ret=64 ret=80 
@@ -1293,12 +1330,13 @@ std::cout<<"(ReadPointsCSV2() line 1274, ret="<<ret<<"),\t"<<std::flush;
             fclose(points_file);
             return;
         }
-        AddParticleMorphogenesis2 (&Pos, &Vel, Age, Clr, ElastIdx, Particle_Idx, Particle_ID, Mass_Radius,  NerveIdx, Conc, EpiGen );
+        AddParticleMorphogenesis2 (&Pos, &Vel, Age, Clr, ElastIdxU, ElastIdxF, Particle_Idx, Particle_ID, Mass_Radius,  NerveIdx, Conc, EpiGen );
     }
     std::cout<<"\n ReadPointsCSV2() finished reading points. i="<<i<<"\n"<<std::flush;
     fclose(points_file);
     AddNullPoints ();                                   // add null particles up to mMaxPoints
     if (gpu_mode != GPU_OFF) TransferToCUDA ();         // Initial transfer
+  //printf("\n m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES)=%llu, \t m_Fluid.gpu(FGRIDOFF_CHANGES)=%llu, \t m_Fluid.gpu(FGRIDCNT_CHANGES)=%llu   \n",m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES), m_Fluid.gpu(FGRIDOFF_CHANGES) , m_Fluid.gpu(FGRIDCNT_CHANGES)   );
     std::cout<<"\n ReadPointsCSV2() finished extra functions.\n"<<std::flush;
 }
 
@@ -1695,9 +1733,9 @@ void FluidSystem::SetupExampleGenome()  {   // need to set up a demo genome
     //FBondParams *params_ =  &m_FGenome.fbondparams[0];
     //0=elastin
     m_FGenome.param[0][m_FGenome.elongation_threshold]   = 0.1  ;
-    m_FGenome.param[0][m_FGenome.elongation_factor]      = 0.1  ;
+    m_FGenome.param[0][m_FGenome.elongation_factor]      = 0.02  ;
     m_FGenome.param[0][m_FGenome.strength_threshold]     = 0.1  ;
-    m_FGenome.param[0][m_FGenome.strengthening_factor]   = 0.1  ;
+    m_FGenome.param[0][m_FGenome.strengthening_factor]   = 0.02  ;
     
     m_FGenome.param[0][m_FGenome.max_rest_length]        = 0.8  ;
     m_FGenome.param[0][m_FGenome.min_rest_length]        = 0.3  ;
@@ -1710,10 +1748,10 @@ void FluidSystem::SetupExampleGenome()  {   // need to set up a demo genome
     m_FGenome.param[0][m_FGenome.default_damping]        = 10  ;
     
     //1=collagen
-    m_FGenome.param[1][m_FGenome.elongation_threshold]   = 0.1  ;
-    m_FGenome.param[1][m_FGenome.elongation_factor]      = 0.1  ;
-    m_FGenome.param[1][m_FGenome.strength_threshold]     = 0.1  ;
-    m_FGenome.param[1][m_FGenome.strengthening_factor]   = 0.1  ;
+    m_FGenome.param[1][m_FGenome.elongation_threshold]   = 4.0  ;
+    m_FGenome.param[1][m_FGenome.elongation_factor]      = 0.01 ;
+    m_FGenome.param[1][m_FGenome.strength_threshold]     = 4.1  ;
+    m_FGenome.param[1][m_FGenome.strengthening_factor]   = 0.01 ;
     
     m_FGenome.param[1][m_FGenome.max_rest_length]        = 0.8  ;
     m_FGenome.param[1][m_FGenome.min_rest_length]        = 0.3  ;
@@ -2090,9 +2128,7 @@ void FluidSystem::PrefixSumChangesCUDA ( int zero_offsets ){
     CUdeviceptr scan2   = m_Fluid.gpu(FAUXSCAN1);
     CUdeviceptr array3  = m_Fluid.gpu(FAUXARRAY2);
     CUdeviceptr scan3   = m_Fluid.gpu(FAUXSCAN2);
-#ifndef xlong
-    typedef unsigned long long	xlong;		// 64-bit integer
-#endif
+
     // Loop to PrefixSum the Dense Lists - NB by doing one change_list at a time, we reuse the FAUX* arrays & scans.
     // For each change_list, input FGRIDCNT_ACTIVE_GENES[change_list*m_GridTotal], output FGRIDOFF_ACTIVE_GENES[change_list*m_GridTotal]
     CUdeviceptr array0  = m_Fluid.gpu(FGRIDCNT_CHANGES);
@@ -2123,8 +2159,11 @@ void FluidSystem::PrefixSumChangesCUDA ( int zero_offsets ){
         cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
     }
     int num_lists = NUM_CHANGES, length = FDENSE_LIST_LENGTHS_CHANGES, fgridcnt = FGRIDCNT_CHANGES, fgridoff = FGRIDOFF_CHANGES;
+    
     void* argsF[4] = {&num_lists, &length,&fgridcnt,&fgridoff};
+    
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLYLISTS], NUM_CHANGES, 1, 1, NUM_CHANGES, 1, 1, 0, NULL, argsF, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug); //256 threads launched
+    
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES), m_Fluid.gpu(FDENSE_LIST_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS_CHANGES", mbDebug);
                                                                                                                     // If active particles for change_list > existing buff, then enlarge buff.
     for(int change_list=0;change_list<NUM_CHANGES;change_list++){                                                   // Note this calculation could be done by a kernel, 
@@ -2244,10 +2283,12 @@ void FluidSystem::ComputeGenesCUDA (){  // for each gene, call a kernel wih the 
 }
 
 void FluidSystem::ComputeBondChangesCUDA (){// Given the action of the genes, compute the changes to particle properties & splitting/combining  NB also "inserts changes" 
+  //printf("\n m_Fluid.gpu(FGRIDOFF_CHANGES)=%llu   ,\t m_Fluid.gpu(FGRIDCNT_CHANGES)=%llu   \n",m_Fluid.gpu(FGRIDOFF_CHANGES) , m_Fluid.gpu(FGRIDCNT_CHANGES)   );
+    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "ComputeBondChangesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
                                             //NB list for all living cells. (non senescent) = FEPIGEN[2]
-    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
-
+    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "ComputeBondChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
+    
+    
     uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2];    // call for dense list of living cells (gene'2'living/telomere (has genes))
     void* args[2] = { &mNumPoints, &list_length};
     int numBlocks, numThreads;

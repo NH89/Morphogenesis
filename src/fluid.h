@@ -194,8 +194,8 @@
 	#define FAUXARRAY2	27		//!
 	#define FAUXSCAN2	28		//!
 	
-    #define FGRIDCNT_CHANGES            37     // for packing lists for particle change kenels
-    #define FGRIDOFF_CHANGES            38
+    #define FGRIDCNT_CHANGES            38     // for packing lists for particle change kenels
+    #define FGRIDOFF_CHANGES            37
     #define FDENSE_LIST_LENGTHS_CHANGES 39
     #define FDENSE_LISTS_CHANGES        40     //# *uint [NUM_CHANGES] holds pointers to change_list buffers [2][list_length] holding : particleIDx and bondIDx TODO edit buffer allocation & use  
     #define FDENSE_BUF_LENGTHS_CHANGES  41
@@ -384,9 +384,9 @@
         enum {elastin,collagen,apatite};
         //FBondParams fbondparams[3];   // 0=elastin, 1=collagen, 2=apatite
         
-        enum params{  /*triggering bond parameter changes*/elongation_threshold, elongation_factor, strength_threshold, strengthening_factor, \
-                      /*triggering particle changes*/max_rest_length, min_rest_length, max_modulus, min_modulus, \
-                      /*initial values for new bonds*/elastLim, default_rest_length, default_modulus, default_damping 
+        enum params{  /*triggering bond parameter changes*/ elongation_threshold,   elongation_factor,      strength_threshold,     strengthening_factor, \
+                      /*triggering particle changes*/       max_rest_length,        min_rest_length,        max_modulus,            min_modulus, \
+                      /*initial values for new bonds*/      elastLim,               default_rest_length,    default_modulus,        default_damping 
         };
         float param[3][12];      // TODO update all uses of FBondParams & test.
     };                                  // NB gene functions need to be in fluid_system_cuda.cu

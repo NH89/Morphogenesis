@@ -210,7 +210,7 @@
 		void TransferToTempCUDA ( int buf_id, int sz );
         void AllocateParticles ( int cnt, int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES );
         void AddNullPoints ();
-        int  AddParticleMorphogenesis2(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, float* _ElastIdx, uint* _Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen);
+        int  AddParticleMorphogenesis2(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint *_ElastIdxU, float *_ElastIdxF, uint *_Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen );
         
         
 		//void AddEmit ( float spacing );

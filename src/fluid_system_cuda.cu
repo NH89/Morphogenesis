@@ -146,19 +146,19 @@ extern "C" __global__ void tally_denselist_lengths(int num_lists, int fdense_lis
     fbuf.bufI(fdense_list_lengths)[list] = fbuf.bufI(fgridcnt)[(list+1)*gridTot -1] + fbuf.bufI(fgridoff)[(list+1)*gridTot -1];
 }
 
-extern "C" __global__ void countingSortFull ( int pnum )                                        // Counting Sort - Full (deep copy)
+extern "C" __global__ void countingSortFull ( int pnum )                                // Counting Sort - Full (deep copy)
 {
-	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;            // particle index
+	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
 	if ( i >= pnum ) return;
     if (i==0)printf("\ncountingSortFull(): pnum=%u\n",pnum);
 	// Copy particle from original, unsorted buffer (msortbuf),
 	// into sorted memory location on device (mpos/mvel)
-	uint icell = ftemp.bufI(FGCELL) [ i ];                             // icell is bin into which i is sorted in fbuf.*
+	uint icell = ftemp.bufI(FGCELL) [ i ];                                              // icell is bin into which i is sorted in fbuf.*
 
 	if ( icell != GRID_UNDEF ) {	  
 		// Determine the sort_ndx, location of the particle after sort		
-        uint indx =  ftemp.bufI(FGNDX)  [ i ];                         // indx is off set within new cell
-        int sort_ndx = fbuf.bufI(FGRIDOFF) [ icell ] + indx ;          // global_ndx = grid_cell_offet + particle_offset	
+        uint indx =  ftemp.bufI(FGNDX)  [ i ];                                          // indx is off set within new cell
+        int sort_ndx = fbuf.bufI(FGRIDOFF) [ icell ] + indx ;                           // global_ndx = grid_cell_offet + particle_offset	
 		float3 zero; zero.x=0;zero.y=0;zero.z=0;
         
         // Make dense lists for (i) available genes (ii) active genes (iii) diffusion particles (iv) active/reserve particles. ######################
@@ -168,16 +168,11 @@ extern "C" __global__ void countingSortFull ( int pnum )                        
         // If there is data only used by such kernels, then it should be stored in a dense array.  
         
 		// Transfer data to sort location
-		fbuf.bufI (FGRID) [ sort_ndx ] =	sort_ndx;                  // full sort, grid indexing becomes identity		
+		fbuf.bufI (FGRID) [ sort_ndx ] =	sort_ndx;                                   // full sort, grid indexing becomes identity		
 		fbuf.bufF3(FPOS) [sort_ndx] =		ftemp.bufF3(FPOS) [i];
 		fbuf.bufF3(FVEL) [sort_ndx] =		ftemp.bufF3(FVEL) [i];
-      if(i==0){
-          printf("\ncountingSortFull :");
-          printf("\nsort_ndx=%i",sort_ndx);
-          printf("\nfbuf.bufF3(FVEL)[sort_ndx].x=%f",fbuf.bufF3(FVEL)[sort_ndx].x);
-      }
 		fbuf.bufF3(FVEVAL)[sort_ndx] =		ftemp.bufF3(FVEVAL) [i];
-		fbuf.bufF3(FFORCE)[sort_ndx] =      zero;                      // fbuf.bufF3(FFORCE)[ i ] += force; in contributeForce() requires value setting to 0 // old:	ftemp.bufF3(FFORCE) [i];  
+		fbuf.bufF3(FFORCE)[sort_ndx] =      zero;                                       // fbuf.bufF3(FFORCE)[ i ] += force; in contributeForce() requires value setting to 0 
 		fbuf.bufF (FPRESS)[sort_ndx] =		ftemp.bufF(FPRESS) [i];
 		fbuf.bufF (FDENSITY)[sort_ndx] =	ftemp.bufF(FDENSITY) [i];
 		fbuf.bufI (FCLR) [sort_ndx] =		ftemp.bufI(FCLR) [i];
@@ -186,11 +181,12 @@ extern "C" __global__ void countingSortFull ( int pnum )                        
         float3 pos = ftemp.bufF3(FPOS) [i];
         // add extra data for morphogenesis
         // track the sort index of the other particle
-        
-        for (int a=0;a<BONDS_PER_PARTICLE;a++){         // [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
-            uint j = ftemp.bufI(FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND];             // NB j is valid only in ftemp.*
+        for (int a=0;a<BONDS_PER_PARTICLE;a++){
+            // FELASTIDX: [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index, [7]stress integrator, [8]change-type binary indicator
+            uint j = ftemp.bufI(FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND];             // NB i,j are valid only in ftemp.*
             uint j_sort_ndx = UINT_MAX;
             uint jcell = GRID_UNDEF;
+   
             if (j<pnum){
                 jcell = ftemp.bufI(FGCELL) [ j ];                                       // jcell is bin into which j is sorted in fbuf.*
                 uint jndx = UINT_MAX;
@@ -203,15 +199,11 @@ extern "C" __global__ void countingSortFull ( int pnum )                        
             }
             fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND]  = j_sort_ndx; // NB if (j<pnum) j_sort_ndx = UINT_MAX; preserves non-bonds
             for (int b=1;b<DATA_PER_BOND;b++){                                          // copy [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, iff unbroken
-                fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +b] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + b]  * ( jcell != GRID_UNDEF ) ; 
+                fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +b] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + b]; 
             }                                                                           // old: copy the modulus & length
-            if (fbuf.bufI(FPARTICLE_ID)[sort_ndx]<10){
-                printf("\ncountingSortFull(): (jcell != GRID_UNDEF)=%u,  ParticleID=%u,  bond=%u,  rest_length=%f, strain_integrator=%f, ftemp_strain_integrator=%f", 
-                       (jcell != GRID_UNDEF), fbuf.bufI(FPARTICLE_ID)[sort_ndx], a, fbuf.bufF(FELASTIDX)[sort_ndx*BOND_DATA + a*DATA_PER_BOND + 2], fbuf.bufF(FELASTIDX)[sort_ndx*BOND_DATA + a*DATA_PER_BOND + 7], ftemp.bufF(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND + 7]);
-            }
         }
         for (int a=0;a<BONDS_PER_PARTICLE;a++){                                         // The list of bonds from other particles 
-            uint k = ftemp.bufI(FPARTICLEIDX) [i*BONDS_PER_PARTICLE*2 + a*2];           // NB j is valid only in ftemp.*
+            uint k = ftemp.bufI(FPARTICLEIDX) [i*BONDS_PER_PARTICLE*2 + a*2];           // NB i,j are valid only in ftemp.*
             uint b = ftemp.bufI(FPARTICLEIDX) [i*BONDS_PER_PARTICLE*2 + a*2 +1];
             uint ksort_ndx = UINT_MAX; 
             uint kndx, kcell;
@@ -271,15 +263,16 @@ extern "C" __global__ void countingSortDenseLists ( int pnum )
 
 extern "C" __global__ void countingSortChanges ( int pnum )
 {
-    unsigned int bin = threadIdx.x + blockIdx.x * SCAN_BLOCKSIZE/2;
+    unsigned int bin = threadIdx.x + blockIdx.x * SCAN_BLOCKSIZE/2;     // NB have to searach all particles => use main list bins. 
     register int gridTot =      fparam.gridTotal;
 	if ( bin >= gridTot ) return;                                    // for each bin, for each particle, for each change_list, 
                                                                      // if change_list active, then write to dense list 
-    uint count = fbuf.bufI (FGRIDCNT_CHANGES)[bin];
+    uint count = fbuf.bufI (FGRIDCNT/*_CHANGES*/)[bin];
     if (count==0) return;                                            // return here means that if all bins in this threadblock are empty,
                                                                      // then this multiprocessor is free for the next threadblock.
+  printf("\ncountingSortChanges: bin=%u, count=%u \t",bin,count);
     uint grdoffset = fbuf.bufI (FGRIDOFF)[bin];
-    uint change_list_counter[NUM_CHANGES]={0};
+    uint change_list_counter[NUM_CHANGES]={0};                       // holds off set within the change bin for this change type, for the particles added so far.  
     
     register uint* lists[NUM_CHANGES];
     for (int change_list=0; change_list<NUM_CHANGES;change_list++) lists[change_list]=fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list];           // This element entry is a pointer
@@ -289,15 +282,19 @@ extern "C" __global__ void countingSortChanges ( int pnum )
     
     register uint* offsets[NUM_CHANGES];
     for (int change_list=0; change_list<NUM_CHANGES;change_list++) offsets[change_list]=&fbuf.bufI(FGRIDOFF_CHANGES)[change_list * gridTot];   // The address of this element
-    
+  printf("\ncountingSortChanges: grdoffset=%u, count=%u, pnum=%u \t",grdoffset, count, pnum);
+  
     if (grdoffset+count > pnum){    printf("\n\n!!Overflow: (grdoffset+count > pnum), bin=%u \n",bin);     return;}
     
-    for(int particle=grdoffset; particle<grdoffset+count; particle++){                                                                         // loop through particles in bin
+    for(int particle=grdoffset; particle<grdoffset+count; particle++){ // ? has found particle in change list, _not_ index in main list  ?                                                                     // loop through particles in bin
         for(int bond=0; bond<BONDS_PER_PARTICLE; bond++){                                                                                      // loop through bonds on particle
             uint change = fbuf.bufI(FELASTIDX) [particle*BOND_DATA + bond*DATA_PER_BOND + 8];                                                  // binary change indicator per bond.
+          //printf("\ncountingSortChanges: change=%u \t",change);
             if(change) {
                 for (uint change_type=1, change_list=0; change_list<NUM_CHANGES; change_type*=2, change_list++){                               // loop through change indicator  
+                   printf("\ncountingSortChanges: change=%u, change_type=%u, (change & change_type)=%u \t",change,change_type, (change & change_type) ); 
                     if(change & change_type){                                                                                                  // bit mask to ID change type due to this bond
+                        printf("\n\ncountingSortChanges: particle=%u, bond=%u \n\n",particle,bond);
                         lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list]) ]=particle;                         // write particleIdx to change list
                         lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list] + list_length[change_list]) ]=bond;  // write bondIdx to change list
                         change_list_counter[change_list]++;
@@ -413,11 +410,11 @@ extern "C" __global__ void computeMuscleContraction ( int pnum ) //TODO computeM
 }
 
 extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// Given the action of the genes, compute the changes to particle properties & splitting/combining 
-{                                                                           // Also "inserts changes" 
-    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
-    if ( particle_index >= list_length ) return; // pnum should be length of list.
+{                                                                                                   // Also "inserts changes" 
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                            // particle index
+    if ( particle_index >= list_length ) return;                                                    // pnum should be length of list.
     // ## TODO convert i to particle index _iff_ not called for all particles : use a special dense list for "living tissue", made at same time as gene lists
-    uint i = fbuf.bufII(FDENSE_LISTS)[2][particle_index]; // call for dense list of living cells (gene'2'living/telomere (has genes))
+    uint i = fbuf.bufII(FDENSE_LISTS)[2][particle_index];                                           // call for dense list of living cells (gene'2'living/telomere (has genes))
     if ( i >= pnum ) return; 
     
     float * fbufFCONC = &fbuf.bufF(FCONC)[i*NUM_TF];
@@ -425,8 +422,8 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
     float * fbufFEPIGEN = &fbuf.bufF(FEPIGEN)[i*NUM_TF];
     float * ftempFEPIGEN = &ftemp.bufF(FEPIGEN)[i*NUM_TF];
     
-    for(int j=0; j<NUM_TF;j++)      fbufFCONC[j] += ftempFCONC[j];              // list of transcription factor conc for this particle
-    for(int j=0; j<NUM_GENES;j++) fbufFEPIGEN[j] += ftempFEPIGEN[j];            // list of epigenetic activations for this particle
+    for(int j=0; j<NUM_TF;j++)      fbufFCONC[j] += ftempFCONC[j];                                  // list of transcription factor conc for this particle
+    for(int j=0; j<NUM_GENES;j++) fbufFEPIGEN[j] += ftempFEPIGEN[j];                                // list of epigenetic activations for this particle
     /*
     // read FCONC, FNERVEIDX, , FPRESS, FDENSITY
 
@@ -442,8 +439,10 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
     //(ii) 1st 3 fibres (fibrocyte, elastocyte)     i.e. spring[0-2]
     //(iii) all fibres (cartilage & bone)           i.e. spring[0-BONDS_PER_PARTICLE]
     */
-    uint* bond_uint_ptr = &fbuf.bufI(FELASTIDX)[i*BOND_DATA];//fbuf.bufI(FELASTIDX)[i*BOND_DATA + bond*DATA_PER_BOND +  ] ;
-    float*bond_flt_ptr  = &fbuf.bufF(FELASTIDX)[i*BOND_DATA]; //FELASTIDX [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index [7]stress integrator,  [8]change-type binary indicator
+    uint* bond_uint_ptr = &fbuf.bufI(FELASTIDX)[i*BOND_DATA];                                       //fbuf.bufI(FELASTIDX)[i*BOND_DATA + bond*DATA_PER_BOND +  ] ;
+    float*bond_flt_ptr  = &fbuf.bufF(FELASTIDX)[i*BOND_DATA];                                       //FELASTIDX   [0]current index, [1]elastic limit, [2]restlength, [3]modulus,
+                                                                                                                //[4]damping coeff, [5]particle ID,   [6]bond index, 
+                                                                                                                //[7]stress integrator,  [8]change-type binary indicator
     register int gridTot = fparam.gridTotal;
     /*
     // hold as a texture or similar. // part of fparams ? 
@@ -464,31 +463,41 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
     // 9 bone
     // 10 elastic_lig
     */
-    uint bond_type[BONDS_PER_PARTICLE] = {0}; //  0=elastin, 1=collagen, 2=apatite
+    uint bond_type[BONDS_PER_PARTICLE] = {0};                                                       //  0=elastin, 1=collagen, 2=apatite
     // calculate material type for bond
-    if (fbufFEPIGEN[9]/*bone*/) for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 2;
-    else if (fbufFEPIGEN[6]/*tendon*/||fbufFEPIGEN[7]/*muscle*/||fbufFEPIGEN[10]/*elast lig*/) {bond_type[0] = 1; bond_type[3] = 1;}
-    else if (fbufFEPIGEN[6]/*cartilage*/)for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 1;
+    for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 2*(fbufFEPIGEN[9]>0.1/*bone*/);
+    if (fbufFEPIGEN[6]>0.1/*tendon*/||fbufFEPIGEN[7]>0.1/*muscle*/||fbufFEPIGEN[10]>0.1/*elast lig*/) {bond_type[0] = 1; bond_type[3] = 1;}
+    for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 1*(fbufFEPIGEN[6]>0.1/*cartilage*/);
     
-    for (uint bond=0; bond<BONDS_PER_PARTICLE;bond++, bond_uint_ptr+=DATA_PER_BOND, bond_flt_ptr+=DATA_PER_BOND ){              
-        float stress = bond_flt_ptr[7];
-        
-        //FBondParams *params_ =  &fgenome.fbondparams[bond_type[bond]];    //fluid_system_cuda.cu(466): warning host member "FBondParams::param" cannot be directly read in a device function
-  //      bond_flt_ptr[2]/*rest length*/ +=  (stress - fgenome.param[bond_type[bond]][fgenome.elongation_threshold])   * fgenome.elongation_factor;
-  //      bond_flt_ptr[3]/*modulus*/     +=  (stress - fgenome.param[bond_type[bond]][fgenome.elongation_threshold])   * fgenome.strengthening_factor;
-        
-        if (fbuf.bufI(FPARTICLE_ID)[i]<10){
-            printf("\ncomputeBondChanges(): ParticleID=%u,  bond=%u,  rest_length=%f,  modulus=%f\t, strain_integrator=%f",
-                   fbuf.bufI(FPARTICLE_ID)[i], bond, bond_flt_ptr[2], bond_flt_ptr[3], fbuf.bufF(FELASTIDX)[i*BOND_DATA + bond*DATA_PER_BOND + 7]);
+    for (uint bond=0; bond<BONDS_PER_PARTICLE;bond++, bond_uint_ptr+=DATA_PER_BOND, bond_flt_ptr+=DATA_PER_BOND ){
+        if (bond_flt_ptr[2]>0){                                                                     // NB (rest_length==0) => bond broken, do not modify.
+            float strain_integrator = bond_flt_ptr[7];
+            float * param_ptr = fgenome.param[bond_type[bond]];
+            float restln_multiplier   = (strain_integrator - param_ptr[fgenome.elongation_threshold]) * param_ptr[fgenome.elongation_factor];
+            float strength_multiplier = (strain_integrator - param_ptr[fgenome.strength_threshold])   * param_ptr[fgenome.strengthening_factor];
+            float integ_elong_thresh = (strain_integrator - param_ptr[fgenome.elongation_threshold]);
+            float integ_stren_thresh = (strain_integrator - param_ptr[fgenome.strength_threshold]);
+            
+            bond_flt_ptr[2]/*rest length*/ +=  bond_flt_ptr[2] * (strain_integrator - param_ptr[fgenome.elongation_threshold]) * param_ptr[fgenome.elongation_factor];
+            bond_flt_ptr[3]/*modulus*/     +=  bond_flt_ptr[3] * (strain_integrator - param_ptr[fgenome.strength_threshold])   * param_ptr[fgenome.strengthening_factor];
+            
+            if (fbuf.bufI(FPARTICLE_ID)[i]<10){
+                printf("\ncomputeBondChanges(): ParticleID=%u,  bond=%u, bond_type=%u, fbufFEPIGEN[9]=%2.2f, [6]=%2.2f, [7]=%2.2f, [10]=%2.2f,  rest_length=%f,  modulus=%f\t, strain_integrator=%f, elongation_threshold=%f,\t integ-elong_thresh=%f elongation_factor=%f, \t restln_multiplier=%f \t\t strength_threshold=%f, integ_stren_thresh=%f, strengthening_factor=%f, strength_multiplier=%f",
+                   fbuf.bufI(FPARTICLE_ID)[i], bond, bond_type[bond], fbufFEPIGEN[9], fbufFEPIGEN[6], fbufFEPIGEN[7], fbufFEPIGEN[10], bond_flt_ptr[2], bond_flt_ptr[3], 
+                       strain_integrator, param_ptr[fgenome.elongation_threshold], integ_elong_thresh, param_ptr[fgenome.elongation_factor], restln_multiplier, param_ptr[fgenome.strength_threshold], integ_stren_thresh, param_ptr[fgenome.strengthening_factor], strength_multiplier );
+            }
         }
         // "insert changes"
-  //      uint * fbufFGRIDCNT_CHANGES = fbuf.bufI(FGRIDCNT_CHANGES);
-  //      int m = 1 + (fbufFEPIGEN[7]>0/*muscle*/||fbufFEPIGEN[10]>0);                                // i.e. if (fbufFEPIGEN[7]>0/*muscle*/) m=2 else m=1;
+        uint * fbufFGRIDCNT_CHANGES = fbuf.bufI(FGRIDCNT_CHANGES);
+        int m = 1 + (fbufFEPIGEN[7]>0/*muscle*/||fbufFEPIGEN[10]>0);                                // i.e. if (fbufFEPIGEN[7]>0/*muscle*/) m=2 else m=1;
                                                                                                     // NB two different lists for each change, for (muscle & elastic ligg  vs other tissues)
-  //      if (bond_uint_ptr[0]/*other particle*/==UINT_MAX/*bond broken*/ && (bond < 3 || fbufFEPIGEN[8] ||  fbufFEPIGEN[9]/*cartilage OR bone*/)  ){
-  //          //TODO what happens when bond broken vs never existed ?  NB information about direction of broken bond.
-  //          atomicAdd ( &fbufFGRIDCNT_CHANGES[ 0*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );            //add to heal list 
-  //          bond_uint_ptr[8]+=1;                                                                    // FELASTIDX [8]change-type binary indicator NB accumulates all changes for this bond
+        if (bond_flt_ptr[2]==0.0 && bond_uint_ptr[0]/*other particle*/<pnum/*bond broken*/&& (bond < 3 || fbufFEPIGEN[8] ||  fbufFEPIGEN[9]/*cartilage OR bone*/)  ){
+            //TODO what happens when bond broken vs never existed ?  NB information about direction of broken bond.
+            atomicAdd ( &fbufFGRIDCNT_CHANGES[ 0*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );            //add to heal list 
+            bond_uint_ptr[8]+=1;                                                                    // FELASTIDX [8]change-type binary indicator NB accumulates all changes for this bond
+            //if (fbuf.bufI(FPARTICLE_ID)[i]<10) 
+                printf("\ncomputeBondChanges:add to heal list: i=%u, ParticleID=%u, bond=%u, bond_uint_ptr[0]=%u, fbufFEPIGEN[8]=%2.2f, fbufFEPIGEN[9]=%2.2f "
+                ,i,fbuf.bufI(FPARTICLE_ID)[i],bond,bond_uint_ptr[0],fbufFEPIGEN[8],fbufFEPIGEN[9]);
   //      }else                                                                                       // prevents clash with heal.
         /*{
             if (bond_flt_ptr[2]>fgenome.param[bond_type[bond]][fgenome.max_rest_length]) {  
@@ -506,8 +515,8 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
             if (bond_flt_ptr[3]<fgenome.param[bond_type[bond]][fgenome.min_modulus])     {  
                 atomicAdd ( &fbufFGRIDCNT_CHANGES[ (6+m)*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );    //add to weaken list
                 bond_uint_ptr[8]+=64*m;
-            }
-        }*/
+            }*/
+        }
         // bond_uint_ptr[8]+=2^n; is ELASTIDX for binary change indicator per bond. 
     }
 }
@@ -606,45 +615,63 @@ extern "C" __device__ void find_potential_bonds (int i, float3 ipos, int cell, u
 }
 
 
-extern "C" __device__ void find_potential_bond (int i, float3 ipos, uint _thisParticleBonds[BONDS_PER_PARTICLE], float3 tpos, int cell, uint &_otherParticleIdx, uint &_otherParticleBondIdx, float &_bond_dsq, float max_len_sq)       // used when just one bond, near a target location "tpos" is sought.
-{			
-	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return;                                                           // If the cell is empty, skip it.
-	float dsq;
-	float3 dist = make_float3(0,0,0);
-	uint j;
-	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];                                      // index of last particle in this cell
-  //printf("\nclast=%i, ",clast);
-    for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {                                    // For particles in this cell.
-		j = fbuf.bufI(FGRID)[ cndx ];
-      //printf("\nj=%u, ",j);
-		dist = ( ipos - fbuf.bufF3(FPOS)[ j ] );                                                            // dist in cm (Rama's comment)
-		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                                              // scalar distance squared
-		if ( dsq < max_len_sq && dsq > 0) {                                                                 // IF in-range && not the same particle
-            bool known      = false;
-            uint bond_index = UINT_MAX;
-            for (int a=0; a<BONDS_PER_PARTICLE; a++){                                                       // chk if known, i.e. already bonded 
-                if (fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + a*2] == i        ) known = true;       // particle 'j' has a bond to particle 'i'
-                if (fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + a*2] == UINT_MAX ) bond_index = a;     // particle 'j' has an empty bond 'a' : picks last empty bond
-                if (_thisParticleBonds[a] == j )known = true;                                               // particle 'i' already has a bond to particle 'j'  
-            }
-            if (known == false && bond_index<UINT_MAX){
-                dist = ( tpos - fbuf.bufF3(FPOS)[ j ] );                                                    // dist to target location
-                dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                                      // scalar distance squared
-                if(dsq<_bond_dsq){                                                                          // if new candidate bond is shorter, for this quadrant. 
-                    _otherParticleIdx = j;                                                                  // index of other particle
-                    _otherParticleBondIdx = bond_index;                                                     // FPARTICLEIDX vacancy index of other particle
-                    _bond_dsq = dsq;                                                                        // scalar distance squared 
+extern "C" __device__ void find_potential_bond (int i, float3 ipos, uint _thisParticleBonds[BONDS_PER_PARTICLE], float3 tpos, int gc, uint &_otherParticleIdx, uint &_otherParticleBondIdx, float &_bond_dsq, float max_len_sq)       // used when just one bond, near a target location "tpos" is sought.
+{
+    int nadj = (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
+    gc -= nadj; 
+    int cell;
+    _bond_dsq=FLT_MAX;
+    
+    for (int c=0; c < fparam.gridAdjCnt; c++) { 
+        cell = gc + fparam.gridAdj[c];
+        
+    printf("\nfind_potential_bond: fbuf.bufI(FGRIDCNT)[cell]=%u, cell=%u",fbuf.bufI(FGRIDCNT)[cell], cell);
+  
+        //if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) continue;                                                           // If the cell is empty, skip it.
+        float dsq;
+        float3 dist = make_float3(0,0,0);
+        uint j;
+        int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];                                      // index of last particle in this cell
+    printf("\nfind_potential_bond: clast=%i, ",clast);
+  
+        for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {                                    // For particles in this cell.
+            j = fbuf.bufI(FGRID)[ cndx ];
+          printf("\nfind_potential_bond: j=%u ",j);
+      
+            dist = ( ipos - fbuf.bufF3(FPOS)[ j ] );                                                            // dist in cm (Rama's comment)
+            dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                                              // scalar distance squared
+          printf("\nfind_potential_bond: dsq=%f, _bond_dsq=%f, max_len_sq=%f",dsq,_bond_dsq,max_len_sq);
+      
+            if ( dsq < max_len_sq && dsq > 0) {                                                                 // IF in-range && not the same particle
+                bool known      = false;
+                uint bond_index = UINT_MAX;
+                for (int a=0; a<BONDS_PER_PARTICLE; a++){                                                       // chk if known, i.e. already bonded 
+                    if (fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + a*2] == i        ) known = true;       // particle 'j' has a bond to particle 'i'
+                    if (fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + a*2] == UINT_MAX ) bond_index = a;     // particle 'j' has an empty bond 'a' : picks last empty bond
+                    if (_thisParticleBonds[a] == j )known = true;                                               // particle 'i' already has a bond to particle 'j'  
                 }
-            }                                                                                               // end of collect potential bonds
-        }                                                                                                   // end of: IF in-range && not the same particle
-    }                                                                                                       // end of loop round particles in this cell
+              printf("\nfind_potential_bond: known=%u, bond_index=%u ",known,bond_index);
+          
+                if (known == false && bond_index<UINT_MAX){
+                    dist = ( tpos - fbuf.bufF3(FPOS)[ j ] );                                                    // dist to target location
+                    dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                                      // scalar distance squared
+                    printf("\nfind_potential_bond: _bond_dsq =%f, dsq to target = %f, j=%u, bond_index=%u\t",_bond_dsq ,dsq,j,bond_index); 
+                    if(dsq<_bond_dsq){                                                                          // if new candidate bond is shorter, for this quadrant. 
+                        _otherParticleIdx = j;                                                                  // index of other particle
+                        _otherParticleBondIdx = bond_index;                                                     // FPARTICLEIDX vacancy index of other particle
+                        _bond_dsq = dsq;                                                                        // scalar distance squared 
+                    }
+                }                                                                                               // end of collect potential bonds
+            }                                                                                                   // end of: IF in-range && not the same particle
+        }                                                                                                       // end of loop round particles in this cell
+    }
 }
 
 
 extern "C" __device__ void makeBond (uint thisParticleIdx, uint otherParticleIdx, uint bondIdx, uint otherParticleBondIdx, uint bondType /* elastin, collagen, apatite */){
     //FBondParams *params_ =  &fgenome.fbondparams[bondType];
-    uint*   uint_ptr = &fbuf.bufI(FELASTIDX)[thisParticleIdx*BOND_DATA + 3*DATA_PER_BOND];
-    float* float_ptr = &fbuf.bufF(FELASTIDX)[thisParticleIdx*BOND_DATA + 3*DATA_PER_BOND];
+    uint*   uint_ptr = &fbuf.bufI(FELASTIDX)[thisParticleIdx*BOND_DATA + bondIdx*DATA_PER_BOND];
+    float* float_ptr = &fbuf.bufF(FELASTIDX)[thisParticleIdx*BOND_DATA + bondIdx*DATA_PER_BOND];
     uint_ptr [0]    = otherParticleIdx;                                                                     //[0]current index, 
     float_ptr[1]    = fgenome.param[bondType][fgenome.elastLim];                                            //[1]elastic limit, 
     float_ptr[2]    = fgenome.param[bondType][fgenome.default_rest_length];                                 //[2]restlength, 
@@ -655,15 +682,23 @@ extern "C" __device__ void makeBond (uint thisParticleIdx, uint otherParticleIdx
     float_ptr[7]    = 0;                                                                                    //[7]stress integrator 
     uint_ptr [8]    = 0;                                                                                    //[8]change-type 
                                                                                                             // Connect new particle incoming bonds
-    fbuf.bufI(FPARTICLEIDX)[otherParticleIdx*2*BONDS_PER_PARTICLE + 1*2]       = thisParticleIdx;           // particle Idx
-    fbuf.bufI(FPARTICLEIDX)[otherParticleIdx*2*BONDS_PER_PARTICLE + 1*2 +1]    = bondIdx;                   // bond Idx 
+    fbuf.bufI(FPARTICLEIDX)[otherParticleIdx*2*BONDS_PER_PARTICLE + otherParticleBondIdx*2]       = thisParticleIdx;           // particle Idx
+    fbuf.bufI(FPARTICLEIDX)[otherParticleIdx*2*BONDS_PER_PARTICLE + otherParticleBondIdx*2 +1]    = bondIdx;                   // bond Idx 
+    printf("makeBond: default_rest_length=%f, %f, thisParticleIdx=%u, otherParticleIdx=%u, otherParticleBondIdx=%u  ", 
+           fgenome.param[bondType][fgenome.default_rest_length],  fbuf.bufF(FELASTIDX)[thisParticleIdx*BOND_DATA + bondIdx*DATA_PER_BOND +2], thisParticleIdx, otherParticleIdx, otherParticleBondIdx );
 }
 
 
 extern "C" __device__ int atomicMakeBond(uint thisParticleIndx,  uint otherParticleIdx, uint bondIdx, uint otherParticleBondIndex, uint bond_type){
     int _otherParticleBondIndex = BONDS_PER_PARTICLE*2*otherParticleIdx + 2*bondIdx;
-    do {} while( atomicCAS(&ftemp.bufI(FPARTICLEIDX)[_otherParticleBondIndex], UINT_MAX, 0) );                                               // lock ////////// ###### //  if (not locked) write zero to 'ftemp' to lock.
-    if (fbuf.bufI(FPARTICLEIDX)[_otherParticleBondIndex]==UINT_MAX)  fbuf.bufI(FPARTICLEIDX)[_otherParticleBondIndex] = thisParticleIndx;    //  if (bond is unoccupied) write to 'fbuf' to assign this bond
+    printf("\natomicMakeBond1: ftemp.bufI(FPARTICLEIDX)[_otherParticleBondIndex]=%u \t",ftemp.bufI(FPARTICLEIDX)[_otherParticleBondIndex]);
+    do {} while( atomicCAS(&ftemp.bufI(FPARTICLEIDX)[_otherParticleBondIndex], UINT_MAX, 0) );                                               // lock ////// ###### //  if (not locked) write zero to 'ftemp' to lock.
+    
+    printf("\natomicMakeBond2: ftemp.bufI(FPARTICLEIDX)[_otherParticleBondIndex]=%u, \tfbuf.bufI(FPARTICLEIDX)[_otherParticleBondIndex]=%u \t"
+        ,ftemp.bufI(FPARTICLEIDX)[_otherParticleBondIndex], fbuf.bufI(FPARTICLEIDX)[_otherParticleBondIndex]);
+    
+    /*if (fbuf.bufI(FPARTICLEIDX)[_otherParticleBondIndex]==UINT_MAX)*/  
+    fbuf.bufI(FPARTICLEIDX)[_otherParticleBondIndex]  = thisParticleIndx;                                                                    //  if (bond is unoccupied) write to 'fbuf' to assign this bond
     ftemp.bufI(FPARTICLEIDX)[_otherParticleBondIndex] = UINT_MAX;                                                                            // release lock // ######
     if (fbuf.bufI(FPARTICLEIDX)[_otherParticleBondIndex] == thisParticleIndx){                                                               // if (this bond is assigned) write bond data
         makeBond ( thisParticleIndx, otherParticleIdx /*candidate_target_pIDx*/, bondIdx, otherParticleBondIndex, bond_type);
@@ -822,29 +857,30 @@ extern "C" __device__ int insertNewParticle(float3 newParticlePos, uint parentPa
 
 extern "C" __global__ void heal ( int pnum, uint list_length, int change_list) {                                     //TODO heal ( int pnum ) 
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                                            // particle index
-  //printf("\nheal(), particle_index=%u,\t",particle_index);  
+  printf("\nheal(), particle_index=%u,\t",particle_index);  
     if ( particle_index >= list_length ) return;                                                                    // pnum should be length of list.
     uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index];                                         // call for dense list of broken bonds
-  //printf("\nheal(), i=%u,\t",i);  
+  printf("\nheal(), i=%u,\t",i);  
     if ( i >= pnum ) return;// TODO replace pnum with active particles where appropriate
     uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+list_length]; 
-  //printf("\nheal(), bondIdx=%u,\t",bondIdx);   
+  printf("\nheal(), bondIdx=%u,  \t",bondIdx);   
+  printf("\n fbuf.bufF(FPARTICLE_ID)[i]=%u.    fbuf.bufF(FELASTIDX)[i*BOND_DATA+2]=rest_length=%f   \n",fbuf.bufI(FPARTICLE_ID)[i], fbuf.bufF(FELASTIDX)[i*BOND_DATA+ bondIdx*DATA_PER_BOND +2] );
     // FELASTIDX //# currently [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index [7]stress integrator [8]change-type binary indicator
     uint*  pointerUint  = &fbuf.bufI(FELASTIDX)[i*BOND_DATA+bondIdx*DATA_PER_BOND];
     float* pointerFloat = &fbuf.bufF(FELASTIDX)[i*BOND_DATA+bondIdx*DATA_PER_BOND];
     // A bond is broken and needs to be remade. (NB this is micro-healing. Macro-healing requires inflamatory processes and remodelling)
     uint   otherParticleIdx         = pointerUint[0];
-  //printf("\nheal(), otherParticleIdx=%u,\t",otherParticleIdx); 
+  printf("\nheal(), otherParticleIdx=%u,\t",otherParticleIdx); 
     if (otherParticleIdx>BONDS_PER_PARTICLE)return;//otherParticleIdx = i;        // if there is no record, look for a particle nearby. Need a different kernel.
-  //printf("\nheal(), otherParticleIdx=%u,\t",otherParticleIdx);
+  printf("\nheal(), otherParticleIdx=%u,\t",otherParticleIdx);
     uint   otherParticleBondIndex   = pointerUint[6];
-  //printf("\nheal(), otherParticleBondIndex=%u,\t",otherParticleBondIndex);
+  printf("\nheal(), otherParticleBondIndex=%u,\t",otherParticleBondIndex);
     float3 Pos                      = fbuf.bufF3(FPOS)[i];
     float3 otherParticlePos         = fbuf.bufF3(FPOS)[otherParticleIdx];
     float3 oldBondLengthF3          = otherParticlePos - Pos;
     float  oldBondLength            = sqrt(oldBondLengthF3.x*oldBondLengthF3.x + oldBondLengthF3.y*oldBondLengthF3.y + oldBondLengthF3.z*oldBondLengthF3.z);
-    float3 dirVec                   = otherParticlePos/(oldBondLength+0.02*fparam.rd2);     // float approx_zero = 0.02*fparam.rd2; Prevents division by zero.
-  //printf("\nheal(), dirVec=%f,%f,%f,\t,%f",dirVec.x,dirVec.y,dirVec.z,(oldBondLength+0.000001));
+    float3 dirVec                   = oldBondLengthF3/(oldBondLength+0.02*fparam.rd2);     // float approx_zero = 0.02*fparam.rd2; Prevents division by zero.
+  printf("\nheal(), dirVec=%f,%f,%f,\t,%f",dirVec.x,dirVec.y,dirVec.z,(oldBondLength+0.000001));
     
     // Determine bond type from binary change-type indicator
     float * fbufFEPIGEN = &fbuf.bufF(FEPIGEN)[i*NUM_TF];
@@ -864,9 +900,11 @@ extern "C" __global__ void heal ( int pnum, uint list_length, int change_list) {
     float default_modulus = fgenome.param[bond_type[bondIdx]][fgenome.default_modulus];
     float default_damping = fgenome.param[bond_type[bondIdx]][fgenome.default_damping];
     
- //printf("\nheal(), max_rest_length=%f,\t",max_rest_length);
+  printf("\nheal(), max_rest_length=%f,\t",max_rest_length);
     // Find new attachment for this particle                    // NB Don't find new attachment for other particle: leave it open for outging bonds to find.
     float3 target_location = Pos + dirVec * default_length;     // target_location = Pos + dirVec * default_length 
+  
+  
     // identify which bin to search
 	register float3 gridMin   =	fparam.gridMin;                 // "register" is a compiler 'hint', to keep this variable in thread register
 	register float3 gridDelta = fparam.gridDelta;               //  even if other variable have to be moved to slower 'local' memory  
@@ -874,29 +912,62 @@ extern "C" __global__ void heal ( int pnum, uint list_length, int change_list) {
     int		gs;
 	float3	gcf;
 	int3	gc;
-	gcf = (target_location - gridMin) * gridDelta;               // finds bin as a float3
+	
+    gcf = (target_location - gridMin) * gridDelta;               // finds bin as a float3
 	gc  = make_int3( int(gcf.x), int(gcf.y), int(gcf.z) );       // crops to an int3
 	gs  = (gc.y * gridRes.z + gc.z)*gridRes.x + gc.x;            // linearizes to an int for a 1D array of bins
-  //printf("\ngcf=(%f,%f,%f), gc=(%i,%i,%i), gs=%i,\t",gcf.x,gcf.y,gcf.z, gc.x,gc.y,gc.z, gs);                                                               // TODO chk target_location is inside sim vol & gs valid.
+  printf("\ngcf=(%f,%f,%f), gc=(%i,%i,%i), gs=%i,\t",gcf.x,gcf.y,gcf.z, gc.x,gc.y,gc.z, gs);                                                               // TODO chk target_location is inside sim vol & gs valid.
     uint candidate_target_pIDx      = UINT_MAX;                  // particleIDx of candidate_target
     uint candidate_target_bondIdx   = 0;
     float current_dsq = max_rest_length;
     
     float3 dist, dist2;
 	float dsq, dsq2;
-    int nadj = (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
-    gs -= nadj;                                                  // gs is much too large ! must be < fparam.gridTotal 
+    //int nadj = (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
+    //gs -= nadj;                                                   
+    
+    printf("\nheal(), find_potential_bond: fbuf.bufI(FGRIDCNT)[cell]=%u, cell=%u",fbuf.bufI(FGRIDCNT)[gs], gs);
+    
+  /*  
+ 	gcf = (Pos  - gridMin) * gridDelta;               // finds bin as a float3
+	gc  = make_int3( int(gcf.x), int(gcf.y), int(gcf.z) );       // crops to an int3
+	gs  = (gc.y * gridRes.z + gc.z)*gridRes.x + gc.x;            // linearizes to an int for a 1D array of bins
+  printf("\n\ngcf=(%f,%f,%f), gc=(%i,%i,%i), gs=%i,\t",gcf.x,gcf.y,gcf.z, gc.x,gc.y,gc.z, gs);                                                               // TODO chk target_location    
+  printf("\nheal(), check grid cell of FPOS[i]: fbuf.bufI(FGRIDCNT)[cell]=%u, cell=%u",fbuf.bufI(FGRIDCNT)[gs], gs);
+      
+    printf("\nheal(), find_potential_bond: fbuf.bufI(FGRIDCNT)[ fbuf.bufI(FGCELL)[particle_index] ]=%u, cell=%u",
+           fbuf.bufI(FGRIDCNT)[ fbuf.bufI(FGCELL)[particle_index] ], fbuf.bufI(FGCELL)[particle_index]);
+ */   
     
     uint thisParticleBonds[BONDS_PER_PARTICLE];
     uint * thisParticleBond_ptr;
     thisParticleBond_ptr = &fbuf.bufI(FELASTIDX)[i*BONDS_PER_PARTICLE];
     
-    for (int bond =0; bond<BONDS_PER_PARTICLE; bond++)      thisParticleBonds[bond] = thisParticleBond_ptr[bond * DATA_PER_BOND]; // list of existing bonds, idx of other particle
-    find_potential_bond (i, Pos, thisParticleBonds, target_location, gs, candidate_target_pIDx, candidate_target_bondIdx, dsq, max_rest_length*max_rest_length); // seaches one cell
+  printf("\n\nheal(), find_potential_bond: i=%u, Pos=(%f,%f,%f), thisParticleBonds=(%u,%u,%u,%u,%u,%u), target_location=(%f,%f,%f), gs=%i \n",
+         i, Pos.x,Pos.y,Pos.z, thisParticleBonds[0], thisParticleBonds[1], thisParticleBonds[2], thisParticleBonds[3], thisParticleBonds[4], thisParticleBonds[5], 
+         target_location.x, target_location.y, target_location.z, gs);
     
-  //printf("\nheal(), atomicMakeBond: i=%u, gs=%i, m_GridTotal=%i ,\t",i, gs, fparam.gridTotal );  // candidate_target_pIDx comes back invalid as a uint!
-  /*candidate_target_pIDx=%u, bondIdx=%u, candidate_target_bondIdx=%u, bond_type[bondIdx]=%u*/  //,candidate_target_pIDx, bondIdx, candidate_target_bondIdx, bond_type[bondIdx]
-    atomicMakeBond(i, candidate_target_pIDx, bondIdx, candidate_target_bondIdx, bond_type[bondIdx]);
+    for (int bond =0; bond<BONDS_PER_PARTICLE; bond++)      thisParticleBonds[bond] = thisParticleBond_ptr[bond * DATA_PER_BOND]; // list of existing bonds, idx of other particle
+    
+    float maxLenSq = max_rest_length + max_rest_length*elastLim;
+    maxLenSq *= maxLenSq;
+    
+    if(  fbuf.bufI(FPARTICLEIDX)[otherParticleIdx*2*BONDS_PER_PARTICLE + otherParticleBondIndex*2] == i){
+        fbuf.bufI(FPARTICLEIDX)[otherParticleIdx*2*BONDS_PER_PARTICLE + otherParticleBondIndex*2]    = UINT_MAX;    // clear the old reciprocal bond data
+        fbuf.bufI(FPARTICLEIDX)[otherParticleIdx*2*BONDS_PER_PARTICLE + otherParticleBondIndex*2 +1] = UINT_MAX;
+    }
+    
+    find_potential_bond (i, Pos, thisParticleBonds, target_location, gs, candidate_target_pIDx, candidate_target_bondIdx, dsq, maxLenSq); // seaches one cell
+    
+  printf("\n\nheal(), atomicMakeBond: i=%u, gs=%i, m_GridTotal=%i, candidate_target_pIDx=%u, bondIdx=%u, candidate_target_bondIdx=%u, bond_type[bondIdx]=%u  \n\n"
+    ,i, gs, fparam.gridTotal,candidate_target_pIDx, bondIdx, candidate_target_bondIdx, bond_type[bondIdx] );  // candidate_target_pIDx comes back invalid as a uint!
+    
+    if(candidate_target_pIDx<pnum) {
+        //printf("\n fbuf.bufF(FPARTICLE_ID)[i]=%u.    fbuf.bufF(FELASTIDX)[i*BOND_DATA+2]=rest_length=%f   \n",fbuf.bufI(FPARTICLE_ID)[i], fbuf.bufF(FELASTIDX)[i*BOND_DATA+ bondIdx*DATA_PER_BOND +2] );
+        int success = atomicMakeBond(i, candidate_target_pIDx, bondIdx, candidate_target_bondIdx, bond_type[bondIdx]);
+        printf("\n new bond made = %i  fbuf.bufF(FELASTIDX)[i*BOND_DATA+2]=rest_length=%f   \n",success, fbuf.bufF(FELASTIDX)[i*BOND_DATA+ bondIdx*DATA_PER_BOND +2] );
+        
+    }
     
 }
 
@@ -1148,6 +1219,7 @@ extern "C" __global__ void shorten_muscle ( int pnum, int list_length, int chang
     
     
 }
+
 extern "C" __global__ void shorten_tissue ( int pnum, int list_length, int change_list) { //TODO shorten_tissue ( int pnum )  // remove particle and connect bonds along their axis
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
@@ -1159,6 +1231,7 @@ extern "C" __global__ void shorten_tissue ( int pnum, int list_length, int chang
     
     
 }
+
 extern "C" __global__ void strengthen_muscle ( int pnum, int list_length, int change_list) { //TODO strengthen_muscle ( int pnum )  // NB Y branching etc
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
@@ -1173,6 +1246,7 @@ extern "C" __global__ void strengthen_muscle ( int pnum, int list_length, int ch
     
     
 }
+
 extern "C" __global__ void strengthen_tissue ( int pnum, int list_length, int change_list) { //TODO strengthen_tissue ( int pnum )  // add particle and bonds in parallel AND reduce original bon's modulus
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
@@ -1184,6 +1258,7 @@ extern "C" __global__ void strengthen_tissue ( int pnum, int list_length, int ch
     
     
 }
+
 extern "C" __global__ void weaken_muscle ( int pnum, int list_length, int change_list) { //TODO weaken_muscle ( int pnum )  // NB Y branching etc
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
@@ -1195,6 +1270,7 @@ extern "C" __global__ void weaken_muscle ( int pnum, int list_length, int change
     
     
 }
+
 extern "C" __global__ void weaken_tissue ( int pnum, int list_length, int change_list) { //TODO weaken_tissue ( int pnum )  // remove particle & transfer bonds laterally  
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
@@ -1786,8 +1862,8 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
 
                 for (int a=0; a<BONDS_PER_PARTICLE; a++){                                                   // chk if known, i.e. already bonded 
                     if (fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + a*2] == i        ) known = true;   // particle 'j' has a bond to particle 'i'
-                    if (fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + a*2] == UINT_MAX ) bond_index = a; // patricle 'j' has an empty bond 'a' : picks last empty bond
-                    //if (_bonds[a][0] == j )known = true;                                                  // particle 'i' already has a bond to particle 'j'  // not req, _bonds starts empty && only touch 'j' once
+                    if (fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + a*2] == UINT_MAX ) bond_index = a; // patricle 'j' has an empty bond 'a' : picks last empty bond. # parallel race this timestep 
+                    if (_bonds[a][0] == j )known = true;                                                    // particle 'i' already has a bond to particle 'j'  // not req, _bonds starts empty && only touch 'j' once
                 }
                 if (known == false && bond_index<UINT_MAX){       
                     //int bond_direction = 1*(dist.x-dist.y+dist.z>0.0) + 2*(dist.x+dist.y-dist.z>0.0);     // booleans divide bond space into quadrants of x>0.
@@ -1799,6 +1875,7 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
                         _bonds[bond_direction][0] = j;                                                      // index of other particle
                         _bonds[bond_direction][1] = bond_index;                                             // FPARTICLEIDX vacancy index of other particle
                         _bond_dsq[bond_direction] = dsq;                                                    // scalar distance squared 
+                        //printf("\ncontributeForce: bond_index=%u, bond_direction=%u\t", bond_index,bond_direction);
                     }
                 }
             }                                                                                               // end of collect potential bonds
@@ -1849,17 +1926,9 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
             if(j<pnum && bond_idx<BONDS_PER_PARTICLE && i==fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + bond_idx*2] && a==fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + bond_idx*2 +1])intact=true; 
             if(i==j){
                 fbuf.bufI(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND]   =UINT_MAX;
-                fbuf.bufI(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+1] =0;          // bond to self not allowed, 
+                fbuf.bufI(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+1] =0;             // bond to self not allowed, 
             }
-            if(intact==false){                                                      // remove missing _outgoing_ bonds // ## may not want to lose all this data.
-                //fbuf.bufI(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND]=UINT_MAX;         // [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping_coeff, [5]particle ID, [6]bond index 
-                fbuf.bufF(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+1] =0.0;
-                //fbuf.bufF(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+2]=1.0;
-                //fbuf.bufF(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+3]=0.0;
-                //fbuf.bufF(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+4]=0.0;
-                //fbuf.bufI(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+5]=UINT_MAX;
-                //fbuf.bufI(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+6]=UINT_MAX;
-            }
+            if(intact==false)fbuf.bufF(FELASTIDX)[i*BOND_DATA+a*DATA_PER_BOND+1] =0.0;   // [1]elastic limit  // remove missing _outgoing_ bonds
         }
     }
     float3  pvel = {fbuf.bufF3(FVEVAL)[ i ].x,  fbuf.bufF3(FVEVAL)[ i ].y,  fbuf.bufF3(FVEVAL)[ i ].z}; // copy i's FEVAL to thread memory
@@ -1884,7 +1953,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
                                                                                     // where k is the spring stiffness.
                                                                                     // eterm = (bool within elastic limit) * (spring force + damping)
             float spring_strain = /* modulus * */ (abs_dist-restlength)/restlength; // NB this is now a strain accumulator, because stress is too large a number > FLT_MAX
-            #define DECAY_FACTOR 0.99                                                                                   // could be a gene.
+            #define DECAY_FACTOR 0.8                                                                                   // could be a gene.
             fbuf.bufF(FELASTIDX)[bond + 7] = (fbuf.bufF(FELASTIDX)[bond + 7] + spring_strain) * DECAY_FACTOR;           // spring strain integrator
           
           if(fbuf.bufI(FPARTICLE_ID)[i]<10) printf("\ncomputeForce(): ParticleID=%u, bond=%u, restlength=%f, modulus=%f , abs_dist=%f , spring_strain=%f , strain_integrator=%f  ",fbuf.bufI(FPARTICLE_ID)[i], a, restlength , modulus , abs_dist , spring_strain , fbuf.bufF(FELASTIDX)[bond + 7]  );  
@@ -1935,7 +2004,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
                                                                                     // NB "bonds[b][0] = UINT_MAX" is used to indicate no candidate bond found
                                                                                     //    (FELASTIDX) [1]elastic limit = 0.0 isused to indicate out going bond is empty
             //printf("\nBond making loop i=%u, a=%i, bonds[a][1]=%u, bond_dsq[a]=%f",i,a,bonds[a][1],bond_dsq[a]);
-            
+                                                                                                                    // NB atomicCAS returns "1" until it succeeds, then returns "0".
             do {} while( atomicCAS(&ftemp.bufI(FPARTICLEIDX)[otherParticleBondIndex], UINT_MAX, 0) );               // lock ////////// ###### //  if (not locked) write zero to 'ftemp' to lock.
             if (fbuf.bufI(FPARTICLEIDX)[otherParticleBondIndex]==UINT_MAX)  fbuf.bufI(FPARTICLEIDX)[otherParticleBondIndex] = i;    //  if (bond is unoccupied) write to 'fbuf' to assign this bond
             ftemp.bufI(FPARTICLEIDX)[otherParticleBondIndex] = UINT_MAX;                                            // release lock // ######
@@ -1952,7 +2021,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
                 fbuf.bufF(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +3] = modulus;                                   // [3]modulus
                 fbuf.bufF(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +4] = 2*sqrt(fparam.pmass*modulus);              // [4]damping_coeff = optimal for mass-spring pair.
                 fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +5] = j_ID;                                      // [5]save particle ID of the other particle NB for debugging
-                fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +6] = bonds[a][1];                               // [6]bond index at the other particle 'j's incoming bonds
+                fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +6] = a;//bonds[a][1];                               // [6]bond index at the other particle 'j's incoming bonds
                 //printf("\nNew Bond a=%u, i=%u, j=%u, bonds[a][1]=%u, fromPID=%u, toPID=%u,, fbuf.bufI(FPARTICLEIDX)[otherParticleBondIndex]=%u, otherParticleBondIndex=%u",
                 //       a,i,bonds[a][0],bonds[a][1],i_ID,j_ID, fbuf.bufI(FPARTICLEIDX)[otherParticleBondIndex], otherParticleBondIndex);
             }            
