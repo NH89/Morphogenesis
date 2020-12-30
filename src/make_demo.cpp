@@ -10,10 +10,10 @@ typedef	unsigned int		uint;
 
 int main ( int argc, const char** argv ) 
 {
-    uint num_particles;
+    uint num_particles, demoType;
     float spacing, x_dim, y_dim, z_dim;
-    if ( argc != 6 ) {
-        printf ( "usage: make_demo num_particles spacing x_dim y_dim z_dim\n" );
+    if ( argc != 7 ) {
+        printf ( "usage: make_demo num_particles spacing x_dim y_dim z_dim demoType(0:free falling, 1: remodelling & actuation, 2: diffusion & epigenetics.)\n" );
         return 0;
     } else {
         num_particles = atoi(argv[1]);
@@ -31,13 +31,16 @@ int main ( int argc, const char** argv )
         z_dim = atof(argv[5]);
         printf ( "z_dim = %f\n", z_dim );
         
+        demoType = atof(argv[6]);
+        printf ( "demoType = %u, (0:free falling, 1: remodelling & actuation, 2: diffusion & epigenetics.)\n", demoType );
+        
         printf ( "### still need to edit fluid.WriteDemoSimParams(\"./demo\"); to use the new input ! \n");
     }    
     
     
     
     FluidSystem fluid;
-    fluid.WriteDemoSimParams("./demo", num_particles, spacing, x_dim, y_dim, z_dim);/*const char * relativePath*/ 
+    fluid.WriteDemoSimParams("./demo", num_particles, spacing, x_dim, y_dim, z_dim, demoType);/*const char * relativePath*/ 
     fluid.Exit ();	
     printf("\nmake_demo finished.\n");
     return 0;

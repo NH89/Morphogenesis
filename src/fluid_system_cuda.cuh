@@ -91,6 +91,7 @@
         __device__ int  insertNewParticle(float3 newParticlePos, uint parentParticleIndx, uint bondIdx, uint otherParticleBondIndex, uint bond_type[BONDS_PER_PARTICLE]);
         __device__ void find_closest_particle_per_axis(uint particle, float3 pos, uint neighbours[6]);
         __device__ void makeBondIndxMap( uint parentParticleIndx, int bondInxMap[6]);
+        __global__ void cleanBonds (int pnum);
         
         __global__ void heal                ( int pnum, uint list_length, int change_list);
         __global__ void lengthen_muscle     ( int pnum, int list_length, int change_list);

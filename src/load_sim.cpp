@@ -79,9 +79,14 @@ std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
     fluid.SavePointsCSV2 ( outPath, file_num );
     //fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
     file_num++;
+    
+    fluid.TransferPosVelVeval ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval, before 1st timestep", 1/*mbDebug*/);
+    
  
 std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     for (int k=0; k<freeze_steps; k++){
+        std::cout<<"\n\nFreeze()\n"<<std::flush;
          /*
         fluid.Freeze (outPath, file_num);                   // save csv after each kernel - to investigate bugs
         file_num+=10;
@@ -126,8 +131,8 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     file_num++;
     fluid.WriteSimParams ( outPath ); 
     fluid.WriteGenome( outPath );
-    fluid.SavePointsCSV2 ( outPath, file_num );                 //fluid.SavePointsCSV ( outPath, 1 );
-    fluid.SavePointsVTP2 ( outPath, file_num );
+  //  fluid.SavePointsCSV2 ( outPath, file_num );                 //fluid.SavePointsCSV ( outPath, 1 );
+  //  fluid.SavePointsVTP2 ( outPath, file_num );
 
     fluid.Exit ();                                      // Clean up and close
     CUresult cuResult = cuCtxDestroy ( cuContext ) ;

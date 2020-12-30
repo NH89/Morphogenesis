@@ -183,10 +183,12 @@
     #define FUNC_STRENGTHEN_TISSUE          29 //strengthen_tissue
     #define FUNC_WEAKEN_MUSCLE              30 //weaken_muscle
     #define FUNC_WEAKEN_TISSUE              31 //weaken_tissue
-//    #define FUNC_      32 //
-//    #define FUNC_      33 //
     
-    #define FUNC_MAX			            32
+    #define FUNC_EXTERNAL_ACTUATION         32
+    #define FUNC_FIXED                      33
+    #define FUNC_CLEAN_BONDS                34
+    
+    #define FUNC_MAX			            35
 
     //  used for AllocateBuffer(  .... )
 	#define GPU_OFF				0
@@ -196,10 +198,12 @@
 	#define CPU_OFF				4
 	#define CPU_YES				5
 
+	bool cuCheck (CUresult launch_stat, const char* method, const char* apicall, const char* arg, bool bDebug);
+	
 	class FluidSystem {
 	public:
 		FluidSystem ();
-		
+        
 		void LoadKernel ( int id, std::string kname );
 		void Initialize ();
         void InitializeCuda ();                             // used for load_sim
@@ -224,7 +228,7 @@
         uint* getParticle_ID(int n )    { return &m_Fluid.bufI(FPARTICLE_ID)[n]; }
         uint* getMass_Radius(int n )    { return &m_Fluid.bufI(FMASS_RADIUS)[n]; }
         uint* getNerveIdx( int n )      { return &m_Fluid.bufI(FNERVEIDX)[n]; }          //#define FNERVEIDX        15      //# uint
-        float* getConc(int gene)        { return &m_Fluid.bufF(FCONC)[gene*mMaxPoints];}        //note #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
+        float* getConc(int tf)        { return &m_Fluid.bufF(FCONC)[tf*mMaxPoints];}        //note #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
         uint* getEpiGen(int gene)       { return &m_Fluid.bufI(FEPIGEN)[gene*mMaxPoints];}   //note #define FEPIGEN     17    //# uint[NUM_GENES] // used in savePoints... 
                                                                                              //NB int mMaxPoints is set even if FluidSetupCUDA(..) isn't called, e.g. in makedemo ..
 		// Setup
@@ -233,7 +237,7 @@
 		void SetupExampleParams ();
         void SetupExampleGenome();
 		void SetupSpacing ();
-        void SetupAddVolumeMorphogenesis2(Vector3DF min, Vector3DF max, float spacing, float offs, int total );  // NB ony used in WriteDemoSimParams()
+        void SetupAddVolumeMorphogenesis2(Vector3DF min, Vector3DF max, float spacing, float offs, uint demoType );  // NB ony used in WriteDemoSimParams()
 		void SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, float cell_size, float border );		
 		void AllocateGrid ();
         void AllocateGrid(int gpu_mode, int cpu_mode);
@@ -276,15 +280,18 @@
         void ComputeGenesCUDA ();
         void ComputeBondChangesCUDA ();
         void ComputeParticleChangesCUDA ();
+        void CleanBondsCUDA ();                                         // Should this functionality be rolled into countingSortFull() ? OR should it be kept separate? 
         
-		void AdvanceCUDA ( float time, float dt, float ss );
+		void TransferPosVelVeval ();                                    // Called B4 1st timestep, & B4 AdvanceCuda thereafter. 
+        void AdvanceCUDA ( float time, float dt, float ss );            // Writes to ftemp 
+        void SpecialParticlesCUDA (float tm, float dt, float ss);       // Reads fbuf, writes to ftemp, corects AdvanceCUDA().
 		void EmitParticlesCUDA ( float time, int cnt );
         
 		// I/O Files
         void SavePointsVTP2 ( const char * relativePath, int frame );
         void SavePointsCSV2 ( const char * relativePath, int frame );
         void ReadSimParams ( const char * relativePath );    // path to folder containing simparams and .csv files
-        void WriteDemoSimParams ( const char * relativePath, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim  ); // Write standard demo to file, as demonstration of file format. 
+        void WriteDemoSimParams ( const char * relativePath, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim, uint demoType); // Write standard demo to file, as demonstration of file format. 
         void WriteSimParams ( const char * relativePath );
         void ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);
 

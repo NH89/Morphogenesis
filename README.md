@@ -13,7 +13,7 @@ This is the cut down version of gFluidSurface.
 Dependence on gvdb-voxels library has been removed, and CMakeLists.txt has been rewritten.
 New output has been written to provide ascii .ply files for viewing in MeshLab.
 
-This code compiles and runs with cmake 3.10, Cuda 9.1 on Ubuntu 18.04 with GTX 980m, 
+This code compiles and runs with cmake 3.10, vtk-9.0, and Cuda 11.2 on Ubuntu 20.04 with GTX 980m.
 and on Suse Linux cluster with Cuda 9.1 and Tesla P100.
 
 ## Morphogenesis branch
@@ -53,15 +53,21 @@ In the build subdirectory
 usage:
     
     cd data
-    make_demo num_particles spacing x_dim y_dim z_dim
+    make_demo num_particles spacing x_dim y_dim z_dim demoType
     
+    where demoType(0:free falling, 1:remodelling & actuation, 2:diffusion & epigenetics.)
 e.g.
 
-    ../build/install/bin/make_demo 125 1 6 6 6
+    ../build/install/bin/make_demo 125 1 6 6 6 0        // free falling
     
-    ../build/install/bin/make_demo 10000 1 100 10 10
-    ../build/install/bin/make_demo 100000 1 100 100 10
-    ../build/install/bin/make_demo 1000000 1 100 100 100
+    ../build/install/bin/make_demo 600 1 4 4 30 1       // remodelling & actuation, with fixed, bone, tendon, muscle, elastic, mesenchyme, external actuation
+    
+    ../build/install/bin/make_demo 400 1 10 10 3 1      // diffusion & epigenetics, with reserve particles for growth.
+    
+    
+    ../build/install/bin/make_demo 10000 1 100 10 10 0
+    ../build/install/bin/make_demo 100000 1 100 100 10 0
+    ../build/install/bin/make_demo 1000000 1 100 100 100 0
 
     
 CPU-only test program to generate example **"SimParams.txt"** and **"particles_pos_vel_color100001.csv"** files for specifying models, and a **"particles_pos100001.ply"** for viewing a model in e.g. Meshlab.
@@ -91,6 +97,7 @@ e.g.
 
     cd data/test
     ./load_sim ../demo/ ../out/  10 3 1 y y y
+    ./load_sim ../demo/ ../out/  10 1 6 n y y
     
     ./load_sim ../demo_10000_1_100_10_10/ ../out/  100 30 1 n n y
     ./load_sim ../demo_100000_1_100_100_10/ ../out/  100 30 1 n n y
@@ -124,7 +131,14 @@ The .vtp files output can be viewed in Paraview. This allows visualization of al
     Loading the data into ParaView:
     load the .vtp file 
     select the file in the pipeline browser
-    click "Apply"
+    
+    From the top menu bar, select "Filters->Common->Treshold"
+    In Properties(Thresold2), in scalars, select FPARTICLE_ID.
+    Set Maximum to the number of active particles in the simulation.
+    click "Apply" (green button in Properties)
+    In the third row of the tool bar, click "zoom to data" icon (four arrows pointing inwards).
+    NB this is necessary, when unused particles are stored in one corner of the simulation, with FPARTICLE_ID = UINT_MAX.
+    
     In "Coloring" select the model parameter of interest
     Adjust the coloring scale
     
