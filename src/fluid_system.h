@@ -163,6 +163,7 @@
     #define FUNC_COMPUTE_DIFFUSION          12
     #define FUNC_COUNT_SORT_LISTS           13
     #define FUNC_COMPUTE_GENE_ACTION        14
+#define FUNC_TALLY_GENE_ACTION 35
     #define FUNC_COMPUTE_BOND_CHANGES       15
     
     #define FUNC_INSERT_CHANGES             16 //insertChanges
@@ -188,7 +189,7 @@
     #define FUNC_FIXED                      33
     #define FUNC_CLEAN_BONDS                34
     
-    #define FUNC_MAX			            35
+    #define FUNC_MAX			            36
 
     //  used for AllocateBuffer(  .... )
 	#define GPU_OFF				0
@@ -244,9 +245,9 @@
 
 		// Simulation
 		void Run ();	
-        void Run( const char * relativePath, int frame );
+        void Run( const char * relativePath, int frame, bool debug, bool gene_activity, bool remodelling );
         void Freeze ();
-        void Freeze (const char * relativePath, int frame );
+        void Freeze (const char * relativePath, int frame, bool debug, bool gene_activity, bool remodelling);
 		void AdvanceTime ();
 		
 		void Exit ();

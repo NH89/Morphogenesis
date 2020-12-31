@@ -241,7 +241,7 @@
 			char*			mgpu[ MAX_BUF ];		// on device, pointer is local.
 		#else			
 			CUdeviceptr		mgpu[ MAX_BUF ];		// on host, gpu is a device pointer // an array of pointers, filled by cuMemAlloc
-			CUdeviceptr		gpu (int n )	{ return mgpu[n]; }
+			CUdeviceptr		gpu    (int n )	{ return mgpu[n];  }
 			CUdeviceptr*	gpuptr (int n )	{ return &mgpu[n]; }		
 		#endif			
 	};

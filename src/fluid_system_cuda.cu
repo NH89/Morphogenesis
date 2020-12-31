@@ -219,7 +219,7 @@ extern "C" __global__ void countingSortFull ( int pnum )                        
             fbuf.bufI (FPARTICLEIDX) [sort_ndx*BONDS_PER_PARTICLE*2 + a*2 +1]   =  b;
             ftemp.bufI(FPARTICLEIDX) [i       *BONDS_PER_PARTICLE*2 + a*2]      = UINT_MAX;   // set ftemp copy for use as a lock when inserting new bonds in ComputeForce(..)
         }
-        printf("\n(sort_ndx=%u, i=%u)", sort_ndx, i);
+        //printf("\n(sort_ndx=%u, i=%u)", sort_ndx, i);
         
         fbuf.bufI (FPARTICLE_ID) [sort_ndx] =	ftemp.bufI(FPARTICLE_ID) [i];
         fbuf.bufI (FMASS_RADIUS) [sort_ndx] =	ftemp.bufI(FMASS_RADIUS) [i];
@@ -229,8 +229,8 @@ extern "C" __global__ void countingSortFull ( int pnum )                        
         __syncthreads();
         for (int a=0;a<NUM_GENES;a++)   {
             fbuf.bufI(FEPIGEN)[(sort_ndx+(pnum*a))]        =	ftemp.bufI(FEPIGEN) [(i+(pnum*a))]        ;
-            if(a==6) printf("\n(sort_ndx=%u, pnum*a=%u, i=%u, ftemp.bufI(FEPIGEN)[i+pnum*a]=%u, fbuf.bufI(FEPIGEN)[(sort_ndx+(pnum*a))]=%u )",
-                   sort_ndx, (pnum*a), i, ftemp.bufI(FEPIGEN)[(i+(pnum*a))], fbuf.bufI(FEPIGEN)[(sort_ndx+(pnum*a))] );
+            //if(a==6) printf("\n(sort_ndx=%u, pnum*a=%u, i=%u, ftemp.bufI(FEPIGEN)[i+pnum*a]=%u, fbuf.bufI(FEPIGEN)[(sort_ndx+(pnum*a))]=%u )",
+            //       sort_ndx, (pnum*a), i, ftemp.bufI(FEPIGEN)[(i+(pnum*a))], fbuf.bufI(FEPIGEN)[(sort_ndx+(pnum*a))] );
         }
         __syncthreads();
         printf(".");
@@ -402,7 +402,7 @@ extern "C" __global__ void computePressure ( int pnum )
 	fbuf.bufF(FDENSITY)[ i ] = 1.0f / sum;
 }
 
-extern "C" __global__ void computeGeneAction ( int pnum, int gene, uint list_len )  //NB here pnum is for the dense list
+extern "C" __global__ void computeGeneAction ( int pnum, int gene, uint list_len )  //NB here pnum is for the dense list NB Must zero ftemp.bufI(FEPIGEN) and ftemp.bufI(FCONC) before calling.
 {
     uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                                         // particle index
     if ( i >= list_len ) return;
@@ -441,9 +441,26 @@ extern "C" __global__ void computeGeneAction ( int pnum, int gene, uint list_len
         int other_gene = fgenome.activate[gene][j*2];
         int threshold = fgenome.activate[gene][j*2 + 1];
         if(threshold<activity)
-        atomicAdd( &fbuf.bufI(FEPIGEN)[other_gene*pnum + particle_index], 1);   // what should be the initial state of other_gene when activated ?
+        atomicAdd( &ftemp.bufI(FEPIGEN)[other_gene*pnum + particle_index], 1);   // what should be the initial state of other_gene when activated ?
     }
 }
+
+extern "C" __global__ void tallyGeneAction ( int pnum, int gene, uint list_length ){// called by ComputeGenesCUDA () after computeGeneAction (..) & synchronize().
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                            // particle index
+    if ( particle_index >= list_length ) return;                                                    // pnum should be length of list.
+    // ## TODO convert i to particle index _iff_ not called for all particles : use a special dense list for "living tissue", made at same time as gene lists
+    uint i = fbuf.bufII(FDENSE_LISTS)[2][particle_index];                                           // call for dense list of living cells (gene'2'living/telomere (has genes))
+    if ( i >= pnum ) return; 
+    
+    float * fbufFCONC = &fbuf.bufF(FCONC)[i*NUM_TF];
+    float * ftempFCONC = &ftemp.bufF(FCONC)[i*NUM_TF];
+    uint * fbufFEPIGEN = &fbuf.bufI(FEPIGEN)[i*NUM_GENES];                                             // TODO FEPIGEN is a uint here. May need to pack binaries for spread & stop. See paper.
+    uint * ftempFEPIGEN = &ftemp.bufI(FEPIGEN)[i*NUM_GENES];    // ## need to zero ftemp after counting sort full
+    
+    for(int j=0; j<NUM_TF;j++)      fbufFCONC[j] += ftempFCONC[j];
+    for(int j=0; j<NUM_GENES;j++) fbufFEPIGEN[j] += ftempFEPIGEN[j];
+}
+
 
 extern "C" __global__ void computeNerveActivation ( int pnum ) //TODO computeNerveActivation    // initially simple sparse random connections + STDP, later neurogenesis
 {                                                                 // NB (i) sensors concetrated in hands & feet (ii)stimuls from womb wall 
@@ -464,12 +481,12 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
     if ( i >= pnum ) return; 
     
     float * fbufFCONC = &fbuf.bufF(FCONC)[i*NUM_TF];
-    float * ftempFCONC = &ftemp.bufF(FCONC)[i*NUM_TF];
-    uint * fbufFEPIGEN = &fbuf.bufI(FEPIGEN)[i*NUM_GENES];                                             // TODO FEPIGEN is a uint here. May need to pack binaries for spread & stop. See paper.
-    uint * ftempFEPIGEN = &ftemp.bufI(FEPIGEN)[i*NUM_GENES];
+    //float * ftempFCONC = &ftemp.bufF(FCONC)[i*NUM_TF];
+    uint  * fbufFEPIGEN = &fbuf.bufI(FEPIGEN)[i*NUM_GENES];                                             // TODO FEPIGEN is a uint here. May need to pack binaries for spread & stop. See paper.
+    //uint  * ftempFEPIGEN = &ftemp.bufI(FEPIGEN)[i*NUM_GENES];    // ## need to zero ftemp after counting sort full
     
-    for(int j=0; j<NUM_TF;j++)      fbufFCONC[j] += ftempFCONC[j];                                  // list of transcription factor conc for this particle
-    for(int j=0; j<NUM_GENES;j++) fbufFEPIGEN[j] += ftempFEPIGEN[j];                                // list of epigenetic activations for this particle 
+    //for(int j=0; j<NUM_TF;j++)      fbufFCONC[j] += ftempFCONC[j];                                  // list of transcription factor conc for this particle
+    //for(int j=0; j<NUM_GENES;j++) fbufFEPIGEN[j] += ftempFEPIGEN[j];                                // list of epigenetic activations for this particle 
                                                                                                     // NB modification were writtent to ftemp, now added to fbuf here.
     /*
     // read FCONC, FNERVEIDX, , FPRESS, FDENSITY

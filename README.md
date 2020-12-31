@@ -60,6 +60,7 @@ e.g.
 
     ../build/install/bin/make_demo 125 1 6 6 6 0        // free falling
     
+    ../build/install/bin/make_demo 120 1 2 2 30 1 
     ../build/install/bin/make_demo 600 1 4 4 30 1       // remodelling & actuation, with fixed, bone, tendon, muscle, elastic, mesenchyme, external actuation
     
     ../build/install/bin/make_demo 400 1 10 10 3 1      // diffusion & epigenetics, with reserve particles for growth.
@@ -91,13 +92,18 @@ New launch program to load data from files, and run simulation on GPU.
 usage:
 
     cd data
-    ../build/install/bin/load_sim  demo  out   num_files   steps_per_file   freeze_steps   save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)
+    ../build/install/bin/load_sim  demo  out   num_files   steps_per_file   freeze_steps   save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)  debug(y/n)  gene_activity(y/n)  remodelling(y/n)
     
 e.g.
 
     cd data/test
     ./load_sim ../demo/ ../out/  10 3 1 y y y
     ./load_sim ../demo/ ../out/  10 1 6 n y y
+    
+    ./load_sim ../demo/ ../out/  1000 1 0 n y y y y y                   // NB Now '100' frames per timestep x02-x20 snapshot after each kernel. x91 end of timestep. x00 begining of simulation.
+    ./load_sim ../demo/ ../out/  1000 1 0 n y y y n y
+    ./load_sim ../demo/ ../out/  1000 1 0 n y y y n n
+    ./load_sim ../demo/ ../out/  1000 1 0 n y y n y y
     
     ./load_sim ../demo_10000_1_100_10_10/ ../out/  100 30 1 n n y
     ./load_sim ../demo_100000_1_100_100_10/ ../out/  100 30 1 n n y

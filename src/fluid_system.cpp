@@ -113,6 +113,7 @@ void FluidSystem::InitializeCuda (){         // used for load_sim  /home/nick/Pr
     LoadKernel ( FUNC_COMPUTE_DIFFUSION,"computeDiffusion");
     LoadKernel ( FUNC_COUNT_SORT_LISTS, "countingSortDenseLists");
     LoadKernel ( FUNC_COMPUTE_GENE_ACTION, "computeGeneAction");
+    LoadKernel ( FUNC_TALLY_GENE_ACTION, "tallyGeneAction");
     LoadKernel ( FUNC_COMPUTE_BOND_CHANGES, "computeBondChanges");
     
     //LoadKernel ( FUNC_INSERT_CHANGES, "insertChanges");
@@ -141,17 +142,17 @@ void FluidSystem::InitializeCuda (){         // used for load_sim  /home/nick/Pr
 
     std::cout << "Chk1.2 \n";
     size_t len = 0;
-    cuCheck ( cuModuleGetGlobal ( &cuFBuf, &len,		m_Module, "fbuf" ),		"LoadKernel", "cuModuleGetGlobal", "cuFBuf", mbDebug);      // Returns a global pointer (cuFBuf) from a module  (m_Module), see line 81.
-    cuCheck ( cuModuleGetGlobal ( &cuFTemp, &len,		m_Module, "ftemp" ),	"LoadKernel", "cuModuleGetGlobal", "cuFTemp", mbDebug);     // fbuf, ftemp, fparam are defined at top of fluid_system_cuda.cu,
-    cuCheck ( cuModuleGetGlobal ( &cuFParams, &len,	m_Module, "fparam" ),		"LoadKernel", "cuModuleGetGlobal", "cuFParams", mbDebug);   // based on structs "FParams", "FBufs", "FGenome" defined in fluid.h
-    cuCheck ( cuModuleGetGlobal ( &cuFGenome, &len,	m_Module, "fgenome" ),		"LoadKernel", "cuModuleGetGlobal", "cuFGenome", mbDebug);   // NB defined differently in kernel vs cpu code.
+    cuCheck ( cuModuleGetGlobal ( &cuFBuf,    &len,	m_Module, "fbuf" ),		"LoadKernel", "cuModuleGetGlobal", "cuFBuf",    mbDebug);   // Returns a global pointer (cuFBuf) from a module  (m_Module), see line 81.
+    cuCheck ( cuModuleGetGlobal ( &cuFTemp,   &len,	m_Module, "ftemp" ),	"LoadKernel", "cuModuleGetGlobal", "cuFTemp",   mbDebug);   // fbuf, ftemp, fparam are defined at top of fluid_system_cuda.cu,
+    cuCheck ( cuModuleGetGlobal ( &cuFParams, &len,	m_Module, "fparam" ),	"LoadKernel", "cuModuleGetGlobal", "cuFParams", mbDebug);   // based on structs "FParams", "FBufs", "FGenome" defined in fluid.h
+    cuCheck ( cuModuleGetGlobal ( &cuFGenome, &len,	m_Module, "fgenome" ),	"LoadKernel", "cuModuleGetGlobal", "cuFGenome", mbDebug);   // NB defined differently in kernel vs cpu code.
     // An FBufs struct holds an array of pointers.
     std::cout << "Chk1.3 \n";
     // Clear all buffers
-    memset ( &m_Fluid, 0,		sizeof(FBufs) );
-    memset ( &m_FluidTemp, 0,	sizeof(FBufs) );
-    memset ( &m_FParams, 0,		sizeof(FParams) );
-    memset ( &m_FGenome, 0,		sizeof(FGenome) );
+    memset ( &m_Fluid,     0,	sizeof(FBufs)   );
+    memset ( &m_FluidTemp, 0,	sizeof(FBufs)   );
+    memset ( &m_FParams,   0,	sizeof(FParams) );
+    memset ( &m_FGenome,   0,	sizeof(FGenome) );
 
     std::cout << "Chk1.4 \n";
     // Allocate the sim parameters
@@ -572,22 +573,23 @@ std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
                 Mass_Radius =  ( (uint(m_Param[PMASS]*255.0f*255.0f)<<16) | uint(m_Param[PRADIUS]*255.0f*255.0f) ) ; // mass=>13, radius=>975
                 for (int i=0; i< NUM_TF; i++)    { Conc[i]   = 0 ;}     // morphogen & transcription factor concentrations
                 for (int i=0; i< NUM_GENES; i++) { EpiGen[i] = 0 ;}     // epigenetic state of each gene in this particle
-                EpiGen[0] = 1;                                        // active, i.e. not reserve
-                EpiGen[1] = 1;                                        // solid, i.e. have elastic bonds
-                EpiGen[2] = 1;                                        // living/telomere, i.e. has genes
+                uint fixedActive = INT_MAX;                             // FEPIGEN below INT_MAX will count down to inactivation. Count down is inactivated by adding INT_MAX.
+                EpiGen[0] = fixedActive;                                        // active, i.e. not reserve
+                EpiGen[1] = fixedActive;                                        // solid, i.e. have elastic bonds
+                EpiGen[2] = fixedActive;                                        // living/telomere, i.e. has genes
                 
                 if(demoType == 1){                                                                    ////// Remodelling & actuation demo
                                                                                                 // Fixed base, bone, tendon, muscle, elastic, external actuation
-                    if(Pos.z == min.z)                                        EpiGen[11]=1;   // fixed particle
-                    if(Pos.z >= max.z-spacing)                                EpiGen[12]=1;   // external actuation particle 
+                    if(Pos.z == min.z)                                        EpiGen[11]=fixedActive;   // fixed particle
+                    if(Pos.z >= max.z-spacing)                                EpiGen[12]=fixedActive;   // external actuation particle 
                     
-                    if(Pos.z >= min.z+5*spacing && Pos.z < min.z+10*spacing)  EpiGen[9] =1;   // bone
-                    if(Pos.z >= min.z+10*spacing && Pos.z < min.z+15*spacing) EpiGen[6] =1;   // tendon
-                    if(Pos.z >= min.z+15*spacing && Pos.z < min.z+20*spacing) EpiGen[7] =1;   // muscle
-                    if(Pos.z >= min.z+20*spacing && Pos.z < min.z+25*spacing) EpiGen[10]=1;   // elastic tissue
+                    if(Pos.z >= min.z+5*spacing && Pos.z < min.z+10*spacing)  EpiGen[9] =fixedActive;   // bone
+                    if(Pos.z >= min.z+10*spacing && Pos.z < min.z+15*spacing) EpiGen[6] =fixedActive;   // tendon
+                    if(Pos.z >= min.z+15*spacing && Pos.z < min.z+20*spacing) EpiGen[7] =fixedActive;   // muscle
+                    if(Pos.z >= min.z+20*spacing && Pos.z < min.z+25*spacing) EpiGen[10]=fixedActive;   // elastic tissue
                 }else if (demoType == 2){                                                            ////// Diffusion & epigenetics demo
                                                                                                 // Fixed base, homogeneous particles (initially) 
-                    if(Pos.z == min.z) EpiGen[0]=1;                                           // fixed particle
+                    if(Pos.z == min.z) EpiGen[0]=fixedActive;                                           // fixed particle
                     EpiGen[2]=1;                                                              // living particle NB set gene behaviour
                 }                                                                               // => (i) French flag, (ii) polartity, (iii) clock & wave front
                 
@@ -614,7 +616,7 @@ std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::flush ;
 }
 
 /////////////////////////////////////////////////////////////////// 
-void FluidSystem::Run (){
+void FluidSystem::Run (){   // deprecated, rather use: Run(const char * relativePath, int frame, bool debug) 
 std::cout << "\tFluidSystem::Run (),  "<<std::flush;  
     //case RUN_GPU_FULL:					// Full CUDA pathway, GRID-accelerted GPU, /w deep copy sort
 //TransferFromCUDA ();
@@ -647,11 +649,11 @@ std::cout << "\n\n Chk5 \n"<<std::flush;
     // TODO compute muscle action ?
     
 //std::cout << "\n\n Chk6 \n"<<std::flush;    
-//    ComputeDiffusionCUDA();
+    ComputeDiffusionCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
 
 //std::cout << "\n\n Chk7 \n"<<std::flush;    
-//    ComputeGenesCUDA();
+    ComputeGenesCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeGenesCUDA", mbDebug);
     
 std::cout << "\n\n Chk8 \n"<<std::flush;
@@ -705,123 +707,140 @@ std::cout << "\n\n Chk13 \n"<<std::flush;
 //std::cout << " finished \n";
 }
 
-void FluidSystem::Run (const char * relativePath, int frame ){       // version to save data after each kernel
+void FluidSystem::Run (const char * relativePath, int frame, bool debug, bool gene_activity, bool remodelling ){       // version to save data after each kernel
     m_FParams.frame = frame;                 // used by computeForceCuda( .. Args)
 std::cout << "\tFluidSystem::Run (const char * relativePath, int frame ) "<<std::flush;
-    //case RUN_GPU_FULL:					// Full CUDA pathway, GRID-accelerted GPU, /w deep copy sort
-//TransferFromCUDA ();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "begin Run", mbDebug); 
-    TransferFromCUDA ();
-    SavePointsCSV2 (  relativePath, frame );
-std::cout << "\n\nRun(relativePath,frame) Chk1, saved "<< frame <<".csv At start of Run(...) \n"<<std::flush;
-
-    InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
-//TransferFromCUDA ();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug); 
-    TransferFromCUDA ();
-    SavePointsCSV2 (  relativePath, frame+1 );
-std::cout << "\n\nRun(relativePath,frame) Chk2, saved "<< frame+1 <<".csv  After InsertParticlesCUDA\n"<<std::flush;
-
-    PrefixSumCellsCUDA ( 1 );
-//TransferFromCUDA ();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumCellsCUDA", mbDebug); 
-    TransferFromCUDA ();
-    SavePointsCSV2 (  relativePath, frame+2 );
-std::cout << "\n\nRun(relativePath,frame) Chk3, saved "<< frame+2 <<".csv  After PrefixSumCellsCUDA\n"<<std::flush;
-
-    CountingSortFullCUDA ( 0x0 );
-//TransferFromCUDA ();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortFullCUDA", mbDebug); 
-    TransferFromCUDA ();
-    SavePointsCSV2 (  relativePath, frame+3 );
-std::cout << "\n\nRun(relativePath,frame) Chk4, saved "<< frame+3 <<".csv  After CountingSortFullCUDA\n"<<std::flush;
     
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "begin Run", mbDebug); 
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+1 );
+        std::cout << "\n\nRun(relativePath,frame) Chk1, saved "<< frame <<".csv At start of Run(...) \n"<<std::flush;
+    }
+    InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug);
+    
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+2 );
+        std::cout << "\n\nRun(relativePath,frame) Chk2, saved "<< frame+1 <<".csv  After InsertParticlesCUDA\n"<<std::flush;
+    }
+    PrefixSumCellsCUDA ( 1 );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumCellsCUDA", mbDebug);
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+3 );
+        std::cout << "\n\nRun(relativePath,frame) Chk3, saved "<< frame+2 <<".csv  After PrefixSumCellsCUDA\n"<<std::flush;
+    }
+    CountingSortFullCUDA ( 0x0 );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortFullCUDA", mbDebug);
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+4 );
+        std::cout << "\n\nRun(relativePath,frame) Chk4, saved "<< frame+3 <<".csv  After CountingSortFullCUDA\n"<<std::flush;
+    }
     ComputePressureCUDA();
-//TransferFromCUDA ();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug); 
-    TransferFromCUDA ();
-    SavePointsCSV2 (  relativePath, frame+4 );
-std::cout << "\n\nRun(relativePath,frame) Chk5, saved "<< frame+4 <<".csv  After ComputePressureCUDA \n"<<std::flush;
-    // FreezeCUDA ();                                   // makes the system plastic, ie the bonds keep reforming
-//std::cout << "\n\n Chk6 \n"<<std::flush;
-
-
-    ComputeForceCUDA ();                                // now includes the function of freeze 
-//TransferFromCUDA ();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug); // stalls here on 2nd cycle of Freeze()
-    TransferFromCUDA ();
-    SavePointsCSV2 (  relativePath, frame+5 );
-std::cout << "\n\nRun(relativePath,frame) Chk6, saved "<< frame+5 <<".csv  After ComputeForceCUDA \n"<<std::flush;
-
-
-
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug);
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+5 );
+        std::cout << "\n\nRun(relativePath,frame) Chk5, saved "<< frame+4 <<".csv  After ComputePressureCUDA \n"<<std::flush;
+    }
+    ComputeForceCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug);
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+6 );
+        std::cout << "\n\nRun(relativePath,frame) Chk6, saved "<< frame+5 <<".csv  After ComputeForceCUDA \n"<<std::flush;
+    }
     // TODO compute nerve activation ? 
     
-    
     // TODO compute muscle action ?
-       
+    
     ComputeDiffusionCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
-
-std::cout << "\n\nRun(relativePath,frame) Chk7 \n"<<std::flush;    
-    ComputeGenesCUDA();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeGenesCUDA", mbDebug);
-    
-std::cout << "\n\nRun(relativePath,frame) Chk8 \n"<<std::flush;
-    ComputeBondChangesCUDA ();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeBondChangesCUDA", mbDebug);
-    
-    //  make dense lists of particle changes
-    // insert changes
-    // prefix sum changes, inc tally_changelist_lengths
-    // counting sort changes
-    //InsertChangesCUDA ( ); // done by ComputeBondChanges() above
-    //cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertChangesCUDA", mbDebug);
-
-std::cout << "\n\nRun(relativePath,frame) Chk9 \n"<<std::flush;
-    PrefixSumChangesCUDA ( 1 );
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumChangesCUDA", mbDebug);
-    
-std::cout << "\n\nRun(relativePath,frame) Chk10 \n"<<std::flush;
-    CountingSortChangesCUDA (  );
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortChangesCUDA", mbDebug);
-    
-    
-    //  execute particle changes // _should_ be able to run concurrently => no cuCtxSynchronize()
-    // => single fn ComputeParticleChangesCUDA ()
-std::cout << "\n\nRun(relativePath,frame) Chk11 \n"<<std::flush;
-    ComputeParticleChangesCUDA ();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeParticleChangesCUDA", mbDebug);
-std::cout << "\n\nRun(relativePath,frame) Chk12,  After ComputeParticleChangesCUDA\n"<<std::flush;
-
-TransferPosVelVeval ();
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+7 );
+        std::cout << "\n\nRun(relativePath,frame) Chk7 \n"<<std::flush;
+    }
+    if(gene_activity){
+        ComputeGenesCUDA();     // NB (i)Epigenetic countdown, (ii) GRN gene regulatory network sensitivity to TransciptionFactors (FCONC)
+        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeGenesCUDA", mbDebug);
+        if(debug){
+            TransferFromCUDA ();
+            SavePointsCSV2 (  relativePath, frame+8 );
+            std::cout << "\n\nRun(relativePath,frame) Chk8 \n"<<std::flush;
+        }
+    }
+    if(remodelling){
+        ComputeBondChangesCUDA ();
+        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeBondChangesCUDA", mbDebug); // wipes out FEPIGEN
+        if(debug){
+            TransferFromCUDA ();
+            SavePointsCSV2 (  relativePath, frame+9 );
+            std::cout << "\n\nRun(relativePath,frame) Chk9 \n"<<std::flush;
+        }
+        PrefixSumChangesCUDA ( 1 );
+        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumChangesCUDA", mbDebug); // writes mangled (?original?) data to FEPIGEN 
+        if(debug){
+            TransferFromCUDA ();
+            SavePointsCSV2 (  relativePath, frame+10 );
+            std::cout << "\n\nRun(relativePath,frame) Chk10 \n"<<std::flush;
+        }
+        CountingSortChangesCUDA (  );
+        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortChangesCUDA", mbDebug);
+        if(debug){
+            TransferFromCUDA ();
+            SavePointsCSV2 (  relativePath, frame+11 );
+            std::cout << "\n\nRun(relativePath,frame) Chk11 \n"<<std::flush;
+        }
+        ComputeParticleChangesCUDA ();                                                                       // execute particle changes // _should_ be able to run concurrently => no cuCtxSynchronize()
+        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeParticleChangesCUDA", mbDebug);
+        if(debug){
+            TransferFromCUDA ();
+            SavePointsCSV2 (  relativePath, frame+12 );
+            std::cout << "\n\nRun(relativePath,frame) Chk12,  After ComputeParticleChangesCUDA\n"<<std::flush;
+        }
+    }
+    TransferPosVelVeval ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval ", mbDebug);
-std::cout << "\n\nRun(relativePath,frame) Chk13,  After TransferPosVelVeval\n"<<std::flush;
-    
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+13 );
+        std::cout << "\n\nRun(relativePath,frame) Chk13,  After TransferPosVelVeval\n"<<std::flush;
+    }
     AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
-//TransferFromCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);
-std::cout << "\n\nRun(relativePath,frame) Chk14,  After AdvanceCUDA\n"<<std::flush;
-
-    
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+14 );
+        std::cout << "\n\nRun(relativePath,frame) Chk14,  After AdvanceCUDA\n"<<std::flush;
+    }
     SpecialParticlesCUDA ( m_Time, m_DT, m_Param[PSIMSCALE]);
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After SpecialParticlesCUDA", mbDebug);
-std::cout << "\n\nRun(relativePath,frame) Chk15,  After SpecialParticlesCUDA\n"<<std::flush;
-    
-    
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+15 );
+        std::cout << "\n\nRun(relativePath,frame) Chk15,  After SpecialParticlesCUDA\n"<<std::flush;
+    }
     TransferFromCUDA ();
-    SavePointsCSV2 (  relativePath, frame+6 );
-std::cout << "\n\nRun(relativePath,frame) Chk16, saved "<< frame+6 <<".csv  After AdvanceCUDA \n"<<std::flush;
-
+    SavePointsCSV2 (  relativePath, frame+16 );
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+18 );
+        std::cout << "\n\nRun(relativePath,frame) Chk16, saved "<< frame+6 <<".csv  After AdvanceCUDA \n"<<std::flush;
+    }
     //cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);    
     //EmitParticlesCUDA ( m_Time, (int) m_Vec[PEMIT_RATE].x );
     //TransferFromCUDA ();	// return for rendering
-
     AdvanceTime ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceTime", mbDebug); 
-    TransferFromCUDA ();
-    SavePointsCSV2 (  relativePath, frame+7 );
-std::cout << "Run(relativePath,frame) finished,  saved "<< frame+7 <<".csv  After AdvanceTime \n";
+    if(debug){
+        TransferFromCUDA ();
+        SavePointsCSV2 (  relativePath, frame+19 );
+        std::cout << "Run(relativePath,frame) finished,  saved "<< frame+7 <<".csv  After AdvanceTime \n";
+    }
 }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
 
 void FluidSystem::Freeze (){
@@ -830,9 +849,9 @@ void FluidSystem::Freeze (){
     m_FParams.freeze = false;
 }
 
-void FluidSystem::Freeze (const char * relativePath, int frame){
+void FluidSystem::Freeze (const char * relativePath, int frame, bool debug, bool gene_activity, bool remodelling  ){
     m_FParams.freeze = true;
-    Run(relativePath, frame);
+    Run(relativePath, frame, debug, gene_activity, remodelling );
     m_FParams.freeze = false;
 }
 
@@ -2450,19 +2469,31 @@ void FluidSystem::ComputeForceCUDA (){
 }
 
 void FluidSystem::ComputeGenesCUDA (){  // for each gene, call a kernel wih the dese list for that gene
+    // NB Must zero ftemp.bufI(FEPIGEN) and ftemp.bufI(FCONC) before calling kernel. ftemp is used to collect changes before FUNC_TALLY_GENE_ACTION.
+    cuCheck ( cuMemsetD8 ( m_FluidTemp.gpu(FCONC),   0,	m_FParams.szPnts *sizeof(float[NUM_TF])   ), "ComputeGenesCUDA", "cuMemsetD8", "m_FluidTemp.gpu(FCONC)",   mbDebug );
+    cuCheck ( cuMemsetD8 ( m_FluidTemp.gpu(FEPIGEN), 0,	m_FParams.szPnts *sizeof(uint[NUM_GENES]) ), "ComputeGenesCUDA", "cuMemsetD8", "m_FluidTemp.gpu(FEPIGEN)", mbDebug );
     for (int gene=0;gene<NUM_GENES;gene++) {
         uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
-        void* args[3] = { &m_FParams.pnum ,  &gene, &list_length};
+        void* args[3] = { &m_FParams.pnum, &gene, &list_length };
         int numBlocks, numThreads;
         computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
         
         std::cout<<"\nComputeGenesCUDA (): gene ="<<gene<<", list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". args={mNumPoints="<<mNumPoints<<", list_length="<<list_length<<", gene ="<<gene<<"}"<<std::flush;
         
         if( numBlocks>0 && numThreads>0){
-   //         std::cout<<"\nCalling m_Func[FUNC_COMPUTE_GENE_ACTION]\n"<<std::flush;
             std::cout<<"\nCalling m_Func[FUNC_COMPUTE_GENE_ACTION], list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<"\n"<<std::flush;
-            
             cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_GENE_ACTION],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_COMPUTE_GENE_ACTION", mbDebug);
+        }
+    }
+    cuCheck(cuCtxSynchronize(), "ComputeGenesCUDA", "cuCtxSynchronize", "After FUNC_COMPUTE_GENE_ACTION & before FUNC_TALLY_GENE_ACTION", mbDebug);
+    for (int gene=0;gene<NUM_GENES;gene++) {
+        uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
+        void* args[3] = { &m_FParams.pnum, &gene, &list_length };
+        int numBlocks, numThreads;
+        computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
+        if( numBlocks>0 && numThreads>0){
+            std::cout<<"\nCalling m_Func[FUNC_TALLY_GENE_ACTION], list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<"\n"<<std::flush;
+            cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLY_GENE_ACTION],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_TALLY_GENE_ACTION", mbDebug);
         }
     }
 }
@@ -2472,7 +2503,6 @@ void FluidSystem::ComputeBondChangesCUDA (){// Given the action of the genes, co
     cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "ComputeBondChangesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
                                             //NB list for all living cells. (non senescent) = FEPIGEN[2]
     cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "ComputeBondChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-    
     
     uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2];    // call for dense list of living cells (gene'2'living/telomere (has genes))
     void* args[2] = { &mNumPoints, &list_length};
@@ -2492,9 +2522,9 @@ void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to e
         int numThreads, numBlocks;
         //int numThreads = 1;//m_FParams.threadsPerBlock;
         //int numBlocks  = 1;//iDivUp ( list_length, numThreads );
-        computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
+        computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
         
-        std::cout<<"\nComputeParticleChangesCUDA (): change_list ="<<change_list<<", list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". args={mNumPoints="<<mNumPoints<<", list_length="<<list_length<<", change_list="<<change_list<<"}\t"<<std::flush;
+        //std::cout<<"\nComputeParticleChangesCUDA (): change_list ="<<change_list<<", list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". args={mNumPoints="<<mNumPoints<<", list_length="<<list_length<<", change_list="<<change_list<<"}\t"<<std::flush;
         
         if( (list_length>0) && (numBlocks>0) && (numThreads>0)){
             std::cout<<"\nCalling m_Func[FUNC_HEAL+"<<change_list<<"], list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<"\t"<<std::flush;

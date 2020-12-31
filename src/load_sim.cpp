@@ -14,9 +14,9 @@ int main ( int argc, const char** argv )
     char outPath[256];
     uint num_files, steps_per_file, freeze_steps;
     int file_num=0;
-    char save_ply, save_csv, save_vtp;
-    if ( argc != 9 ) {
-        printf ( "usage: load_sim  simulation_data_folder output_folder num_files steps_per_file freeze_steps save_ply(y/n) save_csv(y/n) save_vtp(y/n)\n" );
+    char save_ply, save_csv, save_vtp, debug, gene_activity, remodelling;
+    if ( argc != 12 ) {
+        printf ( "usage: load_sim  simulation_data_folder output_folder num_files steps_per_file freeze_steps save_ply(y/n) save_csv(y/n) save_vtp(y/n) debug(y/n) gene_activity(y/n) remodelling(y/n)\n" );
         return 0;
     } else {
         sprintf ( paramsPath, "%s/SimParams.txt", argv[1] );
@@ -48,6 +48,14 @@ int main ( int argc, const char** argv )
         save_vtp = *argv[8];
         printf ( "save_vtp = %c\n", save_vtp );
         
+        debug = *argv[9];
+        printf ("debug = %c\n", debug );
+        
+        gene_activity = *argv[10];
+        printf ("gene_activity = %c\n", gene_activity );
+        
+        remodelling = *argv[11];
+        printf ("remodelling = %c\n", remodelling );
     }
 
     cuInit ( 0 );                                       // Initialize
@@ -77,7 +85,7 @@ std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
     
     fluid.TransferFromCUDA ();
     fluid.SavePointsCSV2 ( outPath, file_num );
-    //fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+    if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
     file_num++;
     
     fluid.TransferPosVelVeval ();
@@ -91,29 +99,28 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         fluid.Freeze (outPath, file_num);                   // save csv after each kernel - to investigate bugs
         file_num+=10;
          */
-        fluid.Freeze ();       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.
+        fluid.Freeze (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y')  );       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
-        //if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
         if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
-        file_num+=10;
+        file_num+=100;
     }
 
     printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
     
-    for ( ; file_num<num_files; file_num+=10 ) {
+    for ( ; file_num<num_files; file_num+=100 ) {
         
         
-        for ( int j=0; j<steps_per_file; j++ ) {
-            fluid.Run ();                               // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
+        for ( int j=0; j<steps_per_file; j++ ) {//, bool gene_activity, bool remodelling 
+            fluid.Run (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y') );  // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
         }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
 
         //fluid.SavePoints (i);                         // alternate file formats to write
         // TODO flip mutex
         auto begin = std::chrono::steady_clock::now();
         
-        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
+        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num+90);
         //if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
-        if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
+        if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num+90);
         
         auto end = std::chrono::steady_clock::now();
         std::chrono::duration<double> time = end - begin;
