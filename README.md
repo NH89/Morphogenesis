@@ -13,13 +13,27 @@ This is the cut down version of gFluidSurface.
 Dependence on gvdb-voxels library has been removed, and CMakeLists.txt has been rewritten.
 New output has been written to provide ascii .ply files for viewing in MeshLab.
 
-This code compiles and runs with cmake 3.10, Cuda 9.1 on Ubuntu 18.04 with GTX 980m, 
+This code compiles and runs with cmake 3.10, vtk-9.0, and Cuda 11.2 on Ubuntu 20.04 with GTX 980m.
 and on Suse Linux cluster with Cuda 9.1 and Tesla P100.
 
 ## Morphogenesis branch
 A morphogenesis simulator _(in progress)_ , with soft-matter elasticity, diffusion of heat/chemicals/morphogens, epi-genetics and particle automata behaviour.
 
 The notes below are rough working notes, and will change with development.
+
+### Dependencies 
+VTK is used for .vtp file output for visualization in Parraview.
+NB vtk-dev is broken in Ubuntu 18.04 LTS. 
+You may need to build VTK from source.
+This code has been developed with VTK-9.0.1 .
+
+***NB if you need to build VTK, please remember to ***
+
+    sudo make install
+    sudo ldconfig
+    
+so that the new library will be found at runtime.
+
 
 ### Build instructions 
 
@@ -34,23 +48,35 @@ In the build subdirectory
 
 ### Within Morphogenesis branch executables (so far) include:
 
-#### fluids_m
-usage:
-
-    cd data
-    ../build/install/bin/morphogenesis    number_of_particles    output_folder
-    
-The hacked remnant of the original.
 
 #### make_demo
 usage:
     
     cd data
-    make_demo num_particles spacing x_dim y_dim z_dim
+    make_demo  num_particles  spacing  x_dim  y_dim  z_dim  demoType  simSpace
+    
+    where demoType(0:free falling, 1:remodelling & actuation, 2:diffusion & epigenetics.)
+    
+    and simSpace(0:regression test, 1:tower, 2:wavepool, 3: small dam break, 4:dual-wavepool, 5: microgravity)
+    
+    demoType sets individual particle properties in particles_pos_vel_color100000.csv, especially epigenetic states, from 3D positions.
+    
+    simSpace sets parameters in SimParams.txt , especially gravity, and wavepool actuation.
+    
     
 e.g.
 
-    ../build/install/bin/make_demo 125 1 6 6 6
+    ../build/install/bin/make_demo 125 1  6 6 6  0 5       // free falling
+    
+    ../build/install/bin/make_demo 120 1  2 2 30  1 5
+    ../build/install/bin/make_demo 600 1  4 4 30  1 5      // remodelling & actuation, with fixed, bone, tendon, muscle, elastic, mesenchyme, external actuation
+    
+    ../build/install/bin/make_demo 400 1  10 10 3  1 5     // diffusion & epigenetics, with reserve particles for growth.
+    
+    
+    ../build/install/bin/make_demo 10000 1  100 10 10  0 1
+    ../build/install/bin/make_demo 100000 1  100 100 10  0 1
+    ../build/install/bin/make_demo 1000000 1  100 100 100  0 1
 
     
 CPU-only test program to generate example **"SimParams.txt"** and **"particles_pos_vel_color100001.csv"** files for specifying models, and a **"particles_pos100001.ply"** for viewing a model in e.g. Meshlab.
@@ -74,23 +100,109 @@ New launch program to load data from files, and run simulation on GPU.
 usage:
 
     cd data
-    ../build/install/bin/load_sim  demo  out  num_files steps_per_file  freeze_steps save_ply(y/n)  save_csv(y/n)
+    ../build/install/bin/load_sim  demo  out   num_files   steps_per_file   freeze_steps   save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)  debug(y/n)  gene_activity(y/n)  remodelling(y/n)
     
 e.g.
 
     cd data/test
-    ./load_sim ../demo/ ../out/  10 3 1 y y
+    ./load_sim ../demo/ ../out/  10 3 1 y y y
+    ./load_sim ../demo/ ../out/  10 1 6 n y y
+    
+    ./load_sim ../demo/ ../out/  1000 10 0 n y y y y y                   // NB Now '100' frames per timestep x02-x20 snapshot after each kernel. x91 end of timestep. x00 begining of simulation.
+    ./load_sim ../demo/ ../out/  1000 1 10 n y y y n y                  // NB now 'freeze_steps' delay the start of particle movement, while heal() forms initial bonds.
+    ./load_sim ../demo/ ../out/  1000 1 10 n y y y n n
+    ./load_sim ../demo/ ../out/  1000 1 10 n y y n y y
+    
+    ./load_sim ../demo_10000_1_100_10_10/ ../out/  100 30 1 n n y
+    ./load_sim ../demo_100000_1_100_100_10/ ../out/  100 30 1 n n y
+    ./load_sim ../demo_1000000_1_100_100_100/ ../out/  100 30 1 n n y
 
 
 ### viewing with Meshlab
 
 The .ply files output can be viewed in MeshLab.
-It is recommended to select the following MeshLab options:
+It is recommended to select the following MeshLab options:   NB need old MeshLab (Ubuntu18.04). Version on Ubuntu 20.04 does not work.
 
     Render - Show vertex dots
     Render - Render Mode - Wireframe
+    
+    
+### viewing with Paraview
 
+The .vtp files output can be viewed in Paraview. This allows visualization of all the parameters, and is especially relevant for diffusion of morphogens, epigenetic state, and material properties.
 
+    ParaView is a widely used scientific data visualization tool.
+    ParaView can be downloaded from https://www.paraview.org/
+
+    NB GPU conflict:
+    It is advised to exit Paraview before launching Morphogenesis.
+    Sometimes other runtime errors arrise if Paraview is still running when Morphogenesis is launched.
+    
+    Both Paraview and Morphogenesis will both try to use your GPU. 
+    This may result in an _"invalid device context"_ or _"There is no device supporting CUDA"_ error.
+    This seems to happen specifically where the computer suspends while ParaView is open.
+    If ParaView fails to release the GPU after being shut down, then it may be necessary to reboot.
+    
+    This does not arise where the two programs are run on separate machines, as when Morphogenesis is run on a cluster.
+    
+
+    Loading the data into ParaView:
+    load the .vtp file 
+    select the file in the pipeline browser
+    
+    From the top menu bar, select "Filters->Common->Treshold"
+    In Properties(Thresold2), in scalars, select FPARTICLE_ID.
+    Set Maximum to the number of active particles in the simulation.
+    click "Apply" (green button in Properties)
+    In the third row of the tool bar, click "zoom to data" icon (four arrows pointing inwards).
+    NB this is necessary, when unused particles are stored in one corner of the simulation, with FPARTICLE_ID = UINT_MAX.
+    
+    In "Coloring" select the model parameter of interest
+    Adjust the coloring scale
+    
+    Set the background colour:
+    Select Edit->Settings
+    In the pop-up window,
+    select Color Pallette->Background
+    Choose a colour, click Apply, Okay.
+    
+    For Volume rendering:
+    In the top menu bar, select "Filters->Point Interpolation->Point Volume Interpolator"
+    Select the new "PointVolumeInterpolator" in the pipeline browser
+    In the Properties pane, select a kernel type, e.g. Gaussian Kernel or Shepard Kernel
+    In Coloring, select the model parameter of interest
+    Adjust the coloring scale
+    In "Volume Refinement", "Representation", select "Volume"
+    (Alternatively select these in the top menu, second row tool bar.)
+    In Volume Rendering (near the bottom of the Properties pane), in "Volume Rendering Mode", select "Smart" or "GPU"
+    Click Apply (at the toip of the Properties pane.
+    
+    
+    Also in "Volume Rendering"
+    In "Blend Mode" select between "Compostite/IsoSurface/Slice"
+
+    Colour key for F_TISSUE_TYPE:        Preset colours
+                                        "Cool-warm"      "Jet"          "Black-body"
+    Mesenchyme/other    tissueType =0    dark blue       dark blue      black
+    Tendon              tissueType =6    pink            yellow         red-orange
+    Muscle              tissueType =7    orange          orange         orange
+    Cartilage           tissueType =8                    red-orange     yellow
+    Bone                tissueType =9                    red            pale yellow
+    Elast lig           tissueType =10   dark red        dark red       white
+    
+    
+    Note Tissue order in "Demo" from Pos.z=0 along z-axis.
+    Fixed particles, 
+    mesenchyme, 
+    bone, 
+    tendon, 
+    muscle, 
+    elastic 
+    tissue, 
+    mesenchyme, 
+    actuated particles. 
+    
+    
 ### New data structures in Morphogenesis branch
 
 See notes in fluid.h
@@ -99,7 +211,7 @@ See notes in fluid.h
 
     #define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
     #define FNERVEIDX   15      //# uint
-    #define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
+    #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
     #define FEPIGEN     17      //# uint[NUM_GENES]
     
     FELASTIDX - gives the particle ID of those particles that have elastic bonds to this particle.
@@ -211,7 +323,7 @@ See notes in fluid.h
     #define FELASTIDX   14      //# uint[BONDS_PER_PARTICLE +1]  0=self UID, mass, radius. >0= modulus & particle UID
     //#define FELASTMOD         //# uint[BONDS_PER_PARTICLE +1]  modulus of bond (use a standard length) //not required
     #define FNERVEIDX   15      //# uint
-    #define FCONC       16      //# uint[NUM_TF]        NUM_TF = num transcription factors & morphogens
+    #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
     #define FEPIGEN     17      //# uint[NUM_GENES]
     
 // original buffers continued    

@@ -3,7 +3,7 @@
 #include <inttypes.h>
 #include <errno.h>
 #include <string.h>
-
+#include <chrono>
 #include "fluid_system.h"
 
 int main ( int argc, const char** argv )
@@ -14,9 +14,9 @@ int main ( int argc, const char** argv )
     char outPath[256];
     uint num_files, steps_per_file, freeze_steps;
     int file_num=0;
-    char save_ply, save_csv;
-    if ( argc != 8 ) {
-        printf ( "usage: load_sim  simulation_data_folder output_folder num_files steps_per_file freeze_steps save_ply(y/n) save_csv(y/n)\n" );
+    char save_ply, save_csv, save_vtp, debug, gene_activity, remodelling;
+    if ( argc != 12 ) {
+        printf ( "usage: load_sim  simulation_data_folder output_folder num_files steps_per_file freeze_steps save_ply(y/n) save_csv(y/n) save_vtp(y/n) debug(y/n) gene_activity(y/n) remodelling(y/n)\n" );
         return 0;
     } else {
         sprintf ( paramsPath, "%s/SimParams.txt", argv[1] );
@@ -40,10 +40,22 @@ int main ( int argc, const char** argv )
         freeze_steps = atoi(argv[5]);
         
         save_ply = *argv[6];
-        printf ( "save_ply = %u\n", save_ply );
+        printf ( "save_ply = %c\n", save_ply );
         
         save_csv = *argv[7];
-        printf ( "save_csv = %u\n", save_csv );
+        printf ( "save_csv = %c\n", save_csv );
+        
+        save_vtp = *argv[8];
+        printf ( "save_vtp = %c\n", save_vtp );
+        
+        debug = *argv[9];
+        printf ("debug = %c\n", debug );
+        
+        gene_activity = *argv[10];
+        printf ("gene_activity = %c\n", gene_activity );
+        
+        remodelling = *argv[11];
+        printf ("remodelling = %c\n", remodelling );
     }
 
     cuInit ( 0 );                                       // Initialize
@@ -64,103 +76,76 @@ int main ( int argc, const char** argv )
     fluid.InitializeCuda ();
 
     fluid.ReadSimParams ( paramsPath );
-    fluid.ReadGenome ( genomePath, GPU_DUAL, CPU_YES );
+    fluid.ReadGenome ( genomePath );
     // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
     fluid.ReadPointsCSV2 ( pointsPath, GPU_DUAL, CPU_YES );
-
+    
+std::cout <<"\nchk load_sim_0.5\n"<<std::flush;    
+    fluid.Init_FCURAND_STATE_CUDA ();
+    
 std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
+    auto old_begin = std::chrono::steady_clock::now();
+    
     fluid.TransferFromCUDA ();
     fluid.SavePointsCSV2 ( outPath, file_num );
-    fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+    if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
     file_num++;
-/*
-std::cout <<"\nchk load_sim_1.1\n"<<std::flush;
-    fluid.InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
-    fluid.PrefixSumCellsCUDA ( 0x0, 1 );
-    fluid.CountingSortFullCUDA ( 0x0 );
-std::cout <<"\nchk load_sim_1.2\n"<<std::flush;   
-    fluid.TransferFromCUDA ();
-    fluid.SavePointsCSV2 ( outPath, 1 );
-    fluid.SavePoints_asciiPLY ( outPath, 1 );
-std::cout <<"\nchk load_sim_1.3\n"<<std::flush;   
-    fluid.FreezeCUDA();
-    fluid.TransferFromCUDA ();
-    fluid.SavePointsCSV2 ( outPath, 2 );
-    fluid.SavePoints_asciiPLY ( outPath, 2 );
-std::cout <<"\nchk load_sim_1.4\n"<<std::flush;   
-    fluid.Run (); 
-    fluid.SavePointsCSV2 ( outPath, 3 );
-    fluid.SavePoints_asciiPLY ( outPath, 3 );
- */   
-
-
-
-std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     
-
+    fluid.TransferPosVelVeval ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval, before 1st timestep", 1/*mbDebug*/);
+    
+ 
+std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     for (int k=0; k<freeze_steps; k++){
+        std::cout<<"\n\nFreeze()\n"<<std::flush;
          /*
         fluid.Freeze (outPath, file_num);                   // save csv after each kernel - to investigate bugs
         file_num+=10;
          */
-        // /*
-        fluid.Freeze ();       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.
-//temporary comment out//   if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
-        if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
-     //   printf("\nsaved file_num=%u",file_num);
-        file_num+=10;
+        //fluid.Freeze (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y')  );       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.         // fluid.Freeze() creates fixed bond pattern, triangulated cubic here. 
         
-        // */
+        fluid.Run (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y') );
+        fluid.TransferPosVelVeval (); // Freeze movement until heal() has formed bonds, over 1st n timesteps.
+        
+        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
+        if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
+        file_num+=100;
     }
 
     printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
     
-    for ( ; file_num<num_files; file_num+=10 ) {
-        for ( int j=0; j<steps_per_file; j++ ) {
-            fluid.Run ();                               // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
+    for ( ; file_num<num_files; file_num+=100 ) {
+        
+        for ( int j=0; j<steps_per_file; j++ ) {//, bool gene_activity, bool remodelling 
+            fluid.Run (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y') );  // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
         }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
 
         //fluid.SavePoints (i);                         // alternate file formats to write
-        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
-        if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+        // TODO flip mutex
+        auto begin = std::chrono::steady_clock::now();
+        if(save_csv=='y'||save_vtp=='y') fluid.TransferFromCUDA ();
+        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num+90);
+        //if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
+        if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num+90);
+        
+        auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> time = end - begin;
+        std::chrono::duration<double> begin_dbl = begin - old_begin;
+        std::cout << "\nLoop duration : "
+                    << begin_dbl.count() <<" seconds. Time taken to write files for "
+                    << fluid.NumPoints() <<" particles : " 
+                    << time.count() << " seconds\n" << std::endl;
+        old_begin = begin;
+        
         //fluid.WriteParticlesToHDF5File(i);
-        printf ( "\nsaved file_num=%u, frame number =%i \n",file_num,  file_num*steps_per_file );
+        //printf ( "\nsaved file_num=%u, frame number =%i \n",file_num,  file_num*steps_per_file );
     }
-
-
-    /*//fluid.TransferFromCUDA ();	// retrieve outcome
-    //int filenum = 0;
-    	//fluid.SavePoints(filenum);
-    // NB fluid.m_Fluid.bufC(FPOS) returns a char* for fluid.m_Fluid.mcpu[n]
-
-    //fluid.SaveResults ();
-    //int NumPoints (){ return mNumPoints; }
-    //Vector3DF* getPos(int n){ return &m_Fluid.bufV3(FPOS)[n]; }
-    //Vector3DF* getVel(int n){ return &m_Fluid.bufV3(FVEL)[n]; }
-    //uint* getClr (int n){ return &m_Fluid.bufI(FCLR)[n]; }
-
-    //write fluid.m_Fluid.mcpu[n] to file. where n=bufferID : FPOS=0, FVEL=1
-
-    // mcpu[MAX_BUF] where MAX_BUF = 25, is an array of buffers.
-    // FluidSystem::AllocateParticles ( int cnt=numParticles )
-    // calls FluidSystam::AllocateBuffer(...) for each each buffer
-    // which calls m_Fluid.setBuf(buf_id, dest_buf);
-    // to save the pointer to the allocated buffer to fluid.m_Fluid.mcpu[n]
-    // FPOS, has a stride : sizeof(Vector3DF) , and 'numParticles' elements
-
-    // create file
-
-    // write HDF5 data to store fluid.m_Fluid.mcpu[FPOS][numParticles][Vector3DF]
-    // use h5ex_t_array.c example
-
-    	//int stride = sizeof(Vector3DF);
-    	//fluid.SavePointsCSV (filenum);
-    //fluid.WriteFileTest2(m_numpnts);
-    //fluid.WriteParticlesToHDF5File(filenum);*/
     
+    file_num++;
     fluid.WriteSimParams ( outPath ); 
     fluid.WriteGenome( outPath );
-    fluid.SavePointsCSV2 ( outPath, 20*30 );                 //fluid.SavePointsCSV ( outPath, 1 );
+  //  fluid.SavePointsCSV2 ( outPath, file_num );                 //fluid.SavePointsCSV ( outPath, 1 );
+  //  fluid.SavePointsVTP2 ( outPath, file_num );
 
     fluid.Exit ();                                      // Clean up and close
     CUresult cuResult = cuCtxDestroy ( cuContext ) ;

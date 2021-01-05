@@ -53,11 +53,18 @@
 	typedef unsigned char		uchar;
 	
 	extern "C" {
-		__global__ void insertParticles ( int pnum );		
+        __global__ void initialize_FCURAND_STATE (int pnum);
+		__global__ void insertParticles ( int pnum );	
+        __global__ void tally_denselist_lengths(int num_lists, int fdense_list_lengths, int fgridcnt, int fgridoff);
 		__global__ void countingSortFull ( int pnum );		
 		__global__ void computeQuery ( int pnum );	
 		__global__ void computePressure ( int pnum );		
 		__global__ void computeForce ( int pnum , bool freeze = false, uint frame =20);	          // skip CAS lock if frame>10
+        __global__ void computeDiffusion ( int pnum );
+        __global__ void computeGeneAction ( int pnum, int gene, uint list_len );                  //NB here pnum is for the dense list
+        __global__ void computeBondChanges ( int pnum, uint list_length );
+        
+        //__global__ void computeAutomata ( int pnum );
         //__global__ void freeze ( int pnum);                                                     // new freeze kernel, to generate elastic bonds.
 		__global__ void advanceParticles ( float time, float dt, float ss, int numPnts );
 		__global__ void emitParticles ( float frame, int emit, int numPnts );
@@ -65,7 +72,39 @@
 		__global__ void sampleParticles ( float* brick, uint3 res, float3 bmin, float3 bmax, int numPnts, float scalar );	
 		__global__ void prefixFixup ( uint *input, uint *aux, int len);
 		__global__ void prefixSum ( uint* input, uint* output, uint* aux, int len, int zeroff );
-		__global__ void countActiveCells ( int pnum );		
+		//__global__ void countActiveCells ( int pnum );		
+        
+        __global__ void insertChanges ( int pnum );
+        __global__ void prefixFixupChanges(uint *input, uint *aux, int len);
+        __global__ void prefixSumChanges(uint* input, uint* output, uint* aux, int len, int zeroff);
+        __global__ void tally_changelist_lengths( );
+        __global__ void countingSortChanges ( int pnum );
+        __global__ void computeNerveActivation ( int pnum );
+        
+        __global__ void computeMuscleContraction ( int pnum );
+        __device__ void addParticle         (uint parent_Idx, uint &new_particle_Idx);
+        __device__ void find_potential_bonds (int i, float3 ipos, int cell, uint _bonds[BONDS_PER_PARTICLE][2], float _bond_dsq[BONDS_PER_PARTICLE], float max_len);
+        
+        void find_potential_bond(int i, float3 ipos, uint _thisParticleBonds[6], float3 tpos, int gc, uint& _otherParticleIdx, uint& _otherParticleBondIdx, float& _bond_dsq, float max_len_sq);
+        
+        __device__ void makeBond (uint thisParticleIdx, uint otherParticleIdx, uint bondIdx, uint otherParticleBondIdx, uint bondType /* elastin, collagen, apatite */);
+        __device__ int  atomicMakeBond(uint thisParticleIndx,  uint otherParticleIdx, uint bondIdx, uint otherParticleBondIndex, uint bond_type);
+        __device__ int  insertNewParticle(float3 newParticlePos, uint parentParticleIndx, uint bondIdx, uint otherParticleBondIndex, uint bond_type[BONDS_PER_PARTICLE]);
+        __device__ void find_closest_particle_per_axis(uint particle, float3 pos, uint neighbours[6]);
+        __device__ void makeBondIndxMap( uint parentParticleIndx, int bondInxMap[6]);
+        __global__ void cleanBonds (int pnum);
+        
+        __global__ void heal                ( int pnum, uint list_length, int change_list);
+        __global__ void lengthen_muscle     ( int pnum, int list_length, int change_list);
+        __global__ void lengthen_tissue     ( int pnum, int list_length, int change_list);
+        __global__ void shorten_muscle      ( int pnum, int list_length, int change_list);
+        __global__ void shorten_tissue      ( int pnum, int list_length, int change_list);
+        
+        __global__ void strengthen_muscle   ( int pnum, int list_length, int change_list);
+        __global__ void strengthen_tissue   ( int pnum, int list_length, int change_list);
+        __global__ void weaken_muscle       ( int pnum, int list_length, int change_list);
+        __global__ void weaken_tissue       ( int pnum, int list_length, int change_list);
+        
 	}
 
 #endif

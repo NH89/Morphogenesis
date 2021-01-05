@@ -1859,7 +1859,7 @@ inline void MatrixF::Print ( char* fname )
 		}
 		fprintf ( fp, "%s\n", buf);
 	}
-	fprintf ( fp, "---------------------------------------\n", buf);
+	fprintf ( fp, "---------------------------------------\n"/*, buf*/);
 	fflush ( fp );
 	fclose ( fp );	
 }
