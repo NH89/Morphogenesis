@@ -59,9 +59,9 @@ usage:
     
     and simSpace(0:regression test, 1:tower, 2:wavepool, 3: small dam break, 4:dual-wavepool, 5: microgravity)
     
-    demoType sets individual particle properties in particles_pos_vel_color100000.csv, especially epigenetic states, from 3D positions.
+    demoType sets individual particle properties in "demo/particles_pos_vel_color100001.csv", especially epigenetic states, from 3D positions.
     
-    simSpace sets parameters in SimParams.txt , especially gravity, and wavepool actuation.
+    simSpace sets parameters in "SimParams.txt" , especially gravity, and wavepool actuation.
     
     
 e.g.

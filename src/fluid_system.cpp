@@ -443,11 +443,11 @@ int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint
     *(m_Fluid.bufF(FSTATE) + n ) = (float) rand();
     *(m_Fluid.bufI(FAGE) + n) = Age;
     *(m_Fluid.bufI(FCLR) + n) = Clr;
-  printf("m_Fluid.bufV3(FPOS)[n]=(%f,%f,%f), Pos->x=%f, Pos->y=%f, Pos->z=%f,\t",m_Fluid.bufV3(FPOS)[n].x,m_Fluid.bufV3(FPOS)[n].y,m_Fluid.bufV3(FPOS)[n].z,Pos->x,Pos->y,Pos->z);
+  //printf("m_Fluid.bufV3(FPOS)[n]=(%f,%f,%f), Pos->x=%f, Pos->y=%f, Pos->z=%f,\t",m_Fluid.bufV3(FPOS)[n].x,m_Fluid.bufV3(FPOS)[n].y,m_Fluid.bufV3(FPOS)[n].z,Pos->x,Pos->y,Pos->z);
     uint* ElastIdx = (m_Fluid.bufI(FELASTIDX) + n * BOND_DATA );
     float* ElastIdxFlt = (m_Fluid.bufF(FELASTIDX) + n * BOND_DATA );
     for (int i = 0; i<BONDS_PER_PARTICLE;i++){
-  printf("\t%u",_ElastIdxU[i*DATA_PER_BOND+0]);
+  //printf("\t%u",_ElastIdxU[i*DATA_PER_BOND+0]);
         ElastIdx[i*DATA_PER_BOND+0] = _ElastIdxU[i*DATA_PER_BOND+0] ;
         ElastIdx[i*DATA_PER_BOND+5] = _ElastIdxU[i*DATA_PER_BOND+5] ;
         ElastIdx[i*DATA_PER_BOND+6] = _ElastIdxU[i*DATA_PER_BOND+6] ;
@@ -1375,14 +1375,15 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
     float *ElastIdxPtr;
     
     fprintf(fp, "i,, x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", BONDS_PER_PARTICLE, DATA_PER_BOND);  // This system inserts commas to align header with csv data
-    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator, [8]change-type,,  ");
+    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",(%u)[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator, [8]change-type,,  ",i);
     fprintf(fp, "\t"); 
     fprintf(fp, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u*2]", BONDS_PER_PARTICLE);    
-    for (int i=0; i<BONDS_PER_PARTICLE*3; i++)fprintf(fp, ", ");
-    fprintf(fp, "\t\tFCONC[%u]", NUM_TF);
-    for (int i=0; i<NUM_TF; i++)fprintf(fp, ", ");
-    fprintf(fp, "\t\tFEPIGEN[%u] \n", NUM_GENES);
-  
+    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, "%u,,, ",i);
+    fprintf(fp, "\t\tFCONC[%u] ", NUM_TF);
+    for (int i=0; i<NUM_TF; i++)fprintf(fp, "%u, ",i);
+    fprintf(fp, "\t\tFEPIGEN[%u] ", NUM_GENES);
+    for (int i=0; i<NUM_GENES; i++)fprintf(fp, "%u, ",i);
+    fprintf(fp, "\n");
 
     for(int i=0; i<numpnt; i++) {       // nb need get..() accessors for private data.
         Pos = getPos(i);                // e.g.  Vector3DF* getPos ( int n )	{ return &m_Fluid.bufV3(FPOS)[n]; }
@@ -1470,7 +1471,7 @@ void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int 
     uint  ElastIdxU[BOND_DATA];
     float ElastIdxF[BOND_DATA];
     uint Particle_Idx[BONDS_PER_PARTICLE * 2];
-    uint Particle_ID, mass, radius, Mass_Radius, NerveIdx;
+    uint Particle_ID, mass, radius, Mass_Radius, NerveIdx, discard_uint;
     float Conc[NUM_TF];
     uint EpiGen[NUM_GENES];
     
@@ -1482,19 +1483,21 @@ void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int 
     uint bond_data=999, data_per_bond=999, bonds_per_particle=999, num_TF=999, num_genes=999;
     int result=-2;
     result = std::fscanf(points_file, "i,, x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", &bond_data, &data_per_bond);
-std::cout<<"\n\n ReadPointsCSV2() line 1241: scanf result="<<result<<"\n"<<std::flush; 
-    for (int i=0; i<data_per_bond; i++) result+=std::fscanf(points_file, ",[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator, [8]change-type,,  ");
+//std::cout<<"\n\n ReadPointsCSV2() line 1241: scanf result="<<result<<"\n"<<std::flush; 
+    for (int i=0; i<data_per_bond; i++) result+=std::fscanf(points_file, ",(%u)[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator, [8]change-type,,  ",&discard_uint);
     bond_data = bond_data * data_per_bond;
     result += fscanf(points_file, "\t");
-std::cout<<"\n ReadPointsCSV2() line 1246: scanf result="<<result<<"\n"<<std::flush; 
+//std::cout<<"\n ReadPointsCSV2() line 1246: scanf result="<<result<<"\n"<<std::flush; 
     result = std::fscanf(points_file, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u*2]", &bonds_per_particle);
-    for (int i=0; i<BONDS_PER_PARTICLE*3; i++) result+=fscanf(points_file, ", ");
-std::cout<<"\n ReadPointsCSV2() line 1249: scanf result="<<result<<"\n"<<std::flush;     
+    for (int i=0; i<BONDS_PER_PARTICLE; i++) result+=fscanf(points_file, "%u,,, ",&discard_uint);
+//std::cout<<"\n ReadPointsCSV2() line 1249: scanf result="<<result<<"\n"<<std::flush;     
     result = std::fscanf(points_file, "\t\tFCONC[%u]",&num_TF);
-    for (int i=0; i<NUM_TF; i++)result += fscanf(points_file, ", ");
-std::cout<<"\n ReadPointsCSV2() line 1252: scanf result="<<result<<"\n"<<std::flush;     
-    result = std::fscanf(points_file, "\t\tFEPIGEN[%u] \n", &num_genes );
-std::cout<<"\n ReadPointsCSV2() line 1254: scanf result="<<result<<"\n"<<std::flush;     
+    for (int i=0; i<NUM_TF; i++)result += fscanf(points_file, "%u, ",&discard_uint);
+//std::cout<<"\n ReadPointsCSV2() line 1252: scanf result="<<result<<"\n"<<std::flush;     
+    result = std::fscanf(points_file, "\t\tFEPIGEN[%u] ", &num_genes );
+    for (int i=0; i<NUM_GENES; i++)result += fscanf(points_file, "%u, ",&discard_uint);
+    std::fscanf(points_file, "\n");
+//std::cout<<"\n ReadPointsCSV2() line 1254: scanf result="<<result<<"\n"<<std::flush;     
     
 std::cout<<"\n\n ReadPointsCSV2() starting loop: number_of_lines="<<number_of_lines<<"\n"<<std::flush;
     ////////////////////
@@ -1503,23 +1506,23 @@ std::cout<<"\n\n ReadPointsCSV2() starting loop: number_of_lines="<<number_of_li
         // transcribe particle data from file to Pos, Vel and Clr
         ret=0;
         ret += std::fscanf(points_file, "%u,,%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t",&index, &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Age, &Clr );
-std::cout<<"\n ReadPointsCSV2() row="<< i <<", (line 1259, ret="<<ret<<"),\t"<<std::flush;
+//std::cout<<"\n ReadPointsCSV2() row="<< i <<", (line 1259, ret="<<ret<<"),\t"<<std::flush;
         for(int j=0; j<BOND_DATA; j+=DATA_PER_BOND) {// BONDS_PER_PARTICLE * DATA_PER_BOND
             ret += std::fscanf(points_file, "%u, %f, %f, %f, %f, %u, %u, %f, %u, ", &ElastIdxU[j+0], &ElastIdxF[j+1], &ElastIdxF[j+2], &ElastIdxF[j+3], &ElastIdxF[j+4], &ElastIdxU[j+5], &ElastIdxU[j+6], &ElastIdxF[j+7], &ElastIdxU[j+8] );
         }
-      printf("\t%u\t",ElastIdxU[0]);
-std::cout<<"(line 1263, ret="<<ret<<")\t"<<std::flush;
+      //printf("\t%u\t",ElastIdxU[0]);
+//std::cout<<"(line 1263, ret="<<ret<<")\t"<<std::flush;
         ret += std::fscanf(points_file, " \t%u, %u, %u, %u, \t\t", &Particle_ID, &mass, &radius, &NerveIdx);
         Mass_Radius = mass + (radius << 16);                                    // pack two 16bit uint  into one 32bit uint.
-std::cout<<"(ReadPointsCSV2() line 1266, ret="<<ret<<"),\t"<<std::flush;
+//std::cout<<"(ReadPointsCSV2() line 1266, ret="<<ret<<"),\t"<<std::flush;
         for(int j=0; j<(BONDS_PER_PARTICLE*2); j+=2) {
             ret += std::fscanf(points_file, "%u, %u,, ",  &Particle_Idx[j], &Particle_Idx[j+1] );
         }
-std::cout<<"(ReadPointsCSV2() line 1270, ret="<<ret<<"),\t"<<std::flush;        
+//std::cout<<"(ReadPointsCSV2() line 1270, ret="<<ret<<"),\t"<<std::flush;        
         for(int j=0; j<(NUM_TF); j++)       {    ret += std::fscanf(points_file, "%f, ",  &Conc[j] );   } ret += std::fscanf(points_file, "\t");
-std::cout<<"(ReadPointsCSV2() line 1272, ret="<<ret<<"),\t"<<std::flush;
+//std::cout<<"(ReadPointsCSV2() line 1272, ret="<<ret<<"),\t"<<std::flush;
         for(int j=0; j<(NUM_GENES); j++)    {    ret += std::fscanf(points_file, "%u, ",  &EpiGen[j] ); } ret += std::fscanf(points_file, " \n");
-std::cout<<"(ReadPointsCSV2() line 1274, ret="<<ret<<"),\t"<<std::flush;
+//std::cout<<"(ReadPointsCSV2() line 1274, ret="<<ret<<"),\t"<<std::flush;
 
 if (ret != (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  // 9 + 6*9 + 4 + 6*2 + 16 + 16 = 111
             std::cout<<"\n ReadPointsCSV2() fail line 1276, ret="<<ret<<"\n"<<std::flush;// ret=39

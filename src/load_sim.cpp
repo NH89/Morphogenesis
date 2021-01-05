@@ -16,7 +16,7 @@ int main ( int argc, const char** argv )
     int file_num=0;
     char save_ply, save_csv, save_vtp, debug, gene_activity, remodelling;
     if ( argc != 12 ) {
-        printf ( "usage: load_sim  simulation_data_folder output_folder num_files steps_per_file freeze_steps save_ply(y/n) save_csv(y/n) save_vtp(y/n) debug(y/n) gene_activity(y/n) remodelling(y/n)\n" );
+        printf ( "usage: load_sim  simulation_data_folder  output_folder  num_files  steps_per_file  freeze_steps save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)  debug(y/n) gene_activity(y/n)  remodelling(y/n)\n" );
         return 0;
     } else {
         sprintf ( paramsPath, "%s/SimParams.txt", argv[1] );
@@ -97,7 +97,7 @@ std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
  
 std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     for (int k=0; k<freeze_steps; k++){
-        std::cout<<"\n\nFreeze()\n"<<std::flush;
+        std::cout<<"\n\nFreeze()"<<k<<"\n"<<std::flush;
          /*
         fluid.Freeze (outPath, file_num);                   // save csv after each kernel - to investigate bugs
         file_num+=10;
@@ -106,7 +106,7 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         
         fluid.Run (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y') );
         fluid.TransferPosVelVeval (); // Freeze movement until heal() has formed bonds, over 1st n timesteps.
-        
+        if(save_csv=='y'||save_vtp=='y') fluid.TransferFromCUDA ();
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
         if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
         file_num+=100;
