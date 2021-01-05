@@ -79,7 +79,10 @@ int main ( int argc, const char** argv )
     fluid.ReadGenome ( genomePath );
     // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
     fluid.ReadPointsCSV2 ( pointsPath, GPU_DUAL, CPU_YES );
-
+    
+std::cout <<"\nchk load_sim_0.5\n"<<std::flush;    
+    fluid.Init_FCURAND_STATE_CUDA ();
+    
 std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
     auto old_begin = std::chrono::steady_clock::now();
     
@@ -99,7 +102,11 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         fluid.Freeze (outPath, file_num);                   // save csv after each kernel - to investigate bugs
         file_num+=10;
          */
-        fluid.Freeze (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y')  );       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.
+        //fluid.Freeze (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y')  );       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.         // fluid.Freeze() creates fixed bond pattern, triangulated cubic here. 
+        
+        fluid.Run (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y') );
+        fluid.TransferPosVelVeval (); // Freeze movement until heal() has formed bonds, over 1st n timesteps.
+        
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
         if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
         file_num+=100;
@@ -109,7 +116,6 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     
     for ( ; file_num<num_files; file_num+=100 ) {
         
-        
         for ( int j=0; j<steps_per_file; j++ ) {//, bool gene_activity, bool remodelling 
             fluid.Run (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y') );  // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
         }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
@@ -117,7 +123,7 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         //fluid.SavePoints (i);                         // alternate file formats to write
         // TODO flip mutex
         auto begin = std::chrono::steady_clock::now();
-        
+        if(save_csv=='y'||save_vtp=='y') fluid.TransferFromCUDA ();
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num+90);
         //if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
         if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num+90);

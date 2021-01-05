@@ -53,6 +53,7 @@
 	typedef unsigned char		uchar;
 	
 	extern "C" {
+        __global__ void initialize_FCURAND_STATE (int pnum);
 		__global__ void insertParticles ( int pnum );	
         __global__ void tally_denselist_lengths(int num_lists, int fdense_list_lengths, int fgridcnt, int fgridoff);
 		__global__ void countingSortFull ( int pnum );		
@@ -82,7 +83,7 @@
         
         __global__ void computeMuscleContraction ( int pnum );
         __device__ void addParticle         (uint parent_Idx, uint &new_particle_Idx);
-        __device__ void find_potential_bonds (int i, float3 ipos, int cell, uint _bonds[BONDS_PER_PARTICLE][2], float _bond_dsq[BONDS_PER_PARTICLE], float max_len_sq);
+        __device__ void find_potential_bonds (int i, float3 ipos, int cell, uint _bonds[BONDS_PER_PARTICLE][2], float _bond_dsq[BONDS_PER_PARTICLE], float max_len);
         
         void find_potential_bond(int i, float3 ipos, uint _thisParticleBonds[6], float3 tpos, int gc, uint& _otherParticleIdx, uint& _otherParticleBondIdx, float& _bond_dsq, float max_len_sq);
         

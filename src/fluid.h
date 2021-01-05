@@ -31,6 +31,7 @@
 //	using namespace nvdb;
 
     #include "masks.h"
+#include <../cuda-11.2/targets/x86_64-linux/include/curand_kernel.h>
 
 	typedef	unsigned int		uint;	
 	typedef	unsigned short int	ushort;	
@@ -200,7 +201,10 @@
     #define FDENSE_LISTS_CHANGES        40     //# *uint [NUM_CHANGES] holds pointers to change_list buffers [2][list_length] holding : particleIDx and bondIDx TODO edit buffer allocation & use  
     #define FDENSE_BUF_LENGTHS_CHANGES  41
 	
-	#define MAX_BUF		                42
+    #define FCURAND_STATE 42
+    #define FCURAND_SEED 43
+	
+	#define MAX_BUF		                44
     
 
 	#ifdef CUDA_KERNEL                                                                   // fluid_system_cuda.cuh:37:	#define CUDA_KERNEL ,   fluid_system_cuda.cu:29:#define CUDA_KERNEL
@@ -222,6 +226,8 @@
 			inline CALLFUNC uint*   bufI (int n)		{ return (uint*)   mgpu[n]; }
 			inline CALLFUNC char*   bufC (int n)		{ return (char*)   mgpu[n]; }
 			inline CALLFUNC uint**  bufII (int n)       { return (uint**)  mgpu[n]; }        // for elastIdx[][]
+			inline CALLFUNC curandState_t*  bufCuRNDST (int n)       { return (curandState_t*)  mgpu[n]; }
+			inline CALLFUNC unsigned long long*  bufULL (int n)      { return (unsigned long long*)  mgpu[n]; }
 			//inline CALLFUNC unsigned short* bufS (int n)		{ return (unsigned short*)   mgpu[n]; }
 		#else
 			// on host, access data via cpu pointers
@@ -231,6 +237,9 @@
 			inline CALLFUNC uint*   bufI (int n)		{ return (uint*)   mcpu[n]; }
 			inline CALLFUNC char*   bufC (int n)		{ return (char*)   mcpu[n]; }
 			inline CALLFUNC uint**  bufII (int n)       { return (uint**)  mcpu[n]; }        // for elastIdx[][]
+			inline CALLFUNC curandState_t*  bufCuRNDST (int n)       { return (curandState_t*)  mcpu[n]; }
+			inline CALLFUNC unsigned long long*  bufULL (int n)      { return (unsigned long long*)  mcpu[n]; }
+			
 			//inline CALLFUNC unsigned short* bufS (int n)		{ return (unsigned short*)   mgpu[n]; }
 		#endif
 		inline CALLFUNC void    setBuf (int n, char* buf )	{ mcpu[n] = buf; }			// stores pointer to buffer in mcpu[]

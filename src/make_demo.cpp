@@ -10,10 +10,10 @@ typedef	unsigned int		uint;
 
 int main ( int argc, const char** argv ) 
 {
-    uint num_particles, demoType;
+    uint num_particles, demoType, simSpace;
     float spacing, x_dim, y_dim, z_dim;
-    if ( argc != 7 ) {
-        printf ( "usage: make_demo num_particles spacing x_dim y_dim z_dim demoType(0:free falling, 1: remodelling & actuation, 2: diffusion & epigenetics.)\n" );
+    if ( argc != 8 ) {
+        printf ( "usage: make_demo num_particles spacing x_dim y_dim z_dim demoType(0:free falling, 1: remodelling & actuation, 2: diffusion & epigenetics.)  simSpace(0:regression test, 1:tower, 2:wavepool, 3: small dam break, 4:dual-wavepool, 5: microgravity)\n" );
         return 0;
     } else {
         num_particles = atoi(argv[1]);
@@ -34,13 +34,16 @@ int main ( int argc, const char** argv )
         demoType = atof(argv[6]);
         printf ( "demoType = %u, (0:free falling, 1: remodelling & actuation, 2: diffusion & epigenetics.)\n", demoType );
         
+        simSpace = atof(argv[7]);
+        printf ( "simSpace = %u, (0:regression test, 1:tower, 2:wavepool, 3: small dam break, 4:dual-wavepool, 5: microgravity)\n", simSpace);
+        
         printf ( "### still need to edit fluid.WriteDemoSimParams(\"./demo\"); to use the new input ! \n");
     }    
     
     
     
     FluidSystem fluid;
-    fluid.WriteDemoSimParams("./demo", num_particles, spacing, x_dim, y_dim, z_dim, demoType);/*const char * relativePath*/ 
+    fluid.WriteDemoSimParams("./demo", num_particles, spacing, x_dim, y_dim, z_dim, demoType, simSpace);/*const char * relativePath*/ 
     fluid.Exit ();	
     printf("\nmake_demo finished.\n");
     return 0;

@@ -189,7 +189,9 @@
     #define FUNC_FIXED                      33
     #define FUNC_CLEAN_BONDS                34
     
-    #define FUNC_MAX			            36
+    #define FUNC_INIT_FCURAND_STATE         36
+    
+    #define FUNC_MAX			            37
 
     //  used for AllocateBuffer(  .... )
 	#define GPU_OFF				0
@@ -235,7 +237,7 @@
 		// Setup
 		void SetupKernels ();
 		void SetupDefaultParams ();
-		void SetupExampleParams ();
+		void SetupExampleParams (uint simSpace);
         void SetupExampleGenome();
 		void SetupSpacing ();
         void SetupAddVolumeMorphogenesis2(Vector3DF min, Vector3DF max, float spacing, float offs, uint demoType );  // NB ony used in WriteDemoSimParams()
@@ -267,6 +269,7 @@
 		void FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, float3 delta, float3 gmin, float3 gmax, int total, int chk );
 		void FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, int emit );
 
+        void Init_FCURAND_STATE_CUDA ();
 		void InsertParticlesCUDA ( uint* gcell, uint* ccell, uint* gcnt );	
 		void PrefixSumCellsCUDA ( int zero_offsets );		
 		void CountingSortFullCUDA ( Vector3DF* gpos );
@@ -292,7 +295,7 @@
         void SavePointsVTP2 ( const char * relativePath, int frame );
         void SavePointsCSV2 ( const char * relativePath, int frame );
         void ReadSimParams ( const char * relativePath );    // path to folder containing simparams and .csv files
-        void WriteDemoSimParams ( const char * relativePath, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim, uint demoType); // Write standard demo to file, as demonstration of file format. 
+        void WriteDemoSimParams ( const char * relativePath, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim, uint demoType, uint simSpace); // Write standard demo to file, as demonstration of file format. 
         void WriteSimParams ( const char * relativePath );
         void ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);
 
