@@ -264,8 +264,11 @@ extern "C" __global__ void countingSortDenseLists ( int pnum )
                 lists[gene][ offsets[gene][bin] + gene_counter[gene] ]=particle;
                 gene_counter[gene]++;
                 if( gene_counter[gene]>fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin] )   
-                    printf("\n\n overflow: particle=%u, gene=%u, bin=%u, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[bin]=%u \n",
-                           particle, gene, bin, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[bin]);
+                    printf("\n Overflow: particle=%u, ID=%u, gene=%u, bin=%u, gene_counter[gene]=%u, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]=%u \t\t",
+                           particle, fbuf.bufI(FPARTICLE_ID)[particle], gene, bin, gene_counter[gene], fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]);
+                    
+                    //else printf("\n Non-overflow: particle=%u, ID=%u, gene=%u, bin=%u, gene_counter[gene]=%u, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]=%u \t\t",
+                    //       particle, fbuf.bufI(FPARTICLE_ID)[particle], gene, bin, gene_counter[gene], fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]);
             }
         }
     }
@@ -412,7 +415,8 @@ extern "C" __global__ void computeGeneAction ( int pnum, int gene, uint list_len
             gene, i, list_len, particle_index, pnum);
     } */   
     int delay = (int)fbuf.bufI(FEPIGEN)[gene*pnum + particle_index];                                // Change in _epigenetic_ activation of this particle
-    if (delay < INT_MAX){                                                                           // (FEPIGEN==INT_MAX) => active & not counting down.
+    //printf("\nDelay=%i, particle_index=%u\t", delay, particle_index);
+    if (0 < delay && delay < INT_MAX){                                                                           // (FEPIGEN==INT_MAX) => active & not counting down.
         fbuf.bufI(FEPIGEN)[gene*pnum + particle_index]--;                                           // (FEPIGEN<1) => inactivated @ insertParticles(..)
         if (delay==1  &&  gene<NUM_GENES && fbuf.bufI(FEPIGEN)[ (gene+1)*pnum + particle_index ] )  // If next gene is active, start count down to inactivate it.
             fbuf.bufI(FEPIGEN)[(gene+1)*pnum + particle_index] = fgenome.delay[gene+1] ;            // Start countdown to silence next gene.
@@ -569,7 +573,7 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
                 printf("\nError :computeBondChanges:add to heal list: i=%u, ParticleID=%u, bond=%u, bond_uint_ptr[0]=%u, fbufFEPIGEN[8]=%u, fbufFEPIGEN[9]=%u "
                 ,i,fbuf.bufI(FPARTICLE_ID)[i],bond,bond_uint_ptr[0],fbufFEPIGEN[8],fbufFEPIGEN[9]);
             break;                                                                                  // First, heal one bond per timestep
-        }else{                                                                                      // prevents clash with heal.
+        }/*else{                                                                                      // prevents clash with heal.
             if (bond_flt_ptr[2]>fgenome.param[bond_type[bond]][fgenome.max_rest_length]) {  
                 atomicAdd ( &fbufFGRIDCNT_CHANGES[ m*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );        //add to elongate list , store particleIdx & bond 
                 bond_uint_ptr[8]+=2*m;
@@ -586,7 +590,7 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
                 atomicAdd ( &fbufFGRIDCNT_CHANGES[ (6+m)*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );    //add to weaken list
                 bond_uint_ptr[8]+=64*m;
             }
-        }
+        }*/
         // bond_uint_ptr[8]+=2^n; is ELASTIDX for binary change indicator per bond. 
     }
 }
@@ -595,6 +599,7 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
 extern "C" __device__ void addParticle (uint parent_Idx, uint &new_particle_Idx)                    // Template for stregthening & lengthening kernels
 {   
     int particle_Idx = atomicAdd(&fparam.pnumActive, 1);  // NOT safe to use fbuf.bufI(FGRIDOFF)[fparam.gridTotal] as active particle count!
+    printf("\naddParticle() parent_Idx=%u, particle_Idx=%u", parent_Idx, particle_Idx);
     if (particle_Idx >= 0  &&  particle_Idx < fparam.pnum) {
         new_particle_Idx                            = particle_Idx;
         fbuf.bufF3(FVEVAL)[new_particle_Idx]        = fbuf.bufF3(FVEVAL)[parent_Idx]; // NB could use average with next row. Prob not needed, because old bond is stretched.
@@ -613,6 +618,7 @@ extern "C" __device__ void addParticle (uint parent_Idx, uint &new_particle_Idx)
 extern "C" __device__ void removeParticle (uint particle_Idx)                                                       // Template for weakening & shortening kernels
 {   //  active particle count : done automatically be insert_particles(..)
     //  sets values to null particle, => will be sorted to reserve section of particle list in next time step.
+    printf("\nremoveParticle() particle_Idx=%u \t",particle_Idx);
     fbuf.bufF3(FPOS)[particle_Idx]      = fparam.pboundmax;
     fbuf.bufF3(FVEVAL)[particle_Idx]    = make_float3(0,0,0);
     fbuf.bufF3(FVEL)[particle_Idx]      = make_float3(0,0,0);
@@ -1162,6 +1168,7 @@ extern "C" __global__ void lengthen_muscle ( int pnum, int list_length, int chan
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
     uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of lengthen_muscle
+    printf("\nlengthen_muscle() i=%u \t",i);
     if ( i >= pnum ) return; 
     uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+list_length]; // bondIdx, NB FDENSE_LISTS_CHANGES [2][list_length] 
     
@@ -1245,6 +1252,7 @@ extern "C" __global__ void lengthen_tissue ( int pnum, int list_length, int chan
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
     uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of lengthen_tissue
+    printf("\nlengthen_tissue() i=%u \t",i);
     if ( i >= pnum ) return; 
     uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+list_length]; 
     
@@ -1401,6 +1409,7 @@ extern "C" __global__ void shorten_muscle ( int pnum, int list_length, int chang
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
     uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of shorten_muscle
+    printf("\nshorten_muscle() i=%u \t",i);
     if ( i >= pnum ) return; 
     uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+list_length]; 
     // Need to remove 3 particles, and close the gap.
@@ -1413,6 +1422,7 @@ extern "C" __global__ void shorten_tissue ( int pnum, int list_length, int chang
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
     uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of shorten_tissue
+    printf("\nshorten_tissue() i=%u \t",i);
     if ( i >= pnum ) return; 
     uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+list_length]; 
     // Need to remove 1 particle and close the gap
@@ -1425,6 +1435,7 @@ extern "C" __global__ void strengthen_muscle ( int pnum, int list_length, int ch
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
     uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of strengthen_muscle
+    printf("\nstrengthen_muscle() i=%u \t",i);
     if ( i >= pnum ) return; 
     uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+list_length]; 
     // Need to doulble up the helix i.e. add particles and contractile bonds in parallel.
@@ -1440,6 +1451,7 @@ extern "C" __global__ void strengthen_tissue ( int pnum, int list_length, int ch
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
     uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of strengthen_tissue
+    printf("\nstrengthen_tissue() i=%u \t",i);
     if ( i >= pnum ) return; 
     uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+list_length]; 
     // Need to double up articles and bonds in parallel wrt the affected bond
@@ -1452,6 +1464,7 @@ extern "C" __global__ void weaken_muscle ( int pnum, int list_length, int change
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
     uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of weaken_muscle
+    printf("\nweaken_muscle() i=%u \t",i);
     if ( i >= pnum ) return; 
     uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+list_length]; 
     // Need to remove a row of particles in parallel - i.e. form/propagate a branch 
@@ -1464,6 +1477,7 @@ extern "C" __global__ void weaken_tissue ( int pnum, int list_length, int change
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                             // particle index
     if ( particle_index >= list_length ) return; // pnum should be length of list.
     uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index]; // call for dense list of weaken_tissue
+    printf("\nweaken_tissue() i=%u \t",i);
     if ( i >= pnum ) return; 
     uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+list_length]; 
     // Need to remove a particle and close the gap by transfering load laterally
@@ -2449,7 +2463,7 @@ extern "C" __global__ void externalActuation (uint list_len,  float time, float 
 	if ( particle_index >= list_len ) return;
     uint i = fbuf.bufII(FDENSE_LISTS)[12][particle_index];
 	if ( i >= numPnts ) return;
-  printf("fixedParticles(): i=%u",i);
+  printf("\nexternalActuation(): i=%u\t",i);
     
     // Get particle vars
 	register float3 accel, norm;
@@ -2497,7 +2511,7 @@ extern "C" __global__ void externalActuation (uint list_len,  float time, float 
 	ftemp.bufF3(FVEVAL)[i] = (vel + vnext) * 0.5;	// v(t+1) = [v(t-1/2) + v(t+1/2)] * 0.5			
 	ftemp.bufF3(FVEL)[i] = vnext;
 	ftemp.bufF3(FPOS)[i] += vnext * (dt/ss);		// p(t+1) = p(t) + v(t+1/2) dt		
-    printf("\ni=%u (FVEL)[i]=(%f,%f,%f), (FPOS)[i]=(%f,%f,%f) ",
+    printf("\nexternalActuation(): i=%u (FVEL)[i]=(%f,%f,%f), (FPOS)[i]=(%f,%f,%f) ",
            i, ftemp.bufF3(FVEL)[i].x, ftemp.bufF3(FVEL)[i].y, ftemp.bufF3(FVEL)[i].z,
            ftemp.bufF3(FPOS)[i].x, ftemp.bufF3(FPOS)[i].y, ftemp.bufF3(FPOS)[i].z  
           );
@@ -2510,7 +2524,7 @@ extern "C" __global__ void fixedParticles (uint list_len, int numPnts )
 	if ( particle_index >= list_len ) return;
     uint i = fbuf.bufII(FDENSE_LISTS)[11][particle_index];
 	if ( i >= numPnts ) return;
-  printf("\nfixedParticles(): i=%u",i);
+  printf("\nfixedParticles(): i=%u\t",i);
 
 	ftemp.bufF3(FVEVAL)[i] = fbuf.bufF3(FVEVAL)[i];
 	ftemp.bufF3(FVEL)[i]   = fbuf.bufF3(FVEL)[i];

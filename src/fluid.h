@@ -186,7 +186,7 @@
 	#define FGRID		18		//!         uniform acceleration grid : the bin to which a particle belongs
 	#define FGRIDCNT	19      //!         grid count                : array holding num particles in each bin
 	#define	FGRIDOFF	20      //!         grid offset               : array holding the offset of each bin
-	#define FGRIDACT	21      //!
+	#define FGRIDACT	21      //! ?? not used ??
 	#define FSTATE		22      //# uint 
 	//#define FBRICK		23      //!            #Not used
 	#define FPARAMS		24		//! fluid parameters

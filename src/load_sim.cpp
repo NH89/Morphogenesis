@@ -148,8 +148,20 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
   //  fluid.SavePointsVTP2 ( outPath, file_num );
 
     fluid.Exit ();                                      // Clean up and close
+    
+    size_t   free1, free2, total;
+    cudaMemGetInfo(&free1, &total);
+    printf("\nCuda Memory, before cuCtxDestroy(cuContext): free=%lu, total=%lu.\t",free1,total);
+   // cuCheck(cuCtxSynchronize(), "load_sim.cpp ", "cuCtxSynchronize", "before cuCtxDestroy(cuContext)", 1/*mbDebug*/);  
+    
     CUresult cuResult = cuCtxDestroy ( cuContext ) ;
     if ( cuResult!=0 ) {printf ( "error closing, cuResult = %i \n",cuResult );}
+    
+   // cuCheck(cuCtxSynchronize(), "load_sim.cpp ", "cuCtxSynchronize", "after cudaDeviceReset()", 1/*mbDebug*/); 
+    cudaMemGetInfo(&free2, &total);
+    printf("\nAfter cuCtxDestroy(cuContext): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
+    
+    
     printf ( "\nClosing load_sim.\n" );
     return 0;
 }
