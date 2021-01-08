@@ -364,7 +364,7 @@
 		// Particle Buffers
 		int						mNumPoints;
 		int						mMaxPoints;
-		int						mAvailablePoints;
+		int						mActivePoints;
 		FBufs					m_Fluid;				// Fluid buffers - NB this is an array of pointers (in mPackBuf ?)
 		FBufs					m_FluidTemp;			// Fluid buffers (temporary)
 		FParams					m_FParams;				// Fluid parameters struct - that apply to all particles 

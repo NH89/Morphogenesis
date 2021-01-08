@@ -2,10 +2,11 @@
 #include <iostream>
 #include <cuda.h>
 #include "cutil_math.h"
-#include "fluid_system.h"
+//#include "fluid_system.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <curand_kernel.h> // ../cuda-11.2/targets/x86_64-linux/include/
+#include "fluid_system.h"
 //#include <typeinfo>       // operator typeid
 
 
@@ -264,7 +265,7 @@ void FluidSystem::Exit (){
     }
     size_t   free1, free2, total;
     cudaMemGetInfo(&free1, &total);
-    printf("\nCuda Memory, before cudaDeviceReset(): free=%lu, total=%lu.\t",free1,total);
+    //printf("\nCuda Memory, before cudaDeviceReset(): free=%lu, total=%lu.\t",free1,total);
     cuCheck(cuCtxSynchronize(), "Exit ", "cuCtxSynchronize", "before cudaDeviceReset()", mbDebug);  
     if(m_Module != 0x0){
         printf("\ncudaDeviceReset()\n");
@@ -272,7 +273,7 @@ void FluidSystem::Exit (){
     }
     
     cudaMemGetInfo(&free2, &total);
-    printf("\nAfter cudaDeviceReset(): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
+    //printf("\nAfter cudaDeviceReset(): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
 }
 
 void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode ){   // mallocs a buffer - called by FluidSystem::Initialize(), AllocateParticles, and AllocateGrid()
@@ -291,7 +292,7 @@ std::cout<<"\nAllocateBuffer ( int buf_id="<<buf_id<<", int stride="<<stride<<",
     cuCheck(cuCtxSynchronize(), "AllocateBuffer ", "cuCtxSynchronize", "before 1st cudaMemGetInfo(&free1, &total)", mbDebug);  
     size_t   free1, free2, total;
     cudaMemGetInfo(&free1, &total);
-    printf("\nCuda Memory: free=%lu, total=%lu.\t",free1,total);
+    //printf("\nCuda Memory: free=%lu, total=%lu.\t",free1,total);
     
     if (gpumode == GPU_SINGLE || gpumode == GPU_DUAL )	{
         if (m_Fluid.gpuptr(buf_id) != 0x0) cuCheck(cuMemFree(m_Fluid.gpu(buf_id)), "AllocateBuffer", "cuMemFree", "Fluid.gpu", mbDebug);
@@ -313,10 +314,10 @@ std::cout<<"\nAllocateBuffer ( int buf_id="<<buf_id<<", int stride="<<stride<<",
 void FluidSystem::AllocateParticles ( int cnt, int gpu_mode, int cpu_mode ){ // calls AllocateBuffer(..) for each buffer.  
 // Defaults in header : int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES
 // Called by FluidSystem::ReadPointsCSV(..), and FluidSystem::WriteDemoSimParams(...), cnt = mMaxPoints.
-std::cout<<"\nAllocateParticles ( int cnt="<<cnt<<", int "<<gpu_mode<<", int "<<cpu_mode<<" )\n"<<std::flush;
-std::cout<<"\nGPU_OFF=0, GPU_SINGLE=1, GPU_TEMP=2, GPU_DUAL=3, CPU_OFF=4, CPU_YES=5"<<std::flush;
+std::cout<<"\nAllocateParticles ( int cnt="<<cnt<<", int "<<gpu_mode<<", int "<<cpu_mode<<" )\t";//<<std::flush;
+std::cout<<"\tGPU_OFF=0, GPU_SINGLE=1, GPU_TEMP=2, GPU_DUAL=3, CPU_OFF=4, CPU_YES=5"<<std::flush;
     AllocateBuffer ( FPOS,		sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );//AllocateBuffer ( int buf_id, int stride,     int cpucnt, int gpucnt,    int gpumode,    int cpumode )
-std::cout<<"\nm_Fluid.gpu(FPOS)="<< m_Fluid.gpu(FPOS)<<"\tm_Fluid.bufC(FPOS)="<< static_cast<void*>(m_Fluid.bufC(FPOS))<<"\n"<<std::flush;
+//std::cout<<"\nm_Fluid.gpu(FPOS)="<< m_Fluid.gpu(FPOS)<<"\tm_Fluid.bufC(FPOS)="<< static_cast<void*>(m_Fluid.bufC(FPOS))<<"\n"<<std::flush;
     AllocateBuffer ( FCLR,		sizeof(uint),		cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FVEL,		sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );// NB gpu_mode means create buffers for _both_  "m_Fluid.mgpu[buf_id]" and "m_FluidTemp.mgpu[buf_id]"
     AllocateBuffer ( FVEVAL,	sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
@@ -332,7 +333,7 @@ std::cout<<"\nm_Fluid.gpu(FPOS)="<< m_Fluid.gpu(FPOS)<<"\tm_Fluid.bufC(FPOS)="<<
     AllocateBuffer ( FNBRCNT,	sizeof(uint),		cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FSTATE,	sizeof(uint),		cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     // extra buffers for morphogenesis
-std::cout<<"\nchl2.11.1\n"<<std::flush;
+//std::cout<<"\nchl2.11.1\n"<<std::flush;
     AllocateBuffer ( FELASTIDX,	sizeof(uint[BOND_DATA]),             cnt,   m_FParams.szPnts,	gpu_mode, cpu_mode );  // used to be [BONDS_PER_PARTICLE * 2]
     AllocateBuffer ( FPARTICLEIDX,	sizeof(uint[BONDS_PER_PARTICLE *2]),cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FPARTICLE_ID,	sizeof(uint),		             cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
@@ -348,7 +349,7 @@ std::cout<<"\nchl2.11.1\n"<<std::flush;
     AllocateBuffer ( FCURAND_SEED,	sizeof(unsigned long long),	     cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     
     
-std::cout<<"\nchl2.11.2\n"<<std::flush;
+//std::cout<<"\nchl2.11.2\n"<<std::flush;
     
     // Update GPU access pointers
     if (gpu_mode != GPU_OFF ) {
@@ -397,7 +398,7 @@ void FluidSystem::AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt,
     cuCheck(cuCtxSynchronize(), "AllocateBufferDenseLists ", "cuCtxSynchronize", "before 1st cudaMemGetInfo(&free1, &total)", mbDebug);  
     size_t   free1, free2, total;
     cudaMemGetInfo(&free1, &total);
-    printf("\nCuda Memory: free=%lu, total=%lu.\t",free1,total);
+    //printf("\nCuda Memory: free=%lu, total=%lu.\t",free1,total);
     
     CUdeviceptr*  listpointer = (CUdeviceptr*) &m_Fluid.bufC(lists)[buf_id * sizeof(CUdeviceptr)] ;
     /*
@@ -405,7 +406,7 @@ void FluidSystem::AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt,
     //printf("\n*listpointer=%p, listpointer=%p, listpointer2=%llu, lists=%i, buf_id=%i, \t", (CUdeviceptr* ) *listpointer, listpointer,  listpointer2, lists, buf_id);
     //cout<<"\n listpointer is an:"<< typeid(listpointer).name()<<" *listpointer is an:"<< typeid(*listpointer).name()<<" listpointer2 is an:"<< typeid(listpointer2).name()<<" .  "<<std::flush;//" *listpointer2 is an:"<< typeid(*listpointer2).name()<<
     */
-    printf("\nAllocateBufferDenseLists: buf_id=%i, stride=%i, gpucnt=%i, lists=%i,  .\t", buf_id, stride, gpucnt, lists);
+    //printf("\nAllocateBufferDenseLists: buf_id=%i, stride=%i, gpucnt=%i, lists=%i,  .\t", buf_id, stride, gpucnt, lists);
     if (*listpointer != 0x0) cuCheck(cuMemFree(*listpointer), "AllocateBufferDenseLists1", "cuMemFree", "*listpointer", mbDebug);
     cuCheck( cuMemAlloc( listpointer, stride*gpucnt),   "AllocateBufferDenseLists2", "cuMemAlloc", "listpointer", mbDebug);    
     
@@ -511,7 +512,7 @@ int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint
 
 void FluidSystem::AddNullPoints (){// fills unallocated particles with null data upto mMaxPoints. These can then be used to "create" new particles.
     std::cout<<"\n AddNullPoints ()\n"<<std::flush;
-    Vector3DF Pos, Vel;
+    Vector3DF Pos, Vel, binSize;
     uint Age, Clr;
     uint  ElastIdxU[BOND_DATA];
     float ElastIdxF[BOND_DATA];
@@ -524,7 +525,11 @@ void FluidSystem::AddNullPoints (){// fills unallocated particles with null data
     //Pos.y = m_FParams.pboundmax.y; 
     //Pos.z = m_FParams.pboundmax.z;
     
-    Pos = GetVec(PBOUNDMAX);        // SetupSpacing() has been called => m_Vec[PBOUNDMAX] is correctly set.
+    binSize.x=1.0/m_GridDelta.x; binSize.y=1.0/m_GridDelta.y; binSize.z=1.0/m_GridDelta.z;
+    
+    Pos = GetVec(PVOLMAX);        // SetupSpacing() has been called => m_Vec[PBOUNDMAX] is correctly set.  PVOLMAX - m_Param [ PRADIUS ]
+    //Pos.x -= m_GridDelta.x/2; Pos.y -= m_GridDelta.y/2; Pos.z -= m_GridDelta.z/2;  // Should place particle in centre of last bin.
+    Pos.x -= binSize.x*1.5; Pos.y -= binSize.y*1.5; Pos.z -= binSize.z*1.5;
     
     Vel.x = 0; 
     Vel.y = 0; 
@@ -754,42 +759,42 @@ std::cout << "\tFluidSystem::Run (const char * relativePath, int frame ) "<<std:
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "begin Run", mbDebug); 
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+1 );
+        SavePointsCSV2 (  relativePath, frame );
         std::cout << "\n\nRun(relativePath,frame) Chk1, saved "<< frame <<".csv At start of Run(...) \n"<<std::flush;
     }
     InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug);
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+2 );
+        SavePointsCSV2 (  relativePath, frame+1 );
         std::cout << "\n\nRun(relativePath,frame) Chk2, saved "<< frame+1 <<".csv  After InsertParticlesCUDA\n"<<std::flush;
     }
     PrefixSumCellsCUDA ( 1 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumCellsCUDA", mbDebug);
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+3 );
+        SavePointsCSV2 (  relativePath, frame+2 );
         std::cout << "\n\nRun(relativePath,frame) Chk3, saved "<< frame+2 <<".csv  After PrefixSumCellsCUDA\n"<<std::flush;
     }
     CountingSortFullCUDA ( 0x0 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortFullCUDA", mbDebug);
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+4 );
+        SavePointsCSV2 (  relativePath, frame+3 );
         std::cout << "\n\nRun(relativePath,frame) Chk4, saved "<< frame+3 <<".csv  After CountingSortFullCUDA\n"<<std::flush;
     }
     ComputePressureCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug);
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+5 );
+        SavePointsCSV2 (  relativePath, frame+4 );
         std::cout << "\n\nRun(relativePath,frame) Chk5, saved "<< frame+4 <<".csv  After ComputePressureCUDA \n"<<std::flush;
     }
     ComputeForceCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug);
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+6 );
+        SavePointsCSV2 (  relativePath, frame+5 );
         std::cout << "\n\nRun(relativePath,frame) Chk6, saved "<< frame+5 <<".csv  After ComputeForceCUDA \n"<<std::flush;
     }
     // TODO compute nerve activation ? 
@@ -800,16 +805,16 @@ std::cout << "\tFluidSystem::Run (const char * relativePath, int frame ) "<<std:
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+7 );
-        std::cout << "\n\nRun(relativePath,frame) Chk7 \n"<<std::flush;
+        SavePointsCSV2 (  relativePath, frame+6 );
+        std::cout << "\n\nRun(relativePath,frame) Chk7, saved "<< frame+6 <<".csv  After  \n"<<std::flush;
     }
     if(gene_activity){
         ComputeGenesCUDA();     // NB (i)Epigenetic countdown, (ii) GRN gene regulatory network sensitivity to TransciptionFactors (FCONC)
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeGenesCUDA", mbDebug);
         if(debug){
             TransferFromCUDA ();
-            SavePointsCSV2 (  relativePath, frame+8 );
-            std::cout << "\n\nRun(relativePath,frame) Chk8 \n"<<std::flush;
+            SavePointsCSV2 (  relativePath, frame+7 );
+            std::cout << "\n\nRun(relativePath,frame) Chk8, saved "<< frame+7 <<".csv  After  \n"<<std::flush;
         }
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After SavePointsCSV2 after ComputeGenesCUDA", mbDebug); // wipes out FEPIGEN
     }
@@ -818,58 +823,60 @@ std::cout << "\tFluidSystem::Run (const char * relativePath, int frame ) "<<std:
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeBondChangesCUDA", mbDebug); // wipes out FEPIGEN
         if(debug){
             TransferFromCUDA ();
-            SavePointsCSV2 (  relativePath, frame+9 );
-            std::cout << "\n\nRun(relativePath,frame) Chk9 \n"<<std::flush;
+            SavePointsCSV2 (  relativePath, frame+8 );
+            std::cout << "\n\nRun(relativePath,frame) Chk9, saved "<< frame+8 <<".csv  After  \n"<<std::flush;
         }
         PrefixSumChangesCUDA ( 1 );
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumChangesCUDA", mbDebug); // writes mangled (?original?) data to FEPIGEN 
         if(debug){
             TransferFromCUDA ();
-            SavePointsCSV2 (  relativePath, frame+10 );
-            std::cout << "\n\nRun(relativePath,frame) Chk10 \n"<<std::flush;
+            SavePointsCSV2 (  relativePath, frame+9 );
+            std::cout << "\n\nRun(relativePath,frame) Chk10, saved "<< frame+9 <<".csv  After  \n"<<std::flush;
         }
         CountingSortChangesCUDA (  );
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortChangesCUDA", mbDebug);
         if(debug){
             TransferFromCUDA ();
-            SavePointsCSV2 (  relativePath, frame+11 );
-            std::cout << "\n\nRun(relativePath,frame) Chk11 \n"<<std::flush;
+            SavePointsCSV2 (  relativePath, frame+10 );
+            std::cout << "\n\nRun(relativePath,frame) Chk11, saved "<< frame+10 <<".csv  After  \n"<<std::flush;
         }
         ComputeParticleChangesCUDA ();                                                                       // execute particle changes // _should_ be able to run concurrently => no cuCtxSynchronize()
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeParticleChangesCUDA", mbDebug);
         if(debug){
             TransferFromCUDA ();
-            SavePointsCSV2 (  relativePath, frame+12 );
-            std::cout << "\n\nRun(relativePath,frame) Chk12,  After ComputeParticleChangesCUDA\n"<<std::flush;
+            SavePointsCSV2 (  relativePath, frame+11 );
+            std::cout << "\n\nRun(relativePath,frame) Chk12, saved "<< frame+11 <<".csv  After  ComputeParticleChangesCUDA\n"<<std::flush;
         }
     }
     TransferPosVelVeval ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval ", mbDebug);
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+13 );
-        std::cout << "\n\nRun(relativePath,frame) Chk13,  After TransferPosVelVeval\n"<<std::flush;
+        SavePointsCSV2 (  relativePath, frame+12 );
+        std::cout << "\n\nRun(relativePath,frame) Chk13, saved "<< frame+12 <<".csv  After  TransferPosVelVeval\n"<<std::flush;
     }
     AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+14 );
-        std::cout << "\n\nRun(relativePath,frame) Chk14,  After AdvanceCUDA\n"<<std::flush;
+        SavePointsCSV2 (  relativePath, frame+13 );
+        std::cout << "\n\nRun(relativePath,frame) Chk14, saved "<< frame+13 <<".csv  After  AdvanceCUDA\n"<<std::flush;
     }
     SpecialParticlesCUDA ( m_Time, m_DT, m_Param[PSIMSCALE]);
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After SpecialParticlesCUDA", mbDebug);
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+15 );
-        std::cout << "\n\nRun(relativePath,frame) Chk15,  After SpecialParticlesCUDA\n"<<std::flush;
+        SavePointsCSV2 (  relativePath, frame+14 );
+        std::cout << "\n\nRun(relativePath,frame) Chk15, saved "<< frame+14 <<".csv  After  SpecialParticlesCUDA\n"<<std::flush;
     }
     AdvanceTime ();
+    /*
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceTime", mbDebug); 
     if(debug){
         TransferFromCUDA ();
-        SavePointsCSV2 (  relativePath, frame+16 );
+        SavePointsCSV2 (  relativePath, frame+15 );
     }
+    */
 //     if(debug){
 //         TransferFromCUDA ();
 //         SavePointsCSV2 (  relativePath, frame+18 );
@@ -1507,8 +1514,8 @@ void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int 
     uint EpiGen[NUM_GENES];
     
     float vel_lim = GetParam ( PVEL_LIMIT );
-    PosMin = GetVec ( PBOUNDMIN );
-    PosMax = GetVec ( PBOUNDMAX );
+    PosMin = GetVec ( PVOLMIN );  //PBOUNDMIN
+    PosMax = GetVec ( PVOLMAX );  //PBOUNDMAX
 
     std::fseek(points_file, 0, SEEK_SET);
     uint bond_data=999, data_per_bond=999, bonds_per_particle=999, num_TF=999, num_genes=999;
@@ -2136,7 +2143,7 @@ std::cout<<"\nTransferToCUDA ()\n"<<std::flush;
     // Send particle buffers
 //std::cout<<"FPOS\n"<<std::flush;
     cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FPOS), m_Fluid.bufC(FPOS),			mNumPoints *sizeof(float) * 3),	"TransferToCUDA", "cuMemcpyHtoD", "FPOS", mbDebug);
-std::cout<<" m_Fluid.gpu(FPOS)="<< m_Fluid.gpu(FPOS)<<"\tm_Fluid.bufC(FPOS)="<< static_cast<void*>(m_Fluid.bufC(FPOS))<<"\n"<<std::flush;
+//std::cout<<" m_Fluid.gpu(FPOS)="<< m_Fluid.gpu(FPOS)<<"\tm_Fluid.bufC(FPOS)="<< static_cast<void*>(m_Fluid.bufC(FPOS))<<"\n"<<std::flush;
 
 
 //std::cout<<"FVEL\n"<<std::flush;   
@@ -2270,6 +2277,8 @@ void FluidSystem::InsertParticlesCUDA ( uint* gcell, uint* gndx, uint* gcnt ){  
     cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES), 0,	m_GridTotal *sizeof(uint[NUM_GENES]) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
     cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES), 0,	m_GridTotal *sizeof(uint[NUM_GENES]) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
     
+    // Set long list to sort all particles.
+    computeNumBlocks ( m_FParams.pnum, m_FParams.threadsPerBlock, m_FParams.numBlocks, m_FParams.numThreads);				// particles
     // launch kernel "InsertParticles"
     void* args[1] = { &mNumPoints };
     cuCheck(cuLaunchKernel(m_Func[FUNC_INSERT], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),
@@ -2356,11 +2365,6 @@ void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
     void* argsE[3] = { &scan1, &scan2, &numElem1 };		                        // merge scan2 into scan1. output -> scan1      i.e. FAUXSCAN1, FGRIDOFF -> FGRIDOFF
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
     
-    cuCheck( cuMemcpyDtoH ( &mNumPoints,  m_Fluid.gpu(FGRIDOFF)+(m_GridTotal-1)*sizeof(int), sizeof(int) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
-    cuCtxSynchronize ();
-    std::cout<<"\nPrefixSumCellsCUDA(): mNumPoints="<<mNumPoints<<"\n"<<std::flush;
-    
-
     // Loop to PrefixSum the Dense Lists - NB by doing one gene at a time, we reuse the FAUX* arrays & scans.
     // For each gene, input FGRIDCNT_ACTIVE_GENES[gene*m_GridTotal], output FGRIDOFF_ACTIVE_GENES[gene*m_GridTotal]
     CUdeviceptr array0  = m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES);
@@ -2394,7 +2398,6 @@ void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
             void* argsD[3] = { &scan2, &scan3, &numElem2 };	                        // merge scan3 into scan2. output -> scan2      i.e. FAUXSCAN2, FAUXSCAN1 -> FAUXSCAN1
             cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsD, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
         }
-
         void* argsE[3] = { &scan1, &scan2, &numElem1 };		                        // merge scan2 into scan1. output -> scan1      i.e. FAUXSCAN1, FGRIDOFF -> FGRIDOFF
         cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
     }
@@ -2403,7 +2406,6 @@ void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
     void* argsF[4] = {&num_lists, &length,&fgridcnt,&fgridoff};
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLYLISTS], NUM_GENES, 1, 1, NUM_GENES, 1, 1, 0, NULL, argsF, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug); //256 threads launched
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS), m_Fluid.gpu(FDENSE_LIST_LENGTHS),	sizeof(uint[NUM_GENES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS", mbDebug);
-    
                                                                                     //if active particles for gene > existing buff, then enlarge buff.
     for(int gene=0;gene<NUM_GENES;gene++){                                          // Note this calculation could be done by a kernel, 
         uint * densebuff_len = m_Fluid.bufI(FDENSE_BUF_LENGTHS);                    // and only m_Fluid.bufI(FDENSE_LIST_LENGTHS); copied to host.
@@ -2490,12 +2492,7 @@ void FluidSystem::PrefixSumChangesCUDA ( int zero_offsets ){
 }
 
 void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
-
-    m_FParams.pnumActive = mNumPoints;
-    cuCheck ( cuMemcpyHtoD ( cuFParams,	&m_FParams,		sizeof(FParams) ), "FluidParamCUDA", "cuMemcpyHtoD", "cuFParams", mbDebug); // seems the safest way to update fparam.pnumActive on device.
-    
-    std::cout << "\nCountingSortFullCUDA :  mNumPoints="<<mNumPoints<<",\tmAvailablePoints="<<mAvailablePoints<<".\n"<<std::flush;
-
+    std::cout << "\nCountingSortFullCUDA()1: mMaxPoints="<<mMaxPoints<<", mNumPoints="<<mNumPoints<<",\tmActivePoints="<<mActivePoints<<".\n"<<std::flush;
     // Transfer particle data to temp buffers
     //  (gpu-to-gpu copy, no sync needed)
     //TransferToTempCUDA ( FPOS,		mMaxPoints *sizeof(Vector3DF) );    // NB if some points have been removed, then the existing list is no longer dense,  
@@ -2526,15 +2523,29 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     cuCtxSynchronize ();    // needed to prevent colision with previous operations
     // Reset grid cell IDs
     // cuCheck(cuMemsetD32(m_Fluid.gpu(FGCELL), GRID_UNDEF, numPoints ), "cuMemsetD32(Sort)");
-
     void* args[1] = { &mMaxPoints };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COUNTING_SORT], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),
               "CountingSortFullCUDA", "cuLaunch", "FUNC_COUNTING_SORT", mbDebug );
-  
-    if ( ppos != 0x0 ) {
+/* 
+    if ( ppos != 0x0 ) {  // not used
         cuCheck( cuMemcpyDtoH ( ppos, m_Fluid.gpu(FPOS), mMaxPoints*sizeof(Vector3DF) ), "CountingSortFullCUDA", "cuMemcpyDtoH", "FPOS", mbDebug);
         cuCtxSynchronize ();
     }
+*/
+    // get number of active particles & set short lists for later kernels
+    int grid_ScanMax = (m_FParams.gridScanMax.y * m_FParams.gridRes.z + m_FParams.gridScanMax.z) * m_FParams.gridRes.x + m_FParams.gridScanMax.x;
+    cuCheck( cuMemcpyDtoH ( &mNumPoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax+1)*sizeof(int), sizeof(int) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
+    cuCheck( cuMemcpyDtoH ( &mActivePoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax)*sizeof(int), sizeof(int) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
+    m_FParams.pnumActive = mActivePoints;                                                       // TODO eliminate duplication of information & variables between fluid.h and fluid_system.h                               
+    cuCheck ( cuMemcpyHtoD ( cuFParams,	&m_FParams, sizeof(FParams) ), "FluidParamCUDA", "cuMemcpyHtoD", "cuFParams", mbDebug); // seems the safest way to update fparam.pnumActive on device.
+    std::cout<<"\nCountingSortFullCUDA()2: mNumPoints="<<mNumPoints<<",\tmActivePoints="<<mActivePoints<<",  m_GridTotal="<<m_GridTotal<<", grid_ScanMax="<<grid_ScanMax<<"\n"<<std::flush;
+/*
+    //int grid_ScanMax = m_FParams.gridScanMax.x*m_FParams.gridScanMax.y*m_FParams.gridScanMax.z; // m_GridTotal
+    // gs = (gc.y * gridRes.z + gc.z)*gridRes.x + gc.x;
+*/
+    // Having sorted the particle data, we can start using a shortened list of particles.
+    // NB have to reset to long list at start of time step. 
+    computeNumBlocks ( m_FParams.pnumActive, m_FParams.threadsPerBlock, m_FParams.numBlocks, m_FParams.numThreads);				// particles
     
 std::cout<<"\n CountingSortFullCUDA : FUNC_COUNT_SORT_LISTS\n"<<std::flush;
     // countingSortDenseLists ( int pnum ) // NB launch on bins not particles.
@@ -2559,17 +2570,13 @@ void FluidSystem::CountingSortChangesCUDA ( ){
         printf("\nCountingSortChangesCUDA1: change_list=%u,  densebuff_len[change_list]=%u, denselist_len[change_list]=%u ,",change_list, densebuff_len[change_list], denselist_len[change_list] );
     }
     *//////////
-    
-    
     int blockSize = SCAN_BLOCKSIZE/2 << 1; 
     int numElem1 = m_GridTotal;  
     int numElem2 = int ( numElem1 / blockSize ) + 1;  
     int threads = SCAN_BLOCKSIZE/2;
-    void* args[1] = { &mNumPoints };
+    void* args[1] = { &mActivePoints };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COUNTING_SORT_CHANGES], numElem2, 1, 1, threads , 1, 1, 0, NULL, args, NULL),
               "CountingSortChangesCUDA", "cuLaunch", "FUNC_COUNTING_SORT_CHANGES", mbDebug );   
-    
-    
     /* /////////
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES), m_Fluid.gpu(FDENSE_LIST_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS_CHANGES", mbDebug);
                                                                                                                     // If active particles for change_list > existing buff, then enlarge buff.
@@ -2582,19 +2589,19 @@ void FluidSystem::CountingSortChangesCUDA ( ){
 }
 
 void FluidSystem::ComputePressureCUDA (){
-    void* args[1] = { &mNumPoints };
+    void* args[1] = { &mActivePoints };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_PRESS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputePressureCUDA", "cuLaunch", "FUNC_COMPUTE_PRESS", mbDebug);
 }
 
 void FluidSystem::ComputeDiffusionCUDA(){
     //std::cout << "\n\nRunning ComputeDiffusionCUDA()" << std::endl;
-    void* args[1] = { &mNumPoints };
+    void* args[1] = { &mActivePoints };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_DIFFUSION],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputeDiffusionCUDA", "cuLaunch", "FUNC_COMPUTE_DIFFUSION", mbDebug);
 }
 
 void FluidSystem::ComputeForceCUDA (){
     //printf("\n\nFluidSystem::ComputeForceCUDA (),  m_FParams.freeze=%s",(m_FParams.freeze==true) ? "true" : "false");
-    void* args[3] = { &m_FParams.pnum ,  &m_FParams.freeze, &m_FParams.frame};
+    void* args[3] = { &m_FParams.pnumActive ,  &m_FParams.freeze, &m_FParams.frame};
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_FORCE],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputeForceCUDA", "cuLaunch", "FUNC_COMPUTE_FORCE", mbDebug);
 }
 
@@ -2604,23 +2611,24 @@ void FluidSystem::ComputeGenesCUDA (){  // for each gene, call a kernel wih the 
     cuCheck ( cuMemsetD8 ( m_FluidTemp.gpu(FEPIGEN), 0,	m_FParams.szPnts *sizeof(uint[NUM_GENES]) ), "ComputeGenesCUDA", "cuMemsetD8", "m_FluidTemp.gpu(FEPIGEN)", mbDebug );
     for (int gene=0;gene<NUM_GENES;gene++) {
         uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
-        void* args[3] = { &m_FParams.pnum, &gene, &list_length };
+        void* args[3] = { &m_FParams.pnumActive, &gene, &list_length };
         int numBlocks, numThreads;
         computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
         
         std::cout<<"\nComputeGenesCUDA (): gene ="<<gene<<", list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". args={mNumPoints="<<mNumPoints<<", list_length="<<list_length<<", gene ="<<gene<<"}"<<std::flush;
         
         if( numBlocks>0 && numThreads>0){
-            std::cout<<"\nCalling m_Func[FUNC_COMPUTE_GENE_ACTION], list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<"\n"<<std::flush;
+            //std::cout<<"\nCalling m_Func[FUNC_COMPUTE_GENE_ACTION], list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<"\n"<<std::flush;
             cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_GENE_ACTION],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_COMPUTE_GENE_ACTION", mbDebug);
         }
     }
     cuCheck(cuCtxSynchronize(), "ComputeGenesCUDA", "cuCtxSynchronize", "After FUNC_COMPUTE_GENE_ACTION & before FUNC_TALLY_GENE_ACTION", mbDebug);
     for (int gene=0;gene<NUM_GENES;gene++) {
         uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
-        void* args[3] = { &m_FParams.pnum, &gene, &list_length };
+        void* args[3] = { &m_FParams.pnumActive, &gene, &list_length };
         int numBlocks, numThreads;
         computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
+        
         if( numBlocks>0 && numThreads>0){
             std::cout<<"\nCalling m_Func[FUNC_TALLY_GENE_ACTION], gene="<<gene<<", list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<"\n"<<std::flush;
             cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLY_GENE_ACTION],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_TALLY_GENE_ACTION", mbDebug);
@@ -2629,18 +2637,18 @@ void FluidSystem::ComputeGenesCUDA (){  // for each gene, call a kernel wih the 
 }
 
 void FluidSystem::ComputeBondChangesCUDA (){// Given the action of the genes, compute the changes to particle properties & splitting/combining  NB also "inserts changes" 
-  printf("\n m_Fluid.gpu(FGRIDOFF_CHANGES)=%llu   ,\t m_Fluid.gpu(FGRIDCNT_CHANGES)=%llu   \n",m_Fluid.gpu(FGRIDOFF_CHANGES) , m_Fluid.gpu(FGRIDCNT_CHANGES)   );
+//  printf("\n m_Fluid.gpu(FGRIDOFF_CHANGES)=%llu   ,\t m_Fluid.gpu(FGRIDCNT_CHANGES)=%llu   \n",m_Fluid.gpu(FGRIDOFF_CHANGES) , m_Fluid.gpu(FGRIDCNT_CHANGES)   );
   
-  cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "ComputeBondChangesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
+    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "ComputeBondChangesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
                                             //NB list for all living cells. (non senescent) = FEPIGEN[2]
     cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "ComputeBondChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
     
     uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2];    // call for dense list of living cells (gene'2'living/telomere (has genes))
-    void* args[2] = { &mNumPoints, &list_length};
+    void* args[2] = { &mActivePoints, &list_length};
     int numBlocks, numThreads;
-    computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
+    computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
     
-    std::cout<<"\nComputeBondChangesCUDA (): list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". args={mNumPoints="<<mNumPoints<<", list_length="<<list_length<<", numThreads="<<numThreads<<"}\n"<<std::flush;
+    std::cout<<"\nComputeBondChangesCUDA (): list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". args={mActivePoints="<<mActivePoints<<", list_length="<<list_length<<", numThreads="<<numThreads<<"}\n"<<std::flush;
     
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_BOND_CHANGES],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "computeBondChanges", "cuLaunch", "FUNC_COMPUTE_BOND_CHANGES", mbDebug);
 }
@@ -2649,7 +2657,7 @@ void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to e
     //for (int change_list = 0; change_list<NUM_CHANGES;change_list++){
     int change_list = 0; // TODO debug, chk one kernel at a time
         uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list];  // num blocks and threads by list length
-        void* args[3] = { &mNumPoints, &list_length, &change_list};
+        void* args[3] = { &mActivePoints, &list_length, &change_list};
         int numThreads, numBlocks;
         //int numThreads = 1;//m_FParams.threadsPerBlock;
         //int numBlocks  = 1;//iDivUp ( list_length, numThreads );
@@ -2669,7 +2677,7 @@ void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to e
 }
 
 void FluidSystem::CleanBondsCUDA (){
-    void* args[3] = { &m_FParams.pnum};
+    void* args[3] = { &m_FParams.pnumActive};
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_CLEAN_BONDS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "CleanBondsCUDA", "cuLaunch", "FUNC_CLEAN_BONDS", mbDebug);
 }
 
@@ -2680,14 +2688,14 @@ void FluidSystem::TransferPosVelVeval (){
 }
 
 void FluidSystem::AdvanceCUDA ( float tm, float dt, float ss ){
-    void* args[4] = { &tm, &dt, &ss, &m_FParams.pnum };
+    void* args[4] = { &tm, &dt, &ss, &m_FParams.pnumActive };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_ADVANCE],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "AdvanceCUDA", "cuLaunch", "FUNC_ADVANCE", mbDebug);
 }
 
 void FluidSystem::SpecialParticlesCUDA (float tm, float dt, float ss){                                  // For interaction.Using dense lists for gene 1 & 0.
     int gene = 12;                                                           // 'externally actuated' particles
     uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
-    void* args[5] = {&list_length, &tm, &dt, &ss, &m_FParams.pnum};         // void externalActuation (uint list_len,  float time, float dt, float ss, int numPnts )
+    void* args[5] = {&list_length, &tm, &dt, &ss, &m_FParams.pnumActive};         // void externalActuation (uint list_len,  float time, float dt, float ss, int numPnts )
     int numBlocks, numThreads;
     computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
     

@@ -117,6 +117,7 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     for ( ; file_num<num_files; file_num+=100 ) {
         
         for ( int j=0; j<steps_per_file; j++ ) {//, bool gene_activity, bool remodelling 
+            
             fluid.Run (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y') );  // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
         }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
 
