@@ -148,8 +148,8 @@ extern "C" __global__ void tally_denselist_lengths(int num_lists, int fdense_lis
 	if ( list >= num_lists ) return;
     register int gridTot =      fparam.gridTotal;
     fbuf.bufI(fdense_list_lengths)[list] = fbuf.bufI(fgridcnt)[(list+1)*gridTot -1] + fbuf.bufI(fgridoff)[(list+1)*gridTot -1];
-    //printf("\ntally_denselist_lengths: fbuf.bufI(%i)[%i] = %u, &fdense_list_lengths)[list]=%p \t",
-    //       fdense_list_lengths, list, fbuf.bufI(fdense_list_lengths)[list], &fbuf.bufI(fdense_list_lengths)[list] );
+    printf("\ntally_denselist_lengths: fbuf.bufI(%i)[%i] = %u, &fdense_list_lengths)[list]=%p \t",
+           fdense_list_lengths, list, fbuf.bufI(fdense_list_lengths)[list], &fbuf.bufI(fdense_list_lengths)[list] );
 }
 
 extern "C" __global__ void countingSortFull ( int pnum )                                // Counting Sort - Full (deep copy)
@@ -295,13 +295,13 @@ extern "C" __global__ void countingSortChanges ( int pnum )
     for (int change_list=0; change_list<NUM_CHANGES;change_list++) lists[change_list]=fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list];           // This element entry is a pointer
     
     register uint list_length[NUM_CHANGES];
-    for (uint change_list=0; change_list<NUM_CHANGES;change_list++) list_length[change_list]=fbuf.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list];
+    for (uint change_list=0; change_list<NUM_CHANGES;change_list++) list_length[change_list]=fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES)[change_list];/*FDENSE_LIST_LENGTHS_CHANGES*/
     
     if (bin==0){
         printf("\n");
         for(uint k=0; k<9; k++){
-            printf("\n##countingSortChanges1: k=%u, list_length[%u]=%u, fbuf.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list]=%u,  &fbuf.bufI(FDENSE_LIST_LENGTHS_CHANGES)[%u]=%p \t",
-                k, k, list_length[k], fbuf.bufI(FDENSE_LIST_LENGTHS_CHANGES)[k], k, &fbuf.bufI(FDENSE_LIST_LENGTHS_CHANGES)[k]);
+            printf("\n##countingSortChanges1: k=%u, list_length[%u]=%u, fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/*FDENSE_LIST_LENGTHS_CHANGES*/)[change_list]=%u,  &fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/*FDENSE_LIST_LENGTHS_CHANGES*/)[%u]=%p \t",
+                k, k, list_length[k], fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/*FDENSE_LIST_LENGTHS_CHANGES*/)[k], k, &fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/*FDENSE_LIST_LENGTHS_CHANGES*/)[k]);
         }
     }
     
@@ -311,12 +311,12 @@ extern "C" __global__ void countingSortChanges ( int pnum )
   
     if (grdoffset+count > pnum){    printf("\n\n!!Overflow,  countingSortChanges: (grdoffset+count > pnum), bin=%u \n",bin);     return;}
     
-    for(int particle=grdoffset; particle<grdoffset+count; particle++){ // ? has found particle in change list, _not_ index in main list  ?                                                                     // loop through particles in bin
-        for(int bond=0; bond<BONDS_PER_PARTICLE; bond++){                                                                                      // loop through bonds on particle
+    for(uint particle=grdoffset; particle<grdoffset+count; particle++){ // ? has found particle in change list, _not_ index in main list  ?     // loop through particles in bin
+        for(uint bond=0; bond<BONDS_PER_PARTICLE; bond++){                                                                                      // loop through bonds on particle
             uint change = fbuf.bufI(FELASTIDX) [particle*BOND_DATA + bond*DATA_PER_BOND + 8];                                                  // binary change indicator per bond.
           //printf("\ncountingSortChanges: change=%u \t",change);
             if(change) {
-                for (uint change_type=1, change_list=0; change_list<NUM_CHANGES; change_type*=2, change_list++){                               // loop through change indicator  
+                for (uint change_type=1, change_list=0; change_list<1/*NUM_CHANGES*/; change_type*=2, change_list++){                               // loop through change indicator  
                    //printf("\ncountingSortChanges: change=%u, change_type=%u, (change & change_type)=%u \t",change,change_type, (change & change_type) ); 
                     
                     if(change & change_type){                                                                                                  // bit mask to ID change type due to this bond
@@ -350,12 +350,92 @@ extern "C" __global__ void countingSortChanges ( int pnum )
                             }
                         }
                         */
+                        /*printf("\ncountingSortChanges()1: debug chk: particle=%u, bond=%u, change=%u, change_list=%u, change_list_counter[change_list]=%u, \t\t fbuf.bufI(FGRIDCNT_CHANGES)[ 0*gridTot + fbuf.bufI(FGCELL)[particle] ] =%u, fbuf.bufI(FGCELL)[particle]=%u, \t\t particleIndx=%u, bondIndx=%u \t", 
+                            particle, bond, change, change_list, change_list_counter[change_list], 
+                            fbuf.bufI(FGRIDCNT_CHANGES)[ 0*gridTot + fbuf.bufI(FGCELL)[particle] ],
+                            fbuf.bufI(FGCELL)[particle],
+                            lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list]) ],
+                            lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list] + list_length[change_list]) ]   // NB only heal : change_list=0
+                        );*/
                         change_list_counter[change_list]++;
                     }
                 }
             }
         }
     }
+    // debug chk
+        for(uint particle=grdoffset; particle<grdoffset+count; particle++){ // ? has found particle in change list, _not_ index in main list  ?     // loop through particles in bin
+        for(uint bond=0; bond<BONDS_PER_PARTICLE; bond++){                                                                                      // loop through bonds on particle
+            uint change = fbuf.bufI(FELASTIDX) [particle*BOND_DATA + bond*DATA_PER_BOND + 8];                                                  // binary change indicator per bond.
+          //printf("\ncountingSortChanges: change=%u \t",change);
+            if(change) {
+                for (uint change_type=1, change_list=0; change_list<NUM_CHANGES; change_type*=2, change_list++){                               // loop through change indicator  
+                   //printf("\ncountingSortChanges: change=%u, change_type=%u, (change & change_type)=%u \t",change,change_type, (change & change_type) ); 
+                    
+                    if(change & change_type){                                                                                                  // bit mask to ID change type due to this bond
+                        //printf("\n\ncountingSortChanges: particle=%u, bond=%u \n\n",particle,bond);
+                      //  lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list]) ]=particle;                         // write particleIdx to change list
+                      //  lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list] + list_length[change_list]) ]=bond;  // write bondIdx to change list
+                        /*
+                        printf("\ncountingSortChanges: change_list=%u, \tlists[change_list]=%p, \tlist_length[change_list]=%u, \t&lists[change_list][particle]=%p, \t&lists[change_list][bond]=%p     \t", 
+                               change_list, lists[change_list], list_length[change_list],
+                               &lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list]) ], 
+                               &lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list] + list_length[change_list]) ]
+                              );
+                        */
+                        /*
+                        if (particle==0){
+                            printf("\ncountingSortChanges2, : lists[0]=%p, lists[1]=%p, &lists[0][0]=%p, &lists[0][1]=%p \n", lists[0] , lists[1], &lists[0][0], &lists[0][1] ); 
+                            printf("\ncountingSortChanges3, :change_list=%u, bin=%u,  offsets[%u][%u]=%u, change_list_counter[%u]=%u, list_length[%u]=%u \n",
+                                   change_list, bin, change_list, bin, offsets[change_list][bin], change_list, change_list_counter[change_list], change_list, list_length[change_list] );
+                            for(int k=0; k<9; k++)
+                                printf("\ncountingSortChanges4, :list_length[%u]=%u, fbuf.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list]=%u,\t",
+                                    k, list_length[k], fbuf.bufI(FDENSE_LIST_LENGTHS_CHANGES)[k]);
+                        }
+                        */
+                        //if(change_type==2)printf("\ncountingSortChanges, : particle=%u, bond=%u, change=%u, change_type=%u, list_length[%u]=%u,  (offsets[change_list][bin] + change_list_counter[change_list])=%u  \t", 
+                        //   particle, bond, change, change_type, change_list, list_length[change_list],  (offsets[change_list][bin] + change_list_counter[change_list]) );
+                        /*
+                        if (particle==0){
+                            printf("\ncountingSortChanges2:  ");
+                            for(int k=0; k<NUM_CHANGES; k++){
+                                printf("\nlists[%u]=%p,  list_length[%u]=%u,  step=%ld", k, lists[k], k, list_length[k], (lists[k+1]-lists[k])/2  );
+                            }
+                        }
+                        */
+                        printf("\ncountingSortChanges()2: debug chk: particle=%u, bond=%u, change=%u, change_list=%u, bin=%u, \t\t offsets[change_list][bin+1] - offsets[change_list][bin]=%u,  fbuf.bufI(FGRIDCNT_CHANGES)[ 0*gridTot + fbuf.bufI(FGCELL)[particle] ] =%u, fbuf.bufI(FGCELL)[particle]=%u, \t\t change_list_counter[change_list]=%u, list_length[change_list]=%u, particleIndx=%u, bondIndx=%u \t", 
+                            particle, bond, change, change_list, bin, offsets[change_list][bin+1] - offsets[change_list][bin],
+                            fbuf.bufI(FGRIDCNT_CHANGES)[ 0*gridTot + fbuf.bufI(FGCELL)[particle] ],
+                            fbuf.bufI(FGCELL)[particle],
+                            change_list_counter[change_list], list_length[change_list],
+                            lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list]) ],
+                            lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list] + list_length[change_list]) ]   // NB only heal : change_list=0
+                        );
+                    }
+                }
+            }
+        }
+    }
+    
+    
+    /*
+    for(uint particle=grdoffset; particle<grdoffset+count; particle++){ // ? has found particle in change list, _not_ index in main list  ?     // loop through particles in bin
+        for(uint bond=0; bond<BONDS_PER_PARTICLE; bond++){                                                                                      // loop through bonds on particle
+            uint change = fbuf.bufI(FELASTIDX) [particle*BOND_DATA + bond*DATA_PER_BOND + 8];
+            if(change==1) {
+                for (uint counter=0;counter<change_list_counter[0];counter++){
+                    printf("\ncountingSortChanges()2: debug chk: particle=%u, bond=%u, change=%u, particleIndx=%u, bondIndx=%u \t", 
+                       particle, bond, change,
+                       lists[0][ (offsets[0][bin] + change_list_counter[0]) ],
+                       lists[0][ (offsets[0][bin] + change_list_counter[0] + list_length[0]) ]                                                  // NB only heal : change_list=0
+                    );
+                }
+            }else printf("\n#countingSortChanges(): debug chk: particle=%u, bond=%u, change=%u \t",particle, bond, change );
+            
+        }
+    }// end debug chk
+    */
+    
 }
 
 extern "C" __device__ float contributePressure ( int i, float3 p, int cell )  

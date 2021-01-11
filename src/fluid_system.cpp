@@ -398,21 +398,22 @@ void FluidSystem::AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt,
     cuCheck(cuCtxSynchronize(), "AllocateBufferDenseLists ", "cuCtxSynchronize", "before 1st cudaMemGetInfo(&free1, &total)", mbDebug);  
     size_t   free1, free2, total;
     cudaMemGetInfo(&free1, &total);
-    //printf("\nCuda Memory: free=%lu, total=%lu.\t",free1,total);
+    printf("\nCuda Memory: free=%lu, total=%lu.\t",free1,total);
     
     CUdeviceptr*  listpointer = (CUdeviceptr*) &m_Fluid.bufC(lists)[buf_id * sizeof(CUdeviceptr)] ;
-    /*
+    
     //CUdeviceptr  listpointer2 = m_Fluid.gpuptr(lists)[buf_id]  ;
-    //printf("\n*listpointer=%p, listpointer=%p, listpointer2=%llu, lists=%i, buf_id=%i, \t", (CUdeviceptr* ) *listpointer, listpointer,  listpointer2, lists, buf_id);
+    printf("\n*listpointer=%p, listpointer=%p,  lists=%i, buf_id=%i, \t", (CUdeviceptr* ) *listpointer, listpointer,  /*listpointer2,*/ lists, buf_id);/*listpointer2=%llu,*/
     //cout<<"\n listpointer is an:"<< typeid(listpointer).name()<<" *listpointer is an:"<< typeid(*listpointer).name()<<" listpointer2 is an:"<< typeid(listpointer2).name()<<" .  "<<std::flush;//" *listpointer2 is an:"<< typeid(*listpointer2).name()<<
-    */
-    //printf("\nAllocateBufferDenseLists: buf_id=%i, stride=%i, gpucnt=%i, lists=%i,  .\t", buf_id, stride, gpucnt, lists);
+    
+    printf("\nAllocateBufferDenseLists: buf_id=%i, stride=%i, gpucnt=%i, lists=%i,  .\t", buf_id, stride, gpucnt, lists);
     if (*listpointer != 0x0) cuCheck(cuMemFree(*listpointer), "AllocateBufferDenseLists1", "cuMemFree", "*listpointer", mbDebug);
-    cuCheck( cuMemAlloc( listpointer, stride*gpucnt),   "AllocateBufferDenseLists2", "cuMemAlloc", "listpointer", mbDebug);    
+    bool result = cuCheck( cuMemAlloc( listpointer, stride*gpucnt),   "AllocateBufferDenseLists2", "cuMemAlloc", "listpointer", mbDebug);    
     
     cuCheck(cuCtxSynchronize(), "AllocateBufferDenseLists ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);  
     cudaMemGetInfo(&free2, &total);
     printf("\nAfter allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
+    if(result==false)Exit();
 }
 
 void FluidSystem::AllocateGrid(int gpu_mode, int cpu_mode){ // NB void FluidSystem::AllocateBuffer (int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode) 
@@ -455,6 +456,8 @@ void FluidSystem::AllocateGrid(int gpu_mode, int cpu_mode){ // NB void FluidSyst
         }
         cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS),         m_Fluid.bufC(FDENSE_LISTS),          NUM_GENES * sizeof(CUdeviceptr)  );
         cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS_CHANGES), m_Fluid.bufC(FDENSE_LISTS_CHANGES),  NUM_GENES * sizeof(CUdeviceptr)  );
+        cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FDENSE_BUF_LENGTHS_CHANGES), m_Fluid.bufI(FDENSE_BUF_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "AllocateGrid", "cuMemcpyHtoD", "FDENSE_BUF_LENGTHS_CHANGES", mbDebug);
+    
     
         cuCheck(cuMemcpyHtoD(cuFBuf, &m_Fluid, sizeof(FBufs)), "AllocateGrid", "cuMemcpyHtoD", "cuFBuf", mbDebug);  // Update GPU access pointers
         cuCheck(cuCtxSynchronize(), "AllocateParticles", "cuCtxSynchronize", "", mbDebug);
@@ -2404,16 +2407,16 @@ void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
     
     int num_lists = NUM_GENES, length = FDENSE_LIST_LENGTHS, fgridcnt = FGRIDCNT_ACTIVE_GENES, fgridoff = FGRIDOFF_ACTIVE_GENES;
     void* argsF[4] = {&num_lists, &length,&fgridcnt,&fgridoff};
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLYLISTS], NUM_GENES, 1, 1, NUM_GENES, 1, 1, 0, NULL, argsF, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug); //256 threads launched
+    cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLYLISTS], NUM_GENES, 1, 1, NUM_GENES, 1, 1, 0, NULL, argsF, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_TALLYLISTS", mbDebug); //256 threads launched
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS), m_Fluid.gpu(FDENSE_LIST_LENGTHS),	sizeof(uint[NUM_GENES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS", mbDebug);
                                                                                     //if active particles for gene > existing buff, then enlarge buff.
     for(int gene=0;gene<NUM_GENES;gene++){                                          // Note this calculation could be done by a kernel, 
         uint * densebuff_len = m_Fluid.bufI(FDENSE_BUF_LENGTHS);                    // and only m_Fluid.bufI(FDENSE_LIST_LENGTHS); copied to host.
         uint * denselist_len = m_Fluid.bufI(FDENSE_LIST_LENGTHS);                   // For each gene allocate intial buffer, 
         if (denselist_len[gene] > densebuff_len[gene]) {                            // write pointer and size to FDENSE_LISTS and FDENSE_LIST_LENGTHS 
-            printf("\n\nPrefixSumCellsCUDA: enlarging densebuff_len[%u].\t",gene);
+            printf("\n\nPrefixSumCellsCUDA: enlarging densebuff_len[%u],  m_Fluid.gpuptr(FDENSE_LIST_LENGTHS)[gene]=%llu .\t",gene, m_Fluid.gpuptr(FDENSE_LIST_LENGTHS)[gene] );
             while(denselist_len[gene] >  densebuff_len[gene]) densebuff_len[gene] *=4;                  // m_Fluid.bufI(FDENSE_BUF_LENGTHS)[i]
-            AllocateBufferDenseLists( gene, sizeof(uint), m_Fluid.gpuptr(FDENSE_LIST_LENGTHS)[gene], FDENSE_LISTS );   // NB frees previous buffer &=> clears data
+            AllocateBufferDenseLists( gene, sizeof(uint), m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene], FDENSE_LISTS );   // NB frees previous buffer &=> clears data
         }
     }
     cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS), m_Fluid.bufC(FDENSE_LISTS),  NUM_GENES * sizeof(CUdeviceptr)  );  // update pointers to lists on device
@@ -2454,26 +2457,26 @@ void FluidSystem::PrefixSumChangesCUDA ( int zero_offsets ){
         
         void* argsA[5] = {&array1, &scan1, &array2, &numElem1, &zero_offsets };     // sum array1. output -> scan1, array2.         i.e. FGRIDCNT -> FGRIDOFF, FAUXARRAY1
         cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsA, NULL ), 
-                  "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
+                  "PrefixSumChangesCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
         void* argsB[5] = { &array2, &scan2, &array3, &numElem2, &zon };             // sum array2. output -> scan2, array3.         i.e. FAUXARRAY1 -> FAUXSCAN1, FAUXARRAY2
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsB, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
+        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsB, NULL ), "PrefixSumChangesCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
         if ( numElem3 > 1 ) {
             CUdeviceptr nptr = {0};
             void* argsC[5] = { &array3, &scan3, &nptr, &numElem3, &zon };	        // sum array3. output -> scan3                  i.e. FAUXARRAY2 -> FAUXSCAN2, &nptr
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], 1, 1, 1, threads, 1, 1, 0, NULL, argsC, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+            cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], 1, 1, 1, threads, 1, 1, 0, NULL, argsC, NULL ), "PrefixSumChangesCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
             void* argsD[3] = { &scan2, &scan3, &numElem2 };	                        // merge scan3 into scan2. output -> scan2      i.e. FAUXSCAN2, FAUXSCAN1 -> FAUXSCAN1
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsD, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+            cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsD, NULL ), "PrefixSumChangesCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
         }
         void* argsE[3] = { &scan1, &scan2, &numElem1 };		                        // merge scan2 into scan1. output -> scan1      i.e. FAUXSCAN1, FGRIDOFF -> FGRIDOFF
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumChangesCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
     }
     int num_lists = NUM_CHANGES, length = FDENSE_LIST_LENGTHS_CHANGES, fgridcnt = FGRIDCNT_CHANGES, fgridoff = FGRIDOFF_CHANGES;
     
     void* argsF[4] = {&num_lists, &length,&fgridcnt,&fgridoff};
     
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLYLISTS], NUM_CHANGES, 1, 1, NUM_CHANGES, 1, 1, 0, NULL, argsF, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug); //256 threads launched
+    cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLYLISTS], NUM_CHANGES, 1, 1, NUM_CHANGES, 1, 1, 0, NULL, argsF, NULL ), "PrefixSumChangesCUDA", "cuLaunch", "FUNC_TALLYLISTS", mbDebug); //256 threads launched
     
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES), m_Fluid.gpu(FDENSE_LIST_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS_CHANGES", mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES), m_Fluid.gpu(FDENSE_LIST_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS_CHANGES", mbDebug);
                                                                                                                     // If active particles for change_list > existing buff, then enlarge buff.
     for(int change_list=0;change_list<NUM_CHANGES;change_list++){                                                   // Note this calculation could be done by a kernel, 
         uint * densebuff_len = m_Fluid.bufI(FDENSE_BUF_LENGTHS_CHANGES);                                            // and only m_Fluid.bufI(FDENSE_LIST_LENGTHS); copied to host.
@@ -2486,6 +2489,8 @@ void FluidSystem::PrefixSumChangesCUDA ( int zero_offsets ){
             AllocateBufferDenseLists( change_list, sizeof(uint), 2*densebuff_len[change_list], FDENSE_LISTS_CHANGES );// NB frees previous buffer &=> clears data
         }                                                                                                           // NB buf[2][list_length] holding : particleIdx, bondIdx
     }
+    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FDENSE_BUF_LENGTHS_CHANGES), m_Fluid.bufC(FDENSE_BUF_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumChangesCUDA", "cuMemcpyHtoD", "FDENSE_BUF_LENGTHS_CHANGES", mbDebug);
+    
     cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS_CHANGES), m_Fluid.bufC(FDENSE_LISTS_CHANGES),  NUM_CHANGES * sizeof(CUdeviceptr)  );                      // update pointers to lists on device
     std::cout << "\nChk: PrefixSumChangesCUDA 4"<<std::flush;
     for(int change_list=0;change_list<NUM_CHANGES;change_list++){    std::cout<<"\nPrefixSumChangesCUDA: list_length["<<change_list<<"]="<<m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list]<<"\t"<<std::flush;}
