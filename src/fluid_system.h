@@ -292,6 +292,7 @@
 		void EmitParticlesCUDA ( float time, int cnt );
         
 		// I/O Files
+        void SaveUintArray( uint* array, int numElem1, const char * relativePath );
         void SavePointsVTP2 ( const char * relativePath, int frame );
         void SavePointsCSV2 ( const char * relativePath, int frame );
         void ReadSimParams ( const char * relativePath );    // path to folder containing simparams and .csv files

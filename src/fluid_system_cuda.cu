@@ -70,8 +70,8 @@ extern "C" __global__ void insertParticles ( int pnum )                         
 	gc = make_int3( int(gcf.x), int(gcf.y), int(gcf.z) );                        // crops to an int3
 	gs = (gc.y * gridRes.z + gc.z)*gridRes.x + gc.x;                             // linearizes to an int for a 1D array of bins
 	
-if(i==490) printf("\ninsertParticles(): i=490: gc.x=%i, gc.y=%i, gc.z=%i, gs=%i \t gridScan.x=%i, gridScan.y=%i, gridScan.z=%i, ", 
-    gc.x, gc.y, gc.z, gs,  gridScan.x, gridScan.y, gridScan.z );
+if(i==pnum-1) printf("\ninsertParticles(): i=%u: gc.x=%i, gc.y=%i, gc.z=%i, gs=%i \t gridScan.x=%i, gridScan.y=%i, gridScan.z=%i, gridTot=%u,\t gridDelta=(%f,%f,%f) gridMin=(%f,%f,%f) gridRes=(%i,%i,%i)", 
+    i, gc.x, gc.y, gc.z, gs,  gridScan.x, gridScan.y, gridScan.z, gridTot, gridDelta.x, gridDelta.y, gridDelta.z,  gridMin.x, gridMin.y, gridMin.z, gridRes.x, gridRes.y, gridRes.z );
 
 	if ( gc.x >= 1 && gc.x <= gridScan.x && gc.y >= 1 && gc.y <= gridScan.y && gc.z >= 1 && gc.z <= gridScan.z ) {
 		fbuf.bufI(FGCELL)[i] = gs;											     // Grid cell insert.
@@ -91,7 +91,7 @@ if(i==490) printf("\ninsertParticles(): i=490: gc.x=%i, gc.y=%i, gc.z=%i, gs=%i 
         //if(i==0)printf("\n");
 	} else {
 		fbuf.bufI(FGCELL)[i] = GRID_UNDEF;
-        printf("\ninsertParticles(): i=%i GRID_UNDEF",i);
+        printf("\ninsertParticles(): i=%i GRID_UNDEF, gc.x=%i, gc.y=%i, gc.z=%i,  ",i, gc.x, gc.y, gc.z);
 	}
 }
 
@@ -245,15 +245,26 @@ extern "C" __global__ void countingSortDenseLists ( int pnum )
 {
     unsigned int bin = threadIdx.x + blockIdx.x * SCAN_BLOCKSIZE/2;
     register int gridTot =      fparam.gridTotal;
+    if (bin==0) printf("\n\n######countingSortDenseLists###### bin==0  gridTot=%u, fbuf.bufI (FGRIDOFF)[bin]=%u \n",gridTot, fbuf.bufI (FGRIDOFF)[0]);
 	if ( bin >= gridTot ) return;                                    // for each bin, for each particle, for each gene, 
                                                                      // if gene active, then write to dense list 
     uint count = fbuf.bufI (FGRIDCNT)[bin];
-    if (count==0) return;                                            // return here means that if all bins in this threadblock are empty,
-                                                                     // then this multiprocessor is free for the next threadblock.
-                                                                     // NB Faster still would be a list of occupied bins.
+    //if(bin%10000==0)printf("|");
+    if (count==0) return;                                            // return here means that IFF all bins in this threadblock are empty,
+    /*
+    //if(count>0&&bin%10000==0)printf("\n\ncountingSortDenseLists: (count>100) bin=%u\n\n",bin);                           // then this multiprocessor is free for the next threadblock.
+    //if(bin%100==0)printf("!count=%u,",count);                                                                 // NB Faster still would be a list of occupied bins.
+    //if(count>27)printf("\ncount=%u,bin=%u\t",count,bin);
+    */
+    uint grdoff_ =0;
+    if(bin>0)grdoff_ =fbuf.bufI (FGRIDOFF)[bin-1];
     uint grdoffset = fbuf.bufI (FGRIDOFF)[bin];
     uint gene_counter[NUM_GENES]={0};
-    
+    /*
+    int step = grdoff_-grdoffset;
+    if(bin>0 && step>27)  printf("\nbin=%u, gridoff step = %u, grdoff_=%u,  grdoffset=%u \t",bin, step, grdoff_, grdoffset );
+    if(grdoffset>2200 && grdoffset<22100) printf("\ngrdoffset=%u  ",grdoffset);
+    */
     register uint* lists[NUM_GENES];
     for (int gene=0; gene<NUM_GENES;gene++) lists[gene]=fbuf.bufII(FDENSE_LISTS)[gene]; // This element entry is a pointer
     
@@ -262,30 +273,77 @@ extern "C" __global__ void countingSortDenseLists ( int pnum )
     
     if (grdoffset+count > pnum){    printf("\n\n!!Overflow: (grdoffset+count > pnum), bin=%u \n",bin);     return;}
     
-    for(int particle=grdoffset; particle<grdoffset+count; particle++){
+    for(uint particle=grdoffset; particle<grdoffset+count; particle++){
+        if (particle>=22000 && particle<20030) printf("\nparticle==%u, ",particle);
         for(int gene=0; gene<NUM_GENES; gene++){
-            if(  (int)fbuf.bufI(FEPIGEN) [particle + pnum*gene] ) {                      // if (this gene is active in this particle)
+            /*
+            if (gene==2 && particle%100==0) printf("\n offsets[gene][bin] + gene_counter[gene] =%u , particle=%u , fbuf.bufI(FEPIGEN) [particle + pnum*gene]=%u\t", 
+                offsets[gene][bin] + gene_counter[gene] , particle, fbuf.bufI(FEPIGEN) [particle + pnum*gene]);
+            */
+            if(  /*(int)*/fbuf.bufI(FEPIGEN) [particle + pnum*gene] >0 ) {                      // if (this gene is active in this particle)
                 lists[gene][ offsets[gene][bin] + gene_counter[gene] ]=particle;
                 gene_counter[gene]++;
+                //printf("*");
+                /*
+                 * if (gene>2/_*particle<10&&gene==2*_/)printf("\ncountingSortDenseLists()1:  particle=,%u, gene=,%u, bin=,%u, grdoffset=,%u, count=,%u, address=,%p, \t offsets[gene][bin]=,%u, gene_counter[gene]=,%u, fbuf.bufI(FEPIGEN) [particle + pnum*gene]=%u ",
+                    particle, gene, bin, grdoffset, count,
+                    &lists[gene][ offsets[gene][bin] + gene_counter[gene] ],
+                    offsets[gene][bin],
+                    gene_counter[gene],
+                    fbuf.bufI(FEPIGEN) [particle + pnum*gene]//UINT_MAX//
+                                                   );
+                */
                 if( gene_counter[gene]>fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin] )   
                     printf("\n Overflow: particle=%u, ID=%u, gene=%u, bin=%u, gene_counter[gene]=%u, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]=%u \t\t",
                            particle, fbuf.bufI(FPARTICLE_ID)[particle], gene, bin, gene_counter[gene], fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]);
-                    
+                    /*
                     //else printf("\n Non-overflow: particle=%u, ID=%u, gene=%u, bin=%u, gene_counter[gene]=%u, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]=%u \t\t",
                     //       particle, fbuf.bufI(FPARTICLE_ID)[particle], gene, bin, gene_counter[gene], fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]);
-            }
+                    */
+            }else if (gene==2 && particle%1000==0)printf("*");
         }
     }
+    /* 
+     * debug chk 
+    uint particle=grdoffset, gene=2;
+            if(particle<10 && gene==2) {
+                lists[gene][ offsets[gene][bin] + gene_counter[gene] ]=particle;   
+                printf("\ncountingSortDenseLists: gene=%u, bin=%u, lists[gene][ offsets[gene][bin] + gene_counter[gene] ] = %u,  offsets[gene][bin]=%u,  gene_counter[gene]=%u ", 
+                       gene, bin, lists[gene][ offsets[gene][bin] + gene_counter[gene] ],  offsets[gene][bin], gene_counter[gene]++ );
+                gene_counter[gene]++;
+            } 
+    */
 }
 
 extern "C" __global__ void countingSortChanges ( int pnum )
 {
-    unsigned int bin = threadIdx.x + blockIdx.x * SCAN_BLOCKSIZE/2;     // NB have to searach all particles => use main list bins. 
+    uint bin = bin = threadIdx.x + blockIdx.x * SCAN_BLOCKSIZE/2;  //__mul24(blockIdx.x, blockDim.x) + threadIdx.x;	// particle index
+   /* 
+    uint bin2=bin;
+    float3 gridDelta = fparam.gridDelta;                                //  even if other variable have to be moved to slower 'local' memory  
+    int3 gridRes =		fparam.gridRes;   
+	float3 gc, binPos;
+    gc.x=bin2%gridRes.x;
+    bin2-=gridRes.x;
+    bin2=bin2/gridRes.x;
+    gc.z=bin2%gridRes.z;
+    gc.y=bin2/gridRes.z;
+    binPos=gc/gridDelta;
+   */
+  // if(threadIdx.x==0) printf("\nblockIdx.x=,%u \t",blockIdx.x);
+    
+    //unsigned int bin = threadIdx.x + blockIdx.x * SCAN_BLOCKSIZE/2;     // NB have to searach all particles => use main list bins. 
+
     register int gridTot =      fparam.gridTotal;
 	if ( bin >= gridTot ) return;                                    // for each bin, for each particle, for each change_list, 
                                                                      // if change_list active, then write to dense list 
     uint count = fbuf.bufI (FGRIDCNT/*_CHANGES*/)[bin];
+    /*if (threadIdx.x==0 && blockIdx.x%32==0)*///if(count!=0)printf("\ncountingSortChanges: bin=%u, gridTot=%u, count=%u, blockIdx.x=%u,  blockDim.x=%u, threadIdx.x=%u \t",bin, gridTot, count, blockIdx.x , blockDim.x, threadIdx.x );
+    //if( bin==471311 /*blockIdx.x<100 && bin%32==0*/)printf("\n\n###countingSortChanges: bin=,%u, binPos=(,%f,%f,%f,) gridTot=,%u, count=,%u, blockIdx.x=,%u,  blockDim.x=,%u, threadIdx.x=,%u \t\n",
+    //     bin, binPos.x, binPos.y, binPos.z, gridTot, count, blockIdx.x , blockDim.x, threadIdx.x );
+    
     if (count==0) return;                                            // return here means that if all bins in this threadblock are empty,
+    
                                                                      // then this multiprocessor is free for the next threadblock.
   //printf("\ncountingSortChanges: bin=%u, count=%u \t",bin,count);
     uint grdoffset = fbuf.bufI (FGRIDOFF)[bin];
@@ -296,22 +354,30 @@ extern "C" __global__ void countingSortChanges ( int pnum )
     
     register uint list_length[NUM_CHANGES];
     for (uint change_list=0; change_list<NUM_CHANGES;change_list++) list_length[change_list]=fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES)[change_list];/*FDENSE_LIST_LENGTHS_CHANGES*/
-    
+    /*
     if (bin==0){
         printf("\n");
         for(uint k=0; k<9; k++){
-            printf("\n##countingSortChanges1: k=%u, list_length[%u]=%u, fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/*FDENSE_LIST_LENGTHS_CHANGES*/)[change_list]=%u,  &fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/*FDENSE_LIST_LENGTHS_CHANGES*/)[%u]=%p \t",
-                k, k, list_length[k], fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/*FDENSE_LIST_LENGTHS_CHANGES*/)[k], k, &fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/*FDENSE_LIST_LENGTHS_CHANGES*/)[k]);
+            printf("\n##countingSortChanges1: k=%u, list_length[%u]=%u, fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/_*FDENSE_LIST_LENGTHS_CHANGES*_/)[change_list]=%u,  &fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES /_*FDENSE_LIST_LENGTHS_CHANGES*_/)[%u]=%p \t",
+                k, k, list_length[k], fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/_*FDENSE_LIST_LENGTHS_CHANGES*_/)[k], k, &fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES/_*FDENSE_LIST_LENGTHS_CHANGES*_/)[k]);
         }
     }
+    */
+    if (count==0) return; 
     
     register uint* offsets[NUM_CHANGES];
-    for (int change_list=0; change_list<NUM_CHANGES;change_list++) offsets[change_list]=&fbuf.bufI(FGRIDOFF_CHANGES)[change_list * gridTot];   // The address of this element
+    for (int change_list=0; change_list<NUM_CHANGES; change_list++)   offsets[change_list] = &fbuf.bufI(FGRIDOFF_CHANGES)[change_list * gridTot];   // The address of this element
   //printf("\ncountingSortChanges: grdoffset=%u, count=%u, pnum=%u \t",grdoffset, count, pnum);
   
-    if (grdoffset+count > pnum){    printf("\n\n!!Overflow,  countingSortChanges: (grdoffset+count > pnum), bin=%u \n",bin);     return;}
+    if (grdoffset+count > pnum){ /* printf("\n\n!!Overflow,  countingSortChanges: (grdoffset+count > pnum), bin=%u \n",bin);  */   return;}
     
     for(uint particle=grdoffset; particle<grdoffset+count; particle++){ // ? has found particle in change list, _not_ index in main list  ?     // loop through particles in bin
+        
+/*if(particle==grdoffset){
+    float3 pos = fbuf.bufF3(FPOS)[particle];
+    uint ID = fbuf.bufI(FPARTICLE_ID)[particle];
+    printf("\ncountingSortChanges: bin=%u, particle=%u, ID=%u\t pos.x=%f, pos.y=%f, pos.z=%f",bin, particle, ID, pos.x, pos.y, pos.z);
+}*/
         for(uint bond=0; bond<BONDS_PER_PARTICLE; bond++){                                                                                      // loop through bonds on particle
             uint change = fbuf.bufI(FELASTIDX) [particle*BOND_DATA + bond*DATA_PER_BOND + 8];                                                  // binary change indicator per bond.
           //printf("\ncountingSortChanges: change=%u \t",change);
@@ -350,13 +416,15 @@ extern "C" __global__ void countingSortChanges ( int pnum )
                             }
                         }
                         */
-                        /*printf("\ncountingSortChanges()1: debug chk: particle=%u, bond=%u, change=%u, change_list=%u, change_list_counter[change_list]=%u, \t\t fbuf.bufI(FGRIDCNT_CHANGES)[ 0*gridTot + fbuf.bufI(FGCELL)[particle] ] =%u, fbuf.bufI(FGCELL)[particle]=%u, \t\t particleIndx=%u, bondIndx=%u \t", 
-                            particle, bond, change, change_list, change_list_counter[change_list], 
+                       /* 
+                       if(particle<10/_*00*_/) printf("\ncountingSortChanges()1: debug chk: particle=%u, bond=%u, change=%u, change_list=%u, change_list_counter[change_list]=%u, offsets[change_list][bin]=%u \t\t fbuf.bufI(FGRIDCNT_CHANGES)[ 0*gridTot + fbuf.bufI(FGCELL)[particle] ] =%u, fbuf.bufI(FGCELL)[particle]=%u, \t\t particleIndx=%u, bondIndx=%u \t", 
+                            particle, bond, change, change_list, change_list_counter[change_list], offsets[change_list][bin],
                             fbuf.bufI(FGRIDCNT_CHANGES)[ 0*gridTot + fbuf.bufI(FGCELL)[particle] ],
                             fbuf.bufI(FGCELL)[particle],
                             lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list]) ],
                             lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list] + list_length[change_list]) ]   // NB only heal : change_list=0
-                        );*/
+                        );
+                        */
                         change_list_counter[change_list]++;
                     }
                 }
@@ -364,15 +432,15 @@ extern "C" __global__ void countingSortChanges ( int pnum )
         }
     }
     // debug chk
-        for(uint particle=grdoffset; particle<grdoffset+count; particle++){ // ? has found particle in change list, _not_ index in main list  ?     // loop through particles in bin
-        for(uint bond=0; bond<BONDS_PER_PARTICLE; bond++){                                                                                      // loop through bonds on particle
-            uint change = fbuf.bufI(FELASTIDX) [particle*BOND_DATA + bond*DATA_PER_BOND + 8];                                                  // binary change indicator per bond.
+  //      for(uint particle=grdoffset; particle<grdoffset+count; particle++){ // ? has found particle in change list, _not_ index in main list  ?     // loop through particles in bin
+  //      for(uint bond=0; bond<BONDS_PER_PARTICLE; bond++){                                                                                      // loop through bonds on particle
+  //          uint change = fbuf.bufI(FELASTIDX) [particle*BOND_DATA + bond*DATA_PER_BOND + 8];                                                  // binary change indicator per bond.
           //printf("\ncountingSortChanges: change=%u \t",change);
-            if(change) {
-                for (uint change_type=1, change_list=0; change_list<NUM_CHANGES; change_type*=2, change_list++){                               // loop through change indicator  
+  //          if(change) {
+  //              for (uint change_type=1, change_list=0; change_list<NUM_CHANGES; change_type*=2, change_list++){                               // loop through change indicator  
                    //printf("\ncountingSortChanges: change=%u, change_type=%u, (change & change_type)=%u \t",change,change_type, (change & change_type) ); 
                     
-                    if(change & change_type){                                                                                                  // bit mask to ID change type due to this bond
+  //                  if(change & change_type){                                                                                                  // bit mask to ID change type due to this bond
                         //printf("\n\ncountingSortChanges: particle=%u, bond=%u \n\n",particle,bond);
                       //  lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list]) ]=particle;                         // write particleIdx to change list
                       //  lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list] + list_length[change_list]) ]=bond;  // write bondIdx to change list
@@ -403,19 +471,21 @@ extern "C" __global__ void countingSortChanges ( int pnum )
                             }
                         }
                         */
-                        printf("\ncountingSortChanges()2: debug chk: particle=%u, bond=%u, change=%u, change_list=%u, bin=%u, \t\t offsets[change_list][bin+1] - offsets[change_list][bin]=%u,  fbuf.bufI(FGRIDCNT_CHANGES)[ 0*gridTot + fbuf.bufI(FGCELL)[particle] ] =%u, fbuf.bufI(FGCELL)[particle]=%u, \t\t change_list_counter[change_list]=%u, list_length[change_list]=%u, particleIndx=%u, bondIndx=%u \t", 
+                        
+                        /*
+                         * printf("\ncountingSortChanges()2: debug chk: particle=%u, bond=%u, change=%u, change_list=%u, bin=%u, \t\t offsets[change_list][bin+1] - offsets[change_list][bin]=%u,  fbuf.bufI(FGRIDCNT_CHANGES)[ 0*gridTot + fbuf.bufI(FGCELL)[particle] ] =%u, fbuf.bufI(FGCELL)[particle]=%u, \t\t change_list_counter[change_list]=%u, list_length[change_list]=%u, particleIndx=%u, bondIndx=%u \t", 
                             particle, bond, change, change_list, bin, offsets[change_list][bin+1] - offsets[change_list][bin],
                             fbuf.bufI(FGRIDCNT_CHANGES)[ 0*gridTot + fbuf.bufI(FGCELL)[particle] ],
                             fbuf.bufI(FGCELL)[particle],
                             change_list_counter[change_list], list_length[change_list],
                             lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list]) ],
                             lists[change_list][ (offsets[change_list][bin] + change_list_counter[change_list] + list_length[change_list]) ]   // NB only heal : change_list=0
-                        );
-                    }
-                }
-            }
-        }
-    }
+                        );*/
+    //                }
+    //            }
+    //        }
+    //    }
+    //}
     
     
     /*
@@ -563,10 +633,10 @@ extern "C" __global__ void computeMuscleContraction ( int pnum ) //TODO computeM
 extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// Given the action of the genes, compute the changes to particle properties & splitting/combining 
 {                                                                                                   // Also "inserts changes" 
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                            // particle index
-    if ( particle_index >= list_length ) return;                                                    // pnum should be length of list.
+    if ( particle_index >= list_length ) {/*printf("\tcomputeBondChanges:particle_index %u>= %u list_length.\t",particle_index, list_length);*/ return;}                                                    // pnum should be length of list.
     // ## TODO convert i to particle index _iff_ not called for all particles : use a special dense list for "living tissue", made at same time as gene lists
     uint i = fbuf.bufII(FDENSE_LISTS)[2][particle_index];                                           // call for dense list of living cells (gene'2'living/telomere (has genes))
-    if ( i >= pnum ) return; 
+    if ( i >= pnum ) {printf("\tcomputeBondChanges:i %u>=%u pnum\t",i,pnum);   return;} 
     
     float * fbufFCONC = &fbuf.bufF(FCONC)[i*NUM_TF];
     //float * ftempFCONC = &ftemp.bufF(FCONC)[i*NUM_TF];
@@ -624,6 +694,8 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
     if (fbufFEPIGEN[6]>0/*tendon*/||fbufFEPIGEN[7]>0/*muscle*/||fbufFEPIGEN[10]>0/*elast lig*/) {bond_type[0] = 1; bond_type[3] = 1;}
     for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 1*(fbufFEPIGEN[6]>0/*cartilage*/);
     
+    //if(i%1000==0)printf(",%u,",i);
+    
     for (uint bond=0; bond<BONDS_PER_PARTICLE;bond++, bond_uint_ptr+=DATA_PER_BOND, bond_flt_ptr+=DATA_PER_BOND ){
         if (bond_flt_ptr[2]>0){                                                                     // NB (rest_length==0) => bond broken, do not modify.
             float strain_integrator = bond_flt_ptr[7];
@@ -648,14 +720,32 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
         int m = 1 + (fbufFEPIGEN[7]>0/*muscle*/||fbufFEPIGEN[10]>0);                                // i.e. if (fbufFEPIGEN[7]>0/*muscle*/) m=2 else m=1;
                                                                                                     // NB two different lists for each change, for (muscle & elastic ligg  vs other tissues)
         bond_uint_ptr[8]=0;                                                                         // Need to zero the indicator.
+        //if(i%1000==0)if(bond_flt_ptr[2]!=0.0)printf(",");  //("\tcomputeBondChanges:(bond_flt_ptr[2]!=0.0): =i%u \t", i);
+        //if(i%1000==0)if(!(bond < 3 || fbufFEPIGEN[8]>0 ||  fbufFEPIGEN[9]>0))printf("'");   //("\tcomputeBondChanges:!(bond < 3 || fbufFEPIGEN[8]>0 ||  fbufFEPIGEN[9]>0): =i%u \t", i);   
+        
         if (bond_flt_ptr[2]==0.0 && (bond < 3 || fbufFEPIGEN[8]>0 ||  fbufFEPIGEN[9]>0/*cartilage OR bone*/)  ){  // bond_flt_ptr[2]=restlength==0.0 => bond broken 
             // && bond_uint_ptr[0]/*other particle*/<pnum/*bond broken*/
             //TODO what happens when bond broken vs never existed ?  NB information about direction of broken bond.
-            atomicAdd ( &fbufFGRIDCNT_CHANGES[ 0*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );            //add to heal list 
+            /* if(i<10  &&  fbufFGRIDCNT_CHANGES[0*gridTot+fbuf.bufI(FGCELL)[i]]<10  )
+                printf("\ncomputeBondChanges()1: i=,%u, particle_index=,%u,  bond_uint_ptr[8]=,%u, fbufFGRIDCNT_CHANGES=,%u, address=,%p, ",
+                    i, particle_index , bond_uint_ptr[8], fbufFGRIDCNT_CHANGES[ 0*gridTot  + fbuf.bufI(FGCELL)[i] ],
+                    &fbuf.bufII(FDENSE_LISTS)[2][particle_index]
+                );
+            */
+            //printf(".");
+            atomicAdd ( &fbufFGRIDCNT_CHANGES[ 0*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );            //add to heal list //NB device-wide atomic
             bond_uint_ptr[8]+=1;                                                                    // FELASTIDX [8]change-type binary indicator NB accumulates all changes for this bond
+            
             if (bond>BONDS_PER_PARTICLE)//(fbuf.bufI(FPARTICLE_ID)[i]<10) 
                 printf("\nError :computeBondChanges:add to heal list: i=%u, ParticleID=%u, bond=%u, bond_uint_ptr[0]=%u, fbufFEPIGEN[8]=%u, fbufFEPIGEN[9]=%u "
                 ,i,fbuf.bufI(FPARTICLE_ID)[i],bond,bond_uint_ptr[0],fbufFEPIGEN[8],fbufFEPIGEN[9]);
+            /*
+            if(fbufFGRIDCNT_CHANGES[0*gridTot+fbuf.bufI(FGCELL)[i]]<50  && i<10)
+                printf("\ncomputeBondChanges()2: i=%u, particle_index=%u,  bond_uint_ptr[8]=%u, fbufFGRIDCNT_CHANGES=%u ",
+                    i, particle_index , bond_uint_ptr[8], fbufFGRIDCNT_CHANGES[ 0*gridTot  + fbuf.bufI(FGCELL)[i] ]);
+                */
+          //  if(i==0)printf("\ncomputeBondChanges()2: i==0, particle_index=%u,  bond_uint_ptr[8]=%u, fbufFGRIDCNT_CHANGES=%u ",
+          //      particle_index , bond_uint_ptr[8], fbufFGRIDCNT_CHANGES[ 0*gridTot  + fbuf.bufI(FGCELL)[i] ]);
             break;                                                                                  // First, heal one bond per timestep
         }/*else{                                                                                      // prevents clash with heal.
             if (bond_flt_ptr[2]>fgenome.param[bond_type[bond]][fgenome.max_rest_length]) {  
@@ -1119,14 +1209,17 @@ extern "C" __global__ void cleanBonds (int pnum){
 
 extern "C" __global__ void heal ( int pnum, uint list_length, int change_list) {                                     //TODO heal ( int pnum ) 
     uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                                            // particle index
-  //printf("\nheal(), particle_index=%u,\t",particle_index);  
+ //if(threadIdx.x==0) printf("\nheal(), particle_index=%u,\t blockIdx.x=%u, blockDim.x=%u, threadIdx.x=%u  \t",particle_index, blockIdx.x, blockDim.x, threadIdx.x);  
     if ( particle_index >= list_length ) return;                                                                    // pnum should be length of list.
     uint i = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index];                                         // call for dense list of broken bonds
-  //printf("\nheal(), i=%u,\t",i);  
+ //if(threadIdx.x==0 ) printf("\nheal():  blockIdx.x=,%u, particle_index=,%u, i=,%u,\t",  blockIdx.x, particle_index, i);/*pnum, list_length, change_list,   pnum=%i, list_length=%u, change_list=%i,*/
     if ( i >= pnum ) return;// TODO replace pnum with active particles where appropriate
-    uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+list_length];                       // TODO #### Don't use bufII, how can it know what length each list is ? 
+    
+    uint buf_length = fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES)[change_list];
+    uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+buf_length];                       // TODO #### Don't use bufII, how can it know what length each list is ? 
 //  if(i<20) printf("\nheal(), list_length=%u, particle_index=%u, i=%u, bondIdx=%u,  \t",list_length, particle_index ,i, bondIdx);
-    if (bondIdx>BONDS_PER_PARTICLE){
+//  if(threadIdx.x==0 && blockIdx.x%10==0 ) printf("\nheal(): threadIdx.x=,%u, blockIdx.x=,%u, particle_index=,%u, i=,%u,  bondIdx=%u \t", threadIdx.x, blockIdx.x, particle_index, i, bondIdx);
+    if (bondIdx>BONDS_PER_PARTICLE && particle_index%100==0){
         printf("\n Error, heal: bondIdx=%u, i=%u, particle_index=%u, change_list=%u, list_length=%u \t",bondIdx, i, particle_index, change_list, list_length);  
         return;
     }
