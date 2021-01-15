@@ -35,9 +35,7 @@ int main ( int argc, const char** argv )
         printf ( "demoType = %u, (0:free falling, 1: remodelling & actuation, 2: diffusion & epigenetics.)\n", demoType );
         
         simSpace = atof(argv[7]);
-        printf ( "simSpace = %u, (0:regression test, 1:tower, 2:wavepool, 3: small dam break, 4:dual-wavepool, 5: microgravity)\n", simSpace);
-        
-        printf ( "### still need to edit fluid.WriteDemoSimParams(\"./demo\"); to use the new input ! \n");
+        printf ( "simSpace = %u, (0:regression test, 1:tower, 2:wavepool, 3: small dam break, 4:dual-wavepool, 5: microgravity)\n\n", simSpace);
     }    
     
     

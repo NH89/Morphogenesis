@@ -289,25 +289,27 @@ std::cout<<"\nAllocateBuffer ( int buf_id="<<buf_id<<", int stride="<<stride<<",
         }
         m_Fluid.setBuf(buf_id, dest_buf);                                 // stores pointer to buffer in mcpu[buf_id]
     }
-    cuCheck(cuCtxSynchronize(), "AllocateBuffer ", "cuCtxSynchronize", "before 1st cudaMemGetInfo(&free1, &total)", mbDebug);  
-    size_t   free1, free2, total;
-    cudaMemGetInfo(&free1, &total);
-    //printf("\nCuda Memory: free=%lu, total=%lu.\t",free1,total);
+    if(gpumode == GPU_SINGLE || gpumode == GPU_DUAL || gpumode == GPU_TEMP){
+        cuCheck(cuCtxSynchronize(), "AllocateBuffer ", "cuCtxSynchronize", "before 1st cudaMemGetInfo(&free1, &total)", mbDebug);  
+        size_t   free1, free2, total;
+        cudaMemGetInfo(&free1, &total);
+        //printf("\nCuda Memory: free=%lu, total=%lu.\t",free1,total);
     
-    if (gpumode == GPU_SINGLE || gpumode == GPU_DUAL )	{
-        if (m_Fluid.gpuptr(buf_id) != 0x0) cuCheck(cuMemFree(m_Fluid.gpu(buf_id)), "AllocateBuffer", "cuMemFree", "Fluid.gpu", mbDebug);
-        rtn = cuCheck( cuMemAlloc(m_Fluid.gpuptr(buf_id), stride*gpucnt), "AllocateBuffer", "cuMemAlloc", "Fluid.gpu", mbDebug);         //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_Fluid.mgpu[buf_id]
-        std::cout<<"\t\t m_Fluid.gpuptr("<<buf_id<<")'"<<m_Fluid.gpuptr(buf_id)<<",   m_Fluid.gpu("<<buf_id<<")="<<m_Fluid.gpu(buf_id)<<"\t"<<std::flush;
-        if(rtn == false)FluidSystem::Exit();
+        if (gpumode == GPU_SINGLE || gpumode == GPU_DUAL )	{
+            if (m_Fluid.gpuptr(buf_id) != 0x0) cuCheck(cuMemFree(m_Fluid.gpu(buf_id)), "AllocateBuffer", "cuMemFree", "Fluid.gpu", mbDebug);
+            rtn = cuCheck( cuMemAlloc(m_Fluid.gpuptr(buf_id), stride*gpucnt), "AllocateBuffer", "cuMemAlloc", "Fluid.gpu", mbDebug);         //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_Fluid.mgpu[buf_id]
+            std::cout<<"\t\t m_Fluid.gpuptr("<<buf_id<<")'"<<m_Fluid.gpuptr(buf_id)<<",   m_Fluid.gpu("<<buf_id<<")="<<m_Fluid.gpu(buf_id)<<"\t"<<std::flush;
+            if(rtn == false)FluidSystem::Exit();
+        }
+        if (gpumode == GPU_TEMP || gpumode == GPU_DUAL ) {
+            if (m_FluidTemp.gpuptr(buf_id) != 0x0) cuCheck(cuMemFree(m_FluidTemp.gpu(buf_id)), "AllocateBuffer", "cuMemFree", "FluidTemp.gpu", mbDebug);
+            rtn = cuCheck( cuMemAlloc(m_FluidTemp.gpuptr(buf_id), stride*gpucnt), "AllocateBuffer", "cuMemAlloc", "FluidTemp.gpu", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
+            if(rtn == false)FluidSystem::Exit();
+        }
+        cuCheck(cuCtxSynchronize(), "AllocateBuffer ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);  
+        cudaMemGetInfo(&free2, &total);
+        printf("\nAfter allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
     }
-    if (gpumode == GPU_TEMP || gpumode == GPU_DUAL ) {
-        if (m_FluidTemp.gpuptr(buf_id) != 0x0) cuCheck(cuMemFree(m_FluidTemp.gpu(buf_id)), "AllocateBuffer", "cuMemFree", "FluidTemp.gpu", mbDebug);
-        rtn = cuCheck( cuMemAlloc(m_FluidTemp.gpuptr(buf_id), stride*gpucnt), "AllocateBuffer", "cuMemAlloc", "FluidTemp.gpu", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
-        if(rtn == false)FluidSystem::Exit();
-    }
-    cuCheck(cuCtxSynchronize(), "AllocateBuffer ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);  
-    cudaMemGetInfo(&free2, &total);
-    printf("\nAfter allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
 }
 
 // Allocate particle memory
@@ -530,10 +532,14 @@ void FluidSystem::AddNullPoints (){// fills unallocated particles with null data
     //Pos.z = m_FParams.pboundmax.z;
     
     binSize.x=1.0/m_GridDelta.x; binSize.y=1.0/m_GridDelta.y; binSize.z=1.0/m_GridDelta.z;
-    
+    /*
     Pos = GetVec(PVOLMAX);        // SetupSpacing() has been called => m_Vec[PBOUNDMAX] is correctly set.  PVOLMAX - m_Param [ PRADIUS ]
     //Pos.x -= m_GridDelta.x/2; Pos.y -= m_GridDelta.y/2; Pos.z -= m_GridDelta.z/2;  // Should place particle in centre of last bin.
-    Pos.x -= binSize.x*1.5; Pos.y -= binSize.y*1.5; Pos.z -= binSize.z*1.5;
+    Pos.x -= binSize.x*1.5; 
+    Pos.y -= binSize.y*1.5; 
+    Pos.z -= binSize.z*1.5;
+    */
+    Pos = GetVec(PBOUNDMAX); 
     
     Vel.x = 0; 
     Vel.y = 0; 
@@ -1521,6 +1527,12 @@ void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int 
     PosMin = GetVec ( PBOUNDMIN );  //PBOUNDMIN  // PVOLMIN
     PosMax = GetVec ( PBOUNDMAX );  //PBOUNDMAX  // PVOLMAX
 
+    cout<<"\n\nPosMin = PBOUNDMIN=("<<m_Vec[PBOUNDMIN].x <<","<<m_Vec[PBOUNDMIN].y <<","<<m_Vec[PBOUNDMIN].z 
+        <<"),  PosMax = PBOUNDMAX=("<<m_Vec[PBOUNDMAX].x <<","<<m_Vec[PBOUNDMAX].y <<","<< m_Vec[PBOUNDMAX].z
+        <<"),  PVOLMIN=("<<m_Vec[PVOLMIN].x <<","<<m_Vec[PVOLMIN].y <<","<<m_Vec[PVOLMIN].z 
+        <<"),  PVOLMAX=("<<m_Vec[PVOLMAX].x <<","<<m_Vec[PVOLMAX].y <<","<<m_Vec[PVOLMAX].z 
+        <<")\n"<<std::flush;
+    
     std::fseek(points_file, 0, SEEK_SET);
     uint bond_data=999, data_per_bond=999, bonds_per_particle=999, num_TF=999, num_genes=999;
     int result=-2;
@@ -1583,7 +1595,8 @@ if (ret != (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  
             //std::cout << "\n PosMin.x = " << PosMin.x << "  PosMin.y = " << PosMin.y << "  PosMin.z = " << PosMin.z;
             //std::cout << "\n velocity = " << sqrt(Vel.x * Vel.x + Vel.y * Vel.y + Vel.z * Vel.z) << "   vel_lim = " << vel_lim;
             //std::cout << "\n " << std::flush;
-            printf("\nParticle out of bounds, i=%u\t Closing file and exiting.",i);
+            printf("\nParticle out of bounds, i=%u\t Pos=(%f,%f,%f), PosMin=(%f,%f,%f), PosMax=(%f,%f,%f), Closing file and exiting.",
+                   i, Pos.x, Pos.y, Pos.z, PosMin.x, PosMin.y, PosMin.z, PosMax.x, PosMax.y, PosMax.z );
             fclose(points_file);
             Exit();
         }
@@ -1794,8 +1807,41 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath, uint num_parti
     SetupGrid ( m_Vec[PVOLMIN], m_Vec[PVOLMAX], m_Param[PSIMSCALE], m_Param[PGRIDSIZE], 1.0f );  std::cout << " chk1.0 " << std::flush ;
     AllocateParticles ( mMaxPoints, GPU_OFF, CPU_YES );                                          std::cout << " chk1.1 " << std::flush ;
     AllocateGrid(GPU_OFF, CPU_YES);                                                              std::cout << " chk1.2 " << std::flush ;
+    
+    m_Vec[PBOUNDMIN].x= m_Vec[PVOLMIN].x + 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
+    m_Vec[PBOUNDMIN].y= m_Vec[PVOLMIN].y + 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
+    m_Vec[PBOUNDMIN].z= m_Vec[PVOLMIN].z + 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
+    m_Vec[PINITMIN].x = max(m_Vec[PINITMIN].x , m_Vec[PBOUNDMIN].x+1 );
+    m_Vec[PINITMIN].y = max(m_Vec[PINITMIN].y , m_Vec[PBOUNDMIN].y+1 );
+    m_Vec[PINITMIN].z = max(m_Vec[PINITMIN].z , m_Vec[PBOUNDMIN].z+1 );
+    
     Vector3DF pinit_max = {x_dim,y_dim,z_dim};
     pinit_max += m_Vec[PINITMIN];
+    
+    m_Vec[PBOUNDMAX].x= m_Vec[PVOLMAX].x - 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
+    m_Vec[PBOUNDMAX].y= m_Vec[PVOLMAX].y - 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
+    m_Vec[PBOUNDMAX].z= m_Vec[PVOLMAX].z - 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
+    pinit_max.x = min(pinit_max.x , m_Vec[PBOUNDMAX].x-1 );
+    pinit_max.y = min(pinit_max.y , m_Vec[PBOUNDMAX].y-1 );
+    pinit_max.z = min(pinit_max.z , m_Vec[PBOUNDMAX].z-1 );
+    
+    cout<<"\n\nPGRIDSIZE=("<<m_Vec[PGRIDSIZE].x<<","<<m_Vec[PGRIDSIZE].y<<","<<m_Vec[PGRIDSIZE].z
+        <<"),  PSIMSCALE=("<<m_Vec[PSIMSCALE].x<<","<<m_Vec[PSIMSCALE].y<<","<<m_Vec[PSIMSCALE].z
+        <<"),  m_Param[PGRIDSIZE]="<<m_Param[PGRIDSIZE]<<",  m_Param[PSIMSCALE]="<<m_Param[PSIMSCALE]
+        <<"\n"<<std::flush;
+    
+    cout<<"\n\nPBOUNDMIN=("<<m_Vec[PBOUNDMIN].x <<","<<m_Vec[PBOUNDMIN].y <<","<<m_Vec[PBOUNDMIN].z 
+        <<"), PBOUNDMAX=("<<m_Vec[PBOUNDMAX].x <<","<<m_Vec[PBOUNDMAX].y <<","<< m_Vec[PBOUNDMAX].z
+        <<"),  PVOLMIN=("<<m_Vec[PVOLMIN].x <<","<<m_Vec[PVOLMIN].y <<","<<m_Vec[PVOLMIN].z 
+        <<"),   PVOLMAX=("<<m_Vec[PVOLMAX].x <<","<<m_Vec[PVOLMAX].y <<","<<m_Vec[PVOLMAX].z 
+        <<")\n"<<std::flush;
+    
+    cout<<"\n\n### WriteDemoSimParams: SetupAddVolumeMorphogenesis2"
+        <<"(  min=("<<m_Vec[PINITMIN].x<<","<<m_Vec[PINITMIN].y<<","<<m_Vec[PINITMIN].z
+        <<"), max=("<<pinit_max.x<<","<<pinit_max.y<<","<<pinit_max.z
+        <<"), spacing="<<spacing<<", 0.1f, demoType="<<demoType
+        <<")\n"<<std::flush;
+    
     SetupAddVolumeMorphogenesis2(m_Vec[PINITMIN], pinit_max, spacing, 0.1f, demoType); std::cout << " chk1.3 " << std::flush ;
     WriteSimParams ( relativePath );    std::cout << "\n WriteSimParams ( relativePath );  completed \n" << std::flush ;  // write data to file
     WriteGenome ( relativePath);        std::cout << "\n WriteGenome ( relativePath );  completed \n" << std::flush ;
@@ -2410,7 +2456,7 @@ for(int gene=0;gene<NUM_GENES;gene++){    std::cout<<"\nlist_length["<<gene<<"]=
 //#endif
 }
 
-void FluidSystem::SaveUintArray( uint* array, int numElem1, const char * relativePath ){ /// NB NUM_CHANGES subarrays to FGRIDCNT_CHANGES
+void FluidSystem::SaveUintArray( uint* array, int numElem1, const char * relativePath ){ /// Used to save an array to .csv for ddebugging.
    FILE* fp = fopen ( relativePath, "w" );
     if (fp == NULL) {
         std::cout << "\nvoid FluidSystem::SaveUintArray ( const char * relativePath, int frame )  Could not open file "<< fp <<"\n"<< std::flush;

@@ -57,11 +57,11 @@ usage:
     
     where demoType(0:free falling, 1:remodelling & actuation, 2:diffusion & epigenetics.)
     
-    and simSpace(0:regression test, 1:tower, 2:wavepool, 3: small dam break, 4:dual-wavepool, 5: microgravity)
+    and simSpace(0:regression test, 1:Tower, 2:Wave pool, 3:Small dam break, 4:Dual-Wave pool, 5: Microgravity)
     
     demoType sets individual particle properties in "demo/particles_pos_vel_color100001.csv", especially epigenetic states, from 3D positions.
     
-    simSpace sets parameters in "SimParams.txt" , especially gravity, and wavepool actuation.
+    simSpace sets parameters in "SimParams." , especially gravity, and wavepool actuation.
     
     
 e.g.
@@ -74,9 +74,10 @@ e.g.
     ../build/install/bin/make_demo 400 1  10 10 3  1 5     // diffusion & epigenetics, with reserve particles for growth.
     
     
-    ../build/install/bin/make_demo 10000 1  100 10 10  0 1
-    ../build/install/bin/make_demo 100000 1  100 100 10  0 1
-    ../build/install/bin/make_demo 1000000 1  100 100 100  0 1
+    ../build/install/bin/make_demo 10000 1  100 10 10  1 1
+    ../build/install/bin/make_demo 100000 1  100 10 100  1 1
+    ../build/install/bin/make_demo 100000 1  100 100 10  1 1
+    ../build/install/bin/make_demo 1000000 1  100 100 100  1 1
 
     
 ##### NB memory usage
