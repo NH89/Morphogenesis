@@ -299,6 +299,9 @@
         void WriteDemoSimParams ( const char * relativePath, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim, uint demoType, uint simSpace); // Write standard demo to file, as demonstration of file format. 
         void WriteSimParams ( const char * relativePath );
         void ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);
+        
+        // timers
+      //  std::chrono::time_point< std::chrono::_V2::steady_clock, std::chrono::duration< long int, std::ratio< 1, 1000000000 > > > begin;
 
         // Genome for Morphogenesis
         void UpdateGenome ();
@@ -331,7 +334,7 @@
 
 		CUdeviceptr getBufferGPU ( int id )	{ return m_Fluid.gpu(id); }
 
-		void SetDebug(bool b) { mbDebug = b; }
+		void SetDebug(uint b) { m_debug=b; m_FParams.debug=b; /*mbDebug = (bool)b;*/ }
 	
 	private:
 		Vector3DI					m_FrameRange;
@@ -342,6 +345,7 @@
 		std::string					m_WorkPath;
 		float						m_Thresh;
 		bool						mbDebug;
+        uint                        m_debug;            // 0=full speed, 1=current special output,  2=host cout, 3=device printf, 4=SaveUintArray, 5=save csv after each kernel
 
 		std::string					mSceneName;
 

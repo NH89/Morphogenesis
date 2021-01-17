@@ -163,6 +163,11 @@ usage:
     cd data
     ../build/install/bin/load_sim  demo  out   num_files   steps_per_file   freeze_steps      save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)      debug(y/n)  gene_activity(y/n)  remodelling(y/n)
     
+    usage: load_sim  simulation_data_folder  output_folder  num_files  steps_per_file  freeze_steps save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)  debug(0-5) gene_activity(y/n)  remodelling(y/n) 
+
+    debug: 0=full speed, 1=current special output,  2=host cout, 3=device printf, 4=SaveUintArray(), 5=save .csv after each kernel.
+
+    
 e.g.
 
     cd data/test
@@ -177,6 +182,21 @@ e.g.
     ./load_sim ../demo_10000_1_100_10_10/ ../out/  100 30 1 n n y
     ./load_sim ../demo_100000_1_100_100_10/ ../out/  100 30 1 n n y
     ./load_sim ../demo_1000000_1_100_100_100/ ../out/  100 30 1 n n y
+    
+    
+### profiling the code
+
+    If you have Caua-toolkit installed, enter "nsight-sys" at the commandline to open "Nvidia Nsight Systems".
+    
+    See https://developer.nvidia.com/nsight-systems , https://docs.nvidia.com/nsight-systems/index.html
+    
+    Follow the nsight-systems InstallationGuide.
+    NB especially wrt setting /proc/sys/kernel/perf_event_paranoid    
+    https://docs.nvidia.com/nsight-systems/InstallationGuide/index.html#linux-requirements
+    
+    For a an introduction to how to use Nsight Systems, see "Blue Waters Webinar: Introduction to NVIDIA Nsight Systems"   https://www.youtube.com/watch?v=WA8C48FJi3c 
+    
+    Note, setting the "debug" value (0-5) when launching "load_sim" will have a big effect on the memory transfers, flies saved and console output, and therefore the performance.
 
 
 ### viewing with Meshlab

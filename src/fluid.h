@@ -302,6 +302,7 @@
 
 	// Fluid Parameters (stored on both host and device)
 	struct FParams {
+        uint            debug;
 		int				numThreads, numBlocks, threadsPerBlock;
 		int				gridThreads, gridBlocks;	
 

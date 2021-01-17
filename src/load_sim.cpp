@@ -12,11 +12,11 @@ int main ( int argc, const char** argv )
     char pointsPath[256];
     char genomePath[256];
     char outPath[256];
-    uint num_files, steps_per_file, freeze_steps;
+    uint num_files, steps_per_file, freeze_steps, debug;
     int file_num=0;
-    char save_ply, save_csv, save_vtp, debug, gene_activity, remodelling;
+    char save_ply, save_csv, save_vtp,  gene_activity, remodelling;
     if ( argc != 12 ) {
-        printf ( "usage: load_sim  simulation_data_folder  output_folder  num_files  steps_per_file  freeze_steps save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)  debug(y/n) gene_activity(y/n)  remodelling(y/n)\n" );
+        printf ( "usage: load_sim  simulation_data_folder  output_folder  num_files  steps_per_file  freeze_steps save_ply(y/n)  save_csv(y/n)  save_vtp(y/n)  debug(0-5) gene_activity(y/n)  remodelling(y/n) \n\ndebug: 0=full speed, 1=current special output,  2=host cout, 3=device printf, 4=SaveUintArray(), 5=save .csv after each kernel.\n\n" );
         return 0;
     } else {
         sprintf ( paramsPath, "%s/SimParams.txt", argv[1] );
@@ -48,8 +48,8 @@ int main ( int argc, const char** argv )
         save_vtp = *argv[8];
         printf ( "save_vtp = %c\n", save_vtp );
         
-        debug = *argv[9];
-        printf ("debug = %c\n", debug );
+        debug = atoi(argv[9]);
+        printf ("debug = %u\n", debug );
         
         gene_activity = *argv[10];
         printf ("gene_activity = %c\n", gene_activity );
@@ -72,7 +72,7 @@ int main ( int argc, const char** argv )
     cuCtxCreate ( &cuContext, 0, cuDevice );
 
     FluidSystem fluid;
-    fluid.SetDebug ( false );
+    fluid.SetDebug ( debug );
     fluid.InitializeCuda ();
 
     fluid.ReadSimParams ( paramsPath );
@@ -80,10 +80,10 @@ int main ( int argc, const char** argv )
     // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
     fluid.ReadPointsCSV2 ( pointsPath, GPU_DUAL, CPU_YES );
     
-std::cout <<"\nchk load_sim_0.5\n"<<std::flush;    
+if(debug>1) std::cout <<"\nchk load_sim_0.5\n"<<std::flush;    
     fluid.Init_FCURAND_STATE_CUDA ();
     
-std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
+if(debug>1) std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
     auto old_begin = std::chrono::steady_clock::now();
     
     fluid.TransferFromCUDA ();
@@ -95,16 +95,16 @@ std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval, before 1st timestep", 1/*mbDebug*/);
     
  
-std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
+if(debug>1) std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     for (int k=0; k<freeze_steps; k++){
-        std::cout<<"\n\nFreeze()"<<k<<"\n"<<std::flush;
+        if(debug>1) std::cout<<"\n\nFreeze()"<<k<<"\n"<<std::flush;
          /*
         fluid.Freeze (outPath, file_num);                   // save csv after each kernel - to investigate bugs
         file_num+=10;
          */
         //fluid.Freeze (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y')  );       // creates the bonds // fluid.Freeze(outPath, file_num) saves file after each kernel,, fluid.Freeze() does not.         // fluid.Freeze() creates fixed bond pattern, triangulated cubic here. 
         
-        fluid.Run (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y') );
+        fluid.Run (outPath, file_num, (debug>4), (gene_activity=='y'), (remodelling=='y') );
         fluid.TransferPosVelVeval (); // Freeze movement until heal() has formed bonds, over 1st n timesteps.
         if(save_csv=='y'||save_vtp=='y') fluid.TransferFromCUDA ();
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
@@ -112,13 +112,13 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         file_num+=100;
     }
 
-    printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
+    if(debug>1) printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
     
     for ( ; file_num<num_files; file_num+=100 ) {
         
         for ( int j=0; j<steps_per_file; j++ ) {//, bool gene_activity, bool remodelling 
             
-            fluid.Run (outPath, file_num, (debug=='y'), (gene_activity=='y'), (remodelling=='y') );  // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
+            fluid.Run (outPath, file_num, (debug>4), (gene_activity=='y'), (remodelling=='y') );  // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
         }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
 
         //fluid.SavePoints (i);                         // alternate file formats to write
@@ -132,14 +132,14 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         auto end = std::chrono::steady_clock::now();
         std::chrono::duration<double> time = end - begin;
         std::chrono::duration<double> begin_dbl = begin - old_begin;
-        std::cout << "\nLoop duration : "
+        if(debug>0) std::cout << "\nLoop duration : "
                     << begin_dbl.count() <<" seconds. Time taken to write files for "
                     << fluid.NumPoints() <<" particles : " 
                     << time.count() << " seconds\n" << std::endl;
         old_begin = begin;
         
         //fluid.WriteParticlesToHDF5File(i);
-        //printf ( "\nsaved file_num=%u, frame number =%i \n",file_num,  file_num*steps_per_file );
+        //if(debug>1) printf ( "\nsaved file_num=%u, frame number =%i \n",file_num,  file_num*steps_per_file );
     }
     
     file_num++;
@@ -152,7 +152,7 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     
     size_t   free1, free2, total;
     cudaMemGetInfo(&free1, &total);
-    printf("\nCuda Memory, before cuCtxDestroy(cuContext): free=%lu, total=%lu.\t",free1,total);
+    if(debug>0) printf("\nCuda Memory, before cuCtxDestroy(cuContext): free=%lu, total=%lu.\t",free1,total);
    // cuCheck(cuCtxSynchronize(), "load_sim.cpp ", "cuCtxSynchronize", "before cuCtxDestroy(cuContext)", 1/*mbDebug*/);  
     
     CUresult cuResult = cuCtxDestroy ( cuContext ) ;
@@ -160,10 +160,10 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     
    // cuCheck(cuCtxSynchronize(), "load_sim.cpp ", "cuCtxSynchronize", "after cudaDeviceReset()", 1/*mbDebug*/); 
     cudaMemGetInfo(&free2, &total);
-    printf("\nAfter cuCtxDestroy(cuContext): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
+    if(debug>0) printf("\nAfter cuCtxDestroy(cuContext): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
     
     
-    printf ( "\nClosing load_sim.\n" );
+    if(debug>0) printf ( "\nClosing load_sim.\n" );
     return 0;
 }
 
