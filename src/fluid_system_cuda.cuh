@@ -57,6 +57,8 @@
 		__global__ void insertParticles ( int pnum );	
         __global__ void tally_denselist_lengths(int num_lists, int fdense_list_lengths, int fgridcnt, int fgridoff);
 		__global__ void countingSortFull ( int pnum );		
+        __global__ void countingSortEPIGEN ( int pnum );
+        
 		__global__ void computeQuery ( int pnum );	
 		__global__ void computePressure ( int pnum );		
 		__global__ void computeForce ( int pnum , bool freeze = false, uint frame =20);	          // skip CAS lock if frame>10

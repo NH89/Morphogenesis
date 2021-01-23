@@ -190,8 +190,9 @@
     #define FUNC_CLEAN_BONDS                34
     
     #define FUNC_INIT_FCURAND_STATE         36
+    #define FUNC_COUNTING_SORT_EPIGEN       37
     
-    #define FUNC_MAX			            37
+    #define FUNC_MAX			            38
 
     //  used for AllocateBuffer(  .... )
 	#define GPU_OFF				0
@@ -293,6 +294,9 @@
         
 		// I/O Files
         void SaveUintArray( uint* array, int numElem1, const char * relativePath );
+        void SaveUintArray_2Columns( uint* array, int numElem1, int buff_len, const char * relativePath ); /// Used to save DESNSE_LIST_CHANGES (particle,bondIdx) arrays to .csv for debugging.
+        void SaveUintArray_2D ( uint* array, int numElem1, int numElem2, const char * relativePath );
+        
         void SavePointsVTP2 ( const char * relativePath, int frame );
         void SavePointsCSV2 ( const char * relativePath, int frame );
         void ReadSimParams ( const char * relativePath );    // path to folder containing simparams and .csv files
@@ -334,7 +338,9 @@
 
 		CUdeviceptr getBufferGPU ( int id )	{ return m_Fluid.gpu(id); }
 
-		void SetDebug(uint b) { m_debug=b; m_FParams.debug=b; /*mbDebug = (bool)b;*/ }
+		void SetDebug(uint b) { m_debug=b; m_FParams.debug=b; /*mbDebug = (bool)b;*/ 
+            std::cout<<"\n\nSetDebug(uint b): b="<<b<<", m_FParams.debug = "<<m_FParams.debug<<", (m_FParams.debug>1)="<<(m_FParams.debug>1)<<"\n"<<std::flush;
+        }
 	
 	private:
 		Vector3DI					m_FrameRange;

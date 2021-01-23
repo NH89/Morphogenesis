@@ -57,7 +57,7 @@ usage:
     
     where demoType(0:free falling, 1:remodelling & actuation, 2:diffusion & epigenetics.)
     
-    and simSpace(0:regression test, 1:Tower, 2:Wave pool, 3:Small dam break, 4:Dual-Wave pool, 5: Microgravity)
+    and simSpace{0:regression test, 1:Tower(256,128,256), 2:Wave pool(400,200,400), 3:Small dam break(80,60,80), 4:Dual-Wave pool(200,100,30), 5: Microgravity(160,100.160) }
     
     demoType sets individual particle properties in "demo/particles_pos_vel_color100001.csv", especially epigenetic states, from 3D positions.
     
@@ -178,6 +178,8 @@ e.g.
     ./load_sim ../demo/ ../out/  1000 1 10 n y y y n y                  // NB now 'freeze_steps' delay the start of particle movement, while heal() forms initial bonds.
     ./load_sim ../demo/ ../out/  1000 1 10 n y y y n n
     ./load_sim ../demo/ ../out/  1000 1 10 n y y n y y
+    
+    ./load_sim ../demo/ ../out/  200 3 1 n n y 1 y y                    // Good launch option for profiling
     
     ./load_sim ../demo_10000_1_100_10_10/ ../out/  100 30 1 n n y
     ./load_sim ../demo_100000_1_100_100_10/ ../out/  100 30 1 n n y
