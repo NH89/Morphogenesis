@@ -72,8 +72,8 @@ extern "C" __global__ void insertParticles ( int pnum )                         
 	gc = make_int3( int(gcf.x), int(gcf.y), int(gcf.z) );                        // crops to an int3
 	gs = (gc.y * gridRes.z + gc.z)*gridRes.x + gc.x;                             // linearizes to an int for a 1D array of bins
 	
-if(fparam.debug>2 && i==pnum-1) printf("\ninsertParticles()1: i=%u: gc.x=%i, gc.y=%i, gc.z=%i, gs=%i \t gridScan.x=%i, gridScan.y=%i, gridScan.z=%i, gridTot=%u,\t gridDelta=(%f,%f,%f) gridMin=(%f,%f,%f) gridRes=(%i,%i,%i)", 
-    i, gc.x, gc.y, gc.z, gs,  gridScan.x, gridScan.y, gridScan.z, gridTot, gridDelta.x, gridDelta.y, gridDelta.z,  gridMin.x, gridMin.y, gridMin.z, gridRes.x, gridRes.y, gridRes.z );
+if(fparam.debug>2 && i==pnum-1) printf("\ninsertParticles()1: gridTot=%i,  i=%u: gc.x=%i, gc.y=%i, gc.z=%i, gs=%i \t gridScan.x=%i, gridScan.y=%i, gridScan.z=%i, gridTot=%u,\t gridDelta=(%f,%f,%f) gridMin=(%f,%f,%f) gridRes=(%i,%i,%i)", 
+    gridTot, i, gc.x, gc.y, gc.z, gs,  gridScan.x, gridScan.y, gridScan.z, gridTot, gridDelta.x, gridDelta.y, gridDelta.z,  gridMin.x, gridMin.y, gridMin.z, gridRes.x, gridRes.y, gridRes.z );
 
 	if ( gc.x >= 1 && gc.x <= gridScan.x && gc.y >= 1 && gc.y <= gridScan.y && gc.z >= 1 && gc.z <= gridScan.z ) {
 		fbuf.bufI(FGCELL)[i] = gs;											     // Grid cell insert.
@@ -152,8 +152,9 @@ extern "C" __global__ void tally_denselist_lengths(int num_lists, int fdense_lis
 	if ( list >= num_lists ) return;
     register int gridTot =      fparam.gridTotal;
     fbuf.bufI(fdense_list_lengths)[list] = fbuf.bufI(fgridcnt)[(list+1)*gridTot -1] + fbuf.bufI(fgridoff)[(list+1)*gridTot -1];
-    if(fparam.debug>2)printf("\ntally_denselist_lengths: fbuf.bufI(%i)[%i] = %u, &fdense_list_lengths)[list]=%p \t",
-           fdense_list_lengths, list, fbuf.bufI(fdense_list_lengths)[list], &fbuf.bufI(fdense_list_lengths)[list] );
+    
+    if(fparam.debug>2)printf("\ntally_denselist_lengths: gridTot=%u, fbuf.bufI(%i)[%i] = %u, &fdense_list_lengths)[list]=%p \t",
+           gridTot, fdense_list_lengths, list, fbuf.bufI(fdense_list_lengths)[list], &fbuf.bufI(fdense_list_lengths)[list] );
 }
 
 extern "C" __global__ void countingSortFull ( int pnum )                                // Counting Sort - Full (deep copy)
@@ -336,7 +337,7 @@ extern "C" __global__ void countingSortDenseLists ( int pnum )
                                                    );
                 */
                 if (fparam.debug>2 && gene_counter[gene]>fbuf.bufI(FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin] )   
-                    printf("\n Overflow: particle=%u, ID=%u, gene=%u, bin=%u, gene_counter[gene]=%u, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]=%u \t\t",
+                    printf("\n Overflow: particle=,%u, ID=,%u, gene=,%u, bin=,%u, gene_counter[gene]=,%u, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]=,%u \t\t",
                            particle, fbuf.bufI(FPARTICLE_ID)[particle], gene, bin, gene_counter[gene], fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]);
                     /*
                     //else printf("\n Non-overflow: particle=%u, ID=%u, gene=%u, bin=%u, gene_counter[gene]=%u, fbuf.bufI (FGRIDCNT_ACTIVE_GENES)[gene*gridTot +bin]=%u \t\t",
