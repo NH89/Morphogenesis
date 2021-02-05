@@ -175,8 +175,8 @@
     
     #define FUNC_COMPUTE_MUSCLE_CONTRACTION 22 //computeMuscleContraction
     #define FUNC_HEAL                       23 //heal
-    #define FUNC_LENGTHEN_MUSCLE            24 //lengthen_muscle
-    #define FUNC_LENGTHEN_TISSUE            25 //lengthen_tissue
+    #define FUNC_LENGTHEN_TISSUE            24 //lengthen_muscle
+    #define FUNC_LENGTHEN_MUSCLE            25 //lengthen_tissue
     #define FUNC_SHORTEN_MUSCLE             26 //shorten_muscle
     #define FUNC_SHORTEN_TISSUE             27 //shorten_tissue
     
@@ -192,7 +192,11 @@
     #define FUNC_INIT_FCURAND_STATE         36
     #define FUNC_COUNTING_SORT_EPIGEN       37
     
-    #define FUNC_MAX			            38
+    #define	FUNC_ASSEMBLE_MUSCLE_FIBRES_OUTGOING     38
+    #define	FUNC_ASSEMBLE_MUSCLE_FIBRES_INCOMING     39
+    
+    
+    #define FUNC_MAX			            40
 
     //  used for AllocateBuffer(  .... )
 	#define GPU_OFF				0
@@ -207,7 +211,7 @@
 	class FluidSystem {
 	public:
 		FluidSystem ();
-        
+        bool cuCheck (CUresult launch_stat, const char* method, const char* apicall, const char* arg, bool bDebug);
 		void LoadKernel ( int id, std::string kname );
 		void Initialize ();
         void InitializeCuda ();                             // used for load_sim
@@ -232,7 +236,7 @@
         uint* getParticle_ID(int n )    { return &m_Fluid.bufI(FPARTICLE_ID)[n]; }
         uint* getMass_Radius(int n )    { return &m_Fluid.bufI(FMASS_RADIUS)[n]; }
         uint* getNerveIdx( int n )      { return &m_Fluid.bufI(FNERVEIDX)[n]; }          //#define FNERVEIDX        15      //# uint
-        float* getConc(int tf)        { return &m_Fluid.bufF(FCONC)[tf*mMaxPoints];}        //note #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
+        float* getConc(int tf)          { return &m_Fluid.bufF(FCONC)[tf*mMaxPoints];}       //note #define FCONC       16      //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
         uint* getEpiGen(int gene)       { return &m_Fluid.bufI(FEPIGEN)[gene*mMaxPoints];}   //note #define FEPIGEN     17    //# uint[NUM_GENES] // used in savePoints... 
                                                                                              //NB int mMaxPoints is set even if FluidSetupCUDA(..) isn't called, e.g. in makedemo ..
 		// Setup
@@ -283,6 +287,7 @@
 		void ComputeDiffusionCUDA();
 		void ComputeForceCUDA ();
         void ComputeGenesCUDA ();
+        void AssembleFibresCUDA ();
         void ComputeBondChangesCUDA ();
         void ComputeParticleChangesCUDA ();
         void CleanBondsCUDA ();                                         // Should this functionality be rolled into countingSortFull() ? OR should it be kept separate? 

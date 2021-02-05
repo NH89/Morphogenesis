@@ -307,7 +307,7 @@
 		int				gridThreads, gridBlocks;	
 
 		int				szPnts, szHash, szGrid;
-		int				stride, pnum, pnumActive;
+		int				stride, pnum, pnumActive, maxPoints;
         bool            freeze;
         uint            frame;
 		int				chk;

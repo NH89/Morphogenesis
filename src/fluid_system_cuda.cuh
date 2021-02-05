@@ -91,21 +91,21 @@
         
         __device__ void makeBond (uint thisParticleIdx, uint otherParticleIdx, uint bondIdx, uint otherParticleBondIdx, uint bondType /* elastin, collagen, apatite */);
         __device__ int  atomicMakeBond(uint thisParticleIndx,  uint otherParticleIdx, uint bondIdx, uint otherParticleBondIndex, uint bond_type);
-        __device__ int  insertNewParticle(float3 newParticlePos, uint parentParticleIndx, uint bondIdx, uint otherParticleBondIndex, uint bond_type[BONDS_PER_PARTICLE]);
+        __device__ int  insertNewParticle(uint new_particle_Idx, float3 newParticlePos, uint parentParticleIndx, uint bondIdx, uint secondParticleIdx, uint otherParticleBondIndex, uint bond_type[BONDS_PER_PARTICLE]);
         __device__ void find_closest_particle_per_axis(uint particle, float3 pos, uint neighbours[6]);
         __device__ void makeBondIndxMap( uint parentParticleIndx, int bondInxMap[6]);
         __global__ void cleanBonds (int pnum);
         
-        __global__ void heal                ( int pnum, uint list_length, int change_list);
-        __global__ void lengthen_muscle     ( int pnum, int list_length, int change_list);
-        __global__ void lengthen_tissue     ( int pnum, int list_length, int change_list);
-        __global__ void shorten_muscle      ( int pnum, int list_length, int change_list);
-        __global__ void shorten_tissue      ( int pnum, int list_length, int change_list);
+        __global__ void heal                ( int ActivePoints, uint list_length, int change_list, uint startNewPoints, uint mMaxPoints);
+        __global__ void lengthen_muscle     ( int ActivePoints, int list_length, int change_list, uint startNewPoints, uint mMaxPoints);
+        __global__ void lengthen_tissue     ( int ActivePoints, int list_length, int change_list, uint startNewPoints, uint mMaxPoints);
+        __global__ void shorten_muscle      ( int ActivePoints, int list_length, int change_list, uint startNewPoints, uint mMaxPoints);
+        __global__ void shorten_tissue      ( int ActivePoints, int list_length, int change_list, uint startNewPoints, uint mMaxPoints);
         
-        __global__ void strengthen_muscle   ( int pnum, int list_length, int change_list);
-        __global__ void strengthen_tissue   ( int pnum, int list_length, int change_list);
-        __global__ void weaken_muscle       ( int pnum, int list_length, int change_list);
-        __global__ void weaken_tissue       ( int pnum, int list_length, int change_list);
+        __global__ void strengthen_muscle   ( int ActivePoints, int list_length, int change_list, uint startNewPoints, uint mMaxPoints);
+        __global__ void strengthen_tissue   ( int ActivePoints, int list_length, int change_list, uint startNewPoints, uint mMaxPoints);
+        __global__ void weaken_muscle       ( int ActivePoints, int list_length, int change_list, uint startNewPoints, uint mMaxPoints);
+        __global__ void weaken_tissue       ( int ActivePoints, int list_length, int change_list, uint startNewPoints, uint mMaxPoints);
         
 	}
 

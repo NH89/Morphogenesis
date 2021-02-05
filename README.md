@@ -70,6 +70,7 @@ e.g.
     
     ../build/install/bin/make_demo 120 1  2 2 30  1 5
     ../build/install/bin/make_demo 600 1  4 4 30  1 5      // remodelling & actuation, with fixed, bone, tendon, muscle, elastic, mesenchyme, external actuation
+    ../build/install/bin/make_demo 2000 1  6 6 30  1 5     //  "" , with reserve particles for growth.
     
     ../build/install/bin/make_demo 400 1  10 10 3  1 5     // diffusion & epigenetics, with reserve particles for growth.
     
