@@ -909,20 +909,20 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
         if(debug){
             TransferFromCUDA ();
             SavePointsCSV2 (  relativePath, frame+12 );
-            std::cout << "\n\nRun(relativePath,frame) Chk12, saved "<< frame+11 <<".csv  After  ComputeParticleChangesCUDA\n"<<std::flush;
+            std::cout << "\n\nRun(relativePath,frame) Chk12, saved "<< frame+11 <<".csv  After  ComputeParticleChangesCUDA.  mMaxPoints="<<mMaxPoints<<"\n"<<std::flush;
         }
+        
+        //CleanBondsCUDA ();
+        //cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CleanBondsCUDA ", mbDebug);
     }
 
-/*
-    CleanBondsCUDA ();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CleanBondsCUDA ", mbDebug);
-*/
+
     TransferPosVelVeval ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval ", mbDebug);
     if(debug){
         TransferFromCUDA ();
         SavePointsCSV2 (  relativePath, frame+13 );
-        std::cout << "\n\nRun(relativePath,frame) Chk13, saved "<< frame+12 <<".csv  After  TransferPosVelVeval\n"<<std::flush;
+        std::cout << "\n\nRun(relativePath,frame) Chk13, saved "<< frame+12 <<".csv  After  TransferPosVelVeval.  mMaxPoints="<<mMaxPoints<<"\n"<<std::flush;
     }
     AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);
@@ -2827,18 +2827,22 @@ void FluidSystem::AssembleFibresCUDA (){  //kernel: void assembleMuscleFibres ( 
     int numBlocks, numThreads;
     computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
     
+    /*
     if( numBlocks>0 && numThreads>0){
         cuCheck ( cuLaunchKernel ( m_Func[FUNC_ASSEMBLE_MUSCLE_FIBRES_OUTGOING],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_COMPUTE_GENE_ACTION", mbDebug);
     }
+    */
     
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "In AssembleFibresCUDA, after OUTGOING", mbDebug); 
     
+    /*
     if( numBlocks>0 && numThreads>0){
         cuCheck ( cuLaunchKernel ( m_Func[FUNC_ASSEMBLE_MUSCLE_FIBRES_INCOMING],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_COMPUTE_GENE_ACTION", mbDebug);
     }
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "In AssembleFibresCUDA, after OUTGOING", mbDebug); 
+    */
     
-    
-    
+
     
     
     // Kernels:  call by tissue type using dense lists by gene.
@@ -2871,8 +2875,15 @@ void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to e
     for (int change_list = 0; change_list<NUM_CHANGES;change_list++){
     //int change_list = 0; // TODO debug, chk one kernel at a time
         uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list];  // num blocks and threads by list length
-        if (startNewPoints + list_length > mMaxPoints)list_length = mMaxPoints - startNewPoints;
-        
+        //if (change_list!=0 && change_list!=1)continue; // only test heal() and lengthenTissue() for now.
+    
+        if ((change_list >0)&&(startNewPoints + list_length > mMaxPoints)){         // NB heal() does not create new bonds.
+            printf("\n\n### Run out of spare particles. startNewPoints=%u, change_list=%u, list_length=%u, mMaxPoints=%u ###\n", 
+            startNewPoints, change_list, list_length, mMaxPoints); 
+            list_length = mMaxPoints - startNewPoints;
+            //Exit();
+        }//
+    
         void* args[5] = {&mActivePoints, &list_length, &change_list, &startNewPoints, &mMaxPoints};
         int numThreads, numBlocks;
         
@@ -2881,10 +2892,30 @@ void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to e
         
         computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
         
-        if (m_FParams.debug>0) std::cout<<"\n\nComputeParticleChangesCUDA (): frame ="<<m_FParams.frame<<",  mActivePoints="<<mActivePoints<<",   change_list ="<<change_list<<", list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". args={mActivePoints="<<mActivePoints<<", list_length="<<list_length<<", change_list="<<change_list<<", startNewPoints="<<startNewPoints<<"}\t\n"<<std::flush;
+        if (m_FParams.debug>0) std::cout
+            <<"\n\nComputeParticleChangesCUDA ():"
+            <<" frame ="                    <<m_FParams.frame
+            <<", mActivePoints="            <<mActivePoints
+            <<", change_list ="             <<change_list
+            <<", list_length="              <<list_length
+            <<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock
+            <<", numBlocks="                <<numBlocks
+            <<", numThreads="               <<numThreads
+            <<". args={mActivePoints="      <<mActivePoints
+            <<", list_length="              <<list_length
+            <<", change_list="              <<change_list
+            <<", startNewPoints="           <<startNewPoints
+            <<"\t\n"<<std::flush;
         
         if( (list_length>0) && (numBlocks>0) && (numThreads>0)){
-            if (m_FParams.debug>1) std::cout<<"\n\nCalling m_Func[FUNC_HEAL+"<<change_list<<"], list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<",\t m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks*m_FParams.threadsPerBlock="<<numBlocks*m_FParams.threadsPerBlock<<"\t"<<std::flush;
+            if (m_FParams.debug>1) std::cout
+                <<"\n\nCalling m_Func[FUNC_HEAL+"           <<change_list
+                <<"], list_length="                         <<list_length
+                <<", numBlocks="                            <<numBlocks
+                <<", numThreads="                           <<numThreads
+                <<",\t m_FParams.threadsPerBlock="          <<m_FParams.threadsPerBlock
+                <<", numBlocks*m_FParams.threadsPerBlock="  <<numBlocks*m_FParams.threadsPerBlock
+                <<"\t"<<std::flush;
             
             cuCheck ( cuLaunchKernel ( m_Func[FUNC_HEAL+change_list], numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), 
                   "ComputeParticleChangesCUDA", "cuLaunch", "FUNC_HEAL+change_list", mbDebug);
@@ -2892,7 +2923,7 @@ void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to e
         cuCheck(cuCtxSynchronize(), "ComputeParticleChangesCUDA", "cuCtxSynchronize", "In ComputeParticleChangesCUDA", mbDebug);
                                                                                 // Each thread will pick different new particles from surplus particles.
         if (change_list==2 || change_list==6) startNewPoints+=  list_length;    // Increment by num new particles used by previous kernels. 
-        if (change_list==1 || change_list==5) startNewPoints+=  list_length*3;  // Increment by 3 particles for muscle.    
+        //if (change_list==1 || change_list==5) startNewPoints+=  list_length*3;  // Increment by 3 particles for muscle.    
         /*
     0   #define FUNC_HEAL                       23 //heal
     1   #define FUNC_LENGTHEN_MUSCLE            24 //lengthen_muscle
