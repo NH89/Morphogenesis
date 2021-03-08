@@ -183,6 +183,9 @@ void FluidSystem::InitializeCuda (){         // used for load_sim  /home/nick/Pr
     LoadKernel ( FUNC_ASSEMBLE_MUSCLE_FIBRES_OUTGOING, "assembleMuscleFibresOutGoing");
     LoadKernel ( FUNC_ASSEMBLE_MUSCLE_FIBRES_INCOMING, "assembleMuscleFibresInComing");
     
+    LoadKernel ( FUNC_INITIALIZE_BONDS, "initialize_bonds");
+    
+    
 
     if (m_FParams.debug>1)std::cout << "Chk1.2 \n";
     size_t len = 0;
@@ -283,7 +286,7 @@ void FluidSystem::UpdateParams (){
     Vector3DF grav = m_Vec[PPLANE_GRAV_DIR] * m_Param[PGRAV];
     FluidParamCUDA (  m_Param[PSIMSCALE], m_Param[PSMOOTHRADIUS], m_Param[PRADIUS], m_Param[PMASS], m_Param[PRESTDENSITY],
                       *(float3*)& m_Vec[PBOUNDMIN], *(float3*)& m_Vec[PBOUNDMAX], m_Param[PEXTSTIFF], m_Param[PINTSTIFF],
-                      m_Param[PVISC], m_Param[PEXTDAMP], m_Param[PFORCE_MIN], m_Param[PFORCE_MAX], m_Param[PFORCE_FREQ],
+                      m_Param[PVISC], m_Param[PSURFACE_TENSION], m_Param[PEXTDAMP], m_Param[PFORCE_MIN], m_Param[PFORCE_MAX], m_Param[PFORCE_FREQ],
                       m_Param[PGROUND_SLOPE], grav.x, grav.y, grav.z, m_Param[PACCEL_LIMIT], m_Param[PVEL_LIMIT],
                       (int) m_Vec[PEMIT_RATE].x );
 }
@@ -629,11 +632,19 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
     float Conc[NUM_TF];
     uint EpiGen[NUM_GENES]={0};
     Particle_ID = 0; // NB Particle_ID=0 means "no particle" in ElastIdx.
-    
+    /*
     for (Pos.x = min.x; Pos.x <= max.x; Pos.x += spacing ) {
         for (Pos.y = min.y; Pos.y <= max.y; Pos.y += spacing){
             for (Pos.z = min.z; Pos.z <= max.z; Pos.z += spacing){     //for (int xz=0; xz < cnt; xz++ ) {
-                
+    */            
+    Vector3DF volV3DF = max-min;    
+    int num_particles_to_make = 27 * int(volV3DF.x*volV3DF.y*volV3DF.z);//int(volV3DF.x*volV3DF.y*volV3DF.z / spacing*spacing*spacing);
+    srand((unsigned int)time(NULL));
+    for (int i=0; i<num_particles_to_make; i++){
+        Pos.x =  min.x + (float(rand())/float((RAND_MAX)) * dx) ;
+        Pos.y =  min.y + (float(rand())/float((RAND_MAX)) * dy) ;
+        Pos.z =  min.z + (float(rand())/float((RAND_MAX)) * dz) ;
+        
                 Particle_ID ++;  // NB AddParticleMorphogenesis2(...) checks not to exceed max num particles
                 Vel.x=0; Vel.y=0; Vel.z=0; 
                 Age =  0; 
@@ -709,8 +720,8 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                     if (m_FParams.debug>1){std::cout << "\n SetupAddVolumeMorphogenesis2 exited on p==-1, Pos=("<<Pos.x<<","<<Pos.y<<","<<Pos.z<<"), Particle_ID="<<Particle_ID<<",  EpiGen[0]="<<EpiGen[0]<<" \n " << std::flush ;} 
                     return;
                 }
-            }
-        }
+        //    }
+        //}
     }
     AddNullPoints ();                                                           // If spare particles remain, fill with null points. NB these can be used to "create" particles.
     if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 finished \n" << std::flush ;
@@ -794,8 +805,8 @@ std::cout << "\n\n Chk13 \n"<<std::flush;
     AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);   
     
-    SpecialParticlesCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After SpecialParticlesCUDA", mbDebug); 
+   // SpecialParticlesCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
+   // cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After SpecialParticlesCUDA", mbDebug); 
     
     
 //TransferFromCUDA ();
@@ -838,6 +849,17 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
         SavePointsCSV2 (  relativePath, frame+3 );
         std::cout << "\n\nRun(relativePath,frame) Chk4, saved "<< frame+3 <<".csv  After CountingSortFullCUDA\n"<<std::flush;
     }
+    
+    if(m_FParams.freeze==true){
+        InitializeBondsCUDA ();
+        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InitializeBondsCUDA ", mbDebug);
+        if(debug){
+            TransferFromCUDA ();
+            SavePointsCSV2 (  relativePath, frame+3 );      // NB overwrites previous file.
+            std::cout << "\n\nRun(relativePath,frame) Chk4.5, saved "<< frame+3 <<".csv  After InitializeBondsCUDA \n"<<std::flush;
+        }
+    }
+/*        
     ComputePressureCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug);
     if(debug){
@@ -845,6 +867,7 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
         SavePointsCSV2 (  relativePath, frame+4 );
         std::cout << "\n\nRun(relativePath,frame) Chk5, saved "<< frame+4 <<".csv  After ComputePressureCUDA \n"<<std::flush;
     }
+*/    
     ComputeForceCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug);
     if(debug){
@@ -855,7 +878,7 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
     // TODO compute nerve activation ? 
     
     // TODO compute muscle action ?
-    
+/*    
     ComputeDiffusionCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
     if(debug){
@@ -915,7 +938,7 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
         //CleanBondsCUDA ();
         //cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CleanBondsCUDA ", mbDebug);
     }
-
+*/
 
     TransferPosVelVeval ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval ", mbDebug);
@@ -931,14 +954,14 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
         SavePointsCSV2 (  relativePath, frame+14 );
         std::cout << "\n\nRun(relativePath,frame) Chk14, saved "<< frame+13 <<".csv  After  AdvanceCUDA\n"<<std::flush;
     }
-    SpecialParticlesCUDA ( m_Time, m_DT, m_Param[PSIMSCALE]);
+/*    SpecialParticlesCUDA ( m_Time, m_DT, m_Param[PSIMSCALE]);
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After SpecialParticlesCUDA", mbDebug);
     if(debug){
         TransferFromCUDA ();
         SavePointsCSV2 (  relativePath, frame+15 );
         std::cout << "\n\nRun(relativePath,frame) Chk15, saved "<< frame+14 <<".csv  After  SpecialParticlesCUDA\n"<<std::flush;
     }
-
+*/
     AdvanceTime ();
 /*
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceTime", mbDebug); 
@@ -964,6 +987,13 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
 //     }
 */
 }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
+
+
+void FluidSystem::setFreeze(bool freeze){
+    m_FParams.freeze = freeze;
+    cuCheck ( cuMemcpyHtoD ( cuFParams,	&m_FParams,		sizeof(FParams) ), "FluidParamCUDA", "cuMemcpyHtoD", "cuFParams", mbDebug);
+}
+
 
 void FluidSystem::Freeze (){
     m_FParams.freeze = true;
@@ -1508,7 +1538,7 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
         Particle_Idx = getParticle_Idx(i);
         Particle_ID = getParticle_ID(i);//# uint  original pnum, used for bonds between particles. 32bit, track upto 4Bn particles.
         if(*Particle_ID==0){
-         if (m_FParams.debug>1) std::cout << "Particle_ID = pointer not assigned. i="<<i<<". \t" << std::flush;
+         if (m_FParams.debug>1) std::cout << "SavePointsCSV2: Particle_ID = pointer not assigned. i="<<i<<". \t" << std::flush;
          return;
         }
         // ? should I be splitting mass_radius with bitshift etc  OR just use two uit arrays .... where are/will these used anyway ?
@@ -1698,6 +1728,7 @@ void FluidSystem::ReadSimParams ( const char * relativePath ) { // transcribe Si
     ret += std::fscanf ( SimParams_file, "m_Param [ PSIMSCALE ] = %f\n ", &m_Param [ PSIMSCALE ] );
     ret += std::fscanf ( SimParams_file, "m_Param [ PGRID_DENSITY ] = %f\n ", &m_Param [ PGRID_DENSITY ] ); // added
     ret += std::fscanf ( SimParams_file, "m_Param [ PVISC ] = %f\n ", &m_Param [ PVISC ] );
+    ret += std::fscanf ( SimParams_file, "m_Param [ PSURFACE_TENSION ] = %f\n ", &m_Param [ PSURFACE_TENSION ] );
     ret += std::fscanf ( SimParams_file, "m_Param [ PRESTDENSITY ] = %f\n ", &m_Param [ PRESTDENSITY ] );
     ret += std::fscanf ( SimParams_file, "m_Param [ PSPACING ] = %f\n ", &m_Param [ PSPACING ] );
     ret += std::fscanf ( SimParams_file, "m_Param [ PMASS ] = %f\n ", &m_Param [ PMASS ] );
@@ -1738,7 +1769,7 @@ void FluidSystem::ReadSimParams ( const char * relativePath ) { // transcribe Si
     ret += std::fscanf ( SimParams_file, "m_Param [ PFORCE_FREQ ] = %f\n ", &m_Param [ PFORCE_FREQ ] );
     ret += std::fscanf ( SimParams_file, "m_Param [ PGROUND_SLOPE ] = %f\n ", &m_Param [ PGROUND_SLOPE ] );
 
-    if ( ret != 63 ) {
+    if ( ret != 64 ) {
         if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadSimParams(..), read failure ! ret = " << ret << std::flush;
         fclose ( SimParams_file );
         return;
@@ -1800,12 +1831,13 @@ void FluidSystem::WriteSimParams ( const char * relativePath ){
     }
 
     int ret = std::fprintf(SimParams_file,
-                           " m_Time = %f\n m_DT = %f\n m_Param [ PSIMSCALE ] = %f\n m_Param [ PGRID_DENSITY ] = %f\n m_Param [ PVISC ] = %f\n m_Param [ PRESTDENSITY ] = %f\n m_Param [ PSPACING ] = %f\n m_Param [ PMASS ] = %f\n m_Param [ PRADIUS ] = %f\n m_Param [ PDIST ] = %f\n m_Param [ PSMOOTHRADIUS ] = %f\n m_Param [ PINTSTIFF ] = %f\n m_Param [ PEXTSTIFF ] = %f\n m_Param [ PEXTDAMP ] = %f\n m_Param [ PACCEL_LIMIT ] = %f\n m_Param [ PVEL_LIMIT ] = %f\n m_Param [ PMAX_FRAC ] = %f\n m_Param [ PGRAV ] = %f\n m_Param [ PGROUND_SLOPE ] = %f\n m_Param [ PFORCE_MIN ] = %f\n m_Param [ PFORCE_MAX ] = %f\n m_Param [ PFORCE_FREQ ] = %f\n m_Toggle [ PWRAP_X ] = %i\n m_Toggle [ PWALL_BARRIER ] = %i\n m_Toggle [ PLEVY_BARRIER ] = %i\n m_Toggle [ PDRAIN_BARRIER ] = %i\n m_Param [ PSTAT_NBRMAX ] = %f\n m_Param [ PSTAT_SRCHMAX ] = %f\n m_Vec [ PPOINT_GRAV_POS ].Set ( %f, %f, %f )\n m_Vec [ PPLANE_GRAV_DIR ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_POS ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_RATE ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_ANG ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_DANG ].Set ( %f, %f, %f )\n // Default sim config\n m_Toggle [ PRUN ] = %i\n m_Param [ PGRIDSIZE ] = %f\n m_Vec [ PVOLMIN ].Set ( %f, %f, %f )\n m_Vec [ PVOLMAX ].Set ( %f, %f, %f )\n m_Vec [ PINITMIN ].Set ( %f, %f, %f )\n m_Vec [ PINITMAX ].Set ( %f, %f, %f )\n m_Param [ PFORCE_MIN ] = %f\n m_Param [ PFORCE_FREQ ] = %f\n m_Param [ PGROUND_SLOPE ] = %f\n ",
+                           " m_Time = %f\n m_DT = %f\n m_Param [ PSIMSCALE ] = %f\n m_Param [ PGRID_DENSITY ] = %f\n m_Param [ PVISC ] = %f\n m_Param [ PSURFACE_TENSION ] = %f\n m_Param [ PRESTDENSITY ] = %f\n m_Param [ PSPACING ] = %f\n m_Param [ PMASS ] = %f\n m_Param [ PRADIUS ] = %f\n m_Param [ PDIST ] = %f\n m_Param [ PSMOOTHRADIUS ] = %f\n m_Param [ PINTSTIFF ] = %f\n m_Param [ PEXTSTIFF ] = %f\n m_Param [ PEXTDAMP ] = %f\n m_Param [ PACCEL_LIMIT ] = %f\n m_Param [ PVEL_LIMIT ] = %f\n m_Param [ PMAX_FRAC ] = %f\n m_Param [ PGRAV ] = %f\n m_Param [ PGROUND_SLOPE ] = %f\n m_Param [ PFORCE_MIN ] = %f\n m_Param [ PFORCE_MAX ] = %f\n m_Param [ PFORCE_FREQ ] = %f\n m_Toggle [ PWRAP_X ] = %i\n m_Toggle [ PWALL_BARRIER ] = %i\n m_Toggle [ PLEVY_BARRIER ] = %i\n m_Toggle [ PDRAIN_BARRIER ] = %i\n m_Param [ PSTAT_NBRMAX ] = %f\n m_Param [ PSTAT_SRCHMAX ] = %f\n m_Vec [ PPOINT_GRAV_POS ].Set ( %f, %f, %f )\n m_Vec [ PPLANE_GRAV_DIR ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_POS ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_RATE ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_ANG ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_DANG ].Set ( %f, %f, %f )\n // Default sim config\n m_Toggle [ PRUN ] = %i\n m_Param [ PGRIDSIZE ] = %f\n m_Vec [ PVOLMIN ].Set ( %f, %f, %f )\n m_Vec [ PVOLMAX ].Set ( %f, %f, %f )\n m_Vec [ PINITMIN ].Set ( %f, %f, %f )\n m_Vec [ PINITMAX ].Set ( %f, %f, %f )\n m_Param [ PFORCE_MIN ] = %f\n m_Param [ PFORCE_FREQ ] = %f\n m_Param [ PGROUND_SLOPE ] = %f\n ",
                            m_Time,
                            m_DT,
                            m_Param [ PSIMSCALE ],
                            m_Param [ PGRID_DENSITY ],
                            m_Param [ PVISC ],
+                           m_Param [ PSURFACE_TENSION ],
                            m_Param [ PRESTDENSITY ],
                            m_Param [ PSPACING ],
                            m_Param [ PMASS ],
@@ -1855,6 +1887,7 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath, uint num_parti
     memset ( &m_FluidTemp, 0,	sizeof(FBufs) );
     memset ( &m_FParams, 0,		sizeof(FParams) );
     memset ( &m_FGenome, 0,		sizeof(FGenome) );
+    
     m_Param[PEXAMPLE] = simSpace;          // simSpace==2 : wave pool example.
     m_Param[PGRID_DENSITY] = 2.0;
     m_Param[PNUM] = num_particles;  // 1000000;    //1000 = minimal simulation, 1000000 = large simulation
@@ -1862,7 +1895,7 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath, uint num_parti
     m_Time = 0;
     mNumPoints = 0;			        // reset count
     SetupDefaultParams();           // set up the standard demo
-    SetupExampleParams(simSpace);
+    SetupExampleParams(spacing);
     SetupExampleGenome();
     mMaxPoints = m_Param[PNUM];    
     m_Param[PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
@@ -1961,6 +1994,7 @@ void FluidSystem::SetupDefaultParams (){
 
     m_Param [ PSIMSCALE ] =		0.005f;			// unit size
     m_Param [ PVISC ] =			0.50f;			// pascal-second (Pa.s) = 1 kg m^-1 s^-1  (see wikipedia page on viscosity)
+    m_Param [ PSURFACE_TENSION ] = 0.1f;
     m_Param [ PRESTDENSITY ] =	400.0f;			// kg / m^3
     m_Param [ PSPACING ]	=	0.0f;			// spacing will be computed automatically from density in most examples (set to 0 for autocompute)
     m_Param [ PMASS ] =			0.00020543f;		// kg
@@ -2003,9 +2037,10 @@ void FluidSystem::SetupDefaultParams (){
 
 }
 
-void FluidSystem::SetupExampleParams (uint simSpace){
+void FluidSystem::SetupExampleParams (uint spacing){
     Vector3DF pos;
     Vector3DF min, max;
+    m_Param [ PSPACING ] = spacing;
 
     switch ( (int) m_Param[PEXAMPLE] ) {
 
@@ -2019,7 +2054,7 @@ void FluidSystem::SetupExampleParams (uint simSpace){
 
         m_Param [ PGRAV ] = 0.0;
         m_Vec [ PPLANE_GRAV_DIR ].Set ( 0.0, 0.0, 0.0 );
-        m_Param [ PSPACING ] = 0.5;				// Fixed spacing		Dx = x-axis density
+        //m_Param [ PSPACING ] = spacing;//0.5;				// Fixed spacing		Dx = x-axis density
         m_Param [ PSMOOTHRADIUS ] =	m_Param [PSPACING];		// Search radius
         m_Toggle [ PRUN ] = false;				// Do NOT run sim. Neighbors only.
         m_Param [PDRAWMODE] = 1;				// Point drawing
@@ -2215,7 +2250,7 @@ void FluidSystem::FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, fl
     m_FParams.szPnts = (m_FParams.numBlocks  * m_FParams.numThreads);
 }
 
-void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, int emit ){
+void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float surface_tension, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, int emit ){
     m_FParams.psimscale = ss;
     m_FParams.psmoothradius = sr;
     m_FParams.pradius = pr;
@@ -2227,6 +2262,7 @@ void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, flo
     m_FParams.pextstiff = estiff;
     m_FParams.pintstiff = istiff;
     m_FParams.pvisc = visc;
+    m_FParams.sterm = surface_tension;
     m_FParams.pdamp = damp;
     m_FParams.pforce_min = fmin;
     m_FParams.pforce_max = fmax;
@@ -2238,13 +2274,43 @@ void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, flo
     m_FParams.VL = vl;
     m_FParams.VL2 = vl * vl;
     m_FParams.pemit = emit;
-
+                                                                            
     m_FParams.pdist = pow ( m_FParams.pmass / m_FParams.prest_dens, 1/3.0f );
+                                                                                // Normalization constants.
     m_FParams.poly6kern = 315.0f / (64.0f * 3.141592f * pow( sr, 9.0f) );
-    m_FParams.spikykern = -45.0f / (3.141592f * pow( sr, 6.0f) );
-    m_FParams.lapkern = 45.0f / (3.141592f * pow( sr, 6.0f) );
-    m_FParams.gausskern = 1.0f / pow(3.141592f * 2.0f*sr*sr, 3.0f/2.0f);
+    m_FParams.wendlandC2kern = 21 / (16 * 3.141592f );   
+    /* My notes from Sympy my notebook. 
+    Where Wendland C2 kernel:
+    
+        wc2 = (1-r*ss/2*sr)**4  * ((2*q) +1)
+    
+    Normalisation constant = 1/integrate( (wc2*(4*pi*r**2)), (r,0, 2*sr/ss)),  NB *(4*pi*r**2) area of a sphere, & 2=basis of wc2.
+    
+        =  1/ (288pi - 15552.0πss^2/sr^2 + 77760.0πss^3/sr^3 - 149965.714285714πss^4/sr^4 + 104976.0πss^5/sr^5  )
+    
+    */
+    /* Notes from DualSPHysics Wiki
+    // Normalization const = reciprocal of radial integral of (kernel * area of sphere), found using Sympy.      
+    // NB using W(r,h)=alpha_D (1-q/2)**4 *(2*q +1), 0<=q<=2, as per DualSPHysics Wiki. Where alpha_D is the normaliation constant.
+    // * m_FParams.pmass * m_FParams.psimscale
+    */
+    m_FParams.spikykern = -45.0f / (3.141592f * pow( sr, 6.0f) );            // spikykern used for force due to pressure.
+    m_FParams.lapkern = 45.0f / (3.141592f * pow( sr, 6.0f) );               
+    // NB Viscosity uses a different kernel, this is the constant portion of its Laplacian.
+    // NB Laplacian is a scalar 2nd order differential, "The divergence of the gradient" 
+    // This Laplacian comes from Muller et al 2003, NB The kernel is defined by the properties of  its Laplacian, gradient and value at the basis (outer limit) of the kernel. The Laplacian is the form used in the code. The equation of the kernel in Muller et al seems to be wrong, but this does not matter.
+    
+/*
+    // -32*(1 - r)**3 + 12*(1 - r)**2*(4*r + 1)  // the Laplacian of  WC2 = (1-r)**4 *(1+4*r)
+//(15*r**2*(h/r**3 + 2/h**2 - 3*r/h**3)/(2*pi*h**3) + 15*r*(-h/(2*r**2) + 2*r/h**2 - 3*r**2/(2*h**3))/(pi*h**3))/r**2
+//(45/pi*h^6)((h^2/12r^3)+(2h/3)-(3r/4))
+    
+//(r**2*(h/r**3 + 2/h**2 - 3*r/h**3) + 2*r*(-h/(2*r**2) + 2*r/h**2 - 3*r**2/(2*h**3) ) )/r**2
+*/
+    
+    m_FParams.gausskern = 1.0f / pow(3.141592f * 2.0f*sr*sr, 3.0f/2.0f);     // Gaussian not currently used.
 
+    m_FParams.H = m_FParams.psmoothradius / m_FParams.psimscale;
     m_FParams.d2 = m_FParams.psimscale * m_FParams.psimscale;
     m_FParams.rd2 = m_FParams.r2 / m_FParams.d2;
     m_FParams.vterm = m_FParams.lapkern * m_FParams.pvisc;
@@ -2754,8 +2820,8 @@ void FluidSystem::CountingSortChangesCUDA ( ){
     for(int change_list=0;change_list<NUM_CHANGES;change_list++){                                                   // Note this calculation could be done by a kernel, 
         uint * densebuff_len = m_Fluid.bufI(FDENSE_BUF_LENGTHS_CHANGES);                                            // and only m_Fluid.bufI(FDENSE_LIST_LENGTHS); copied to host.
         uint * denselist_len = m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES);                                           // For each change_list allocate intial buffer, 
-        if (m_FParams.debug>1)printf("\nCountingSortChangesCUDA2: change_list=%u,  densebuff_len[change_list]=%u, denselist_len[change_list]=%u ,\t\t threads=%u, numElem2=%u,  m_GridTotal=%u \t",
-               change_list, densebuff_len[change_list], denselist_len[change_list], threads, numElem2,  m_GridTotal );
+        //if (m_FParams.debug>1)printf("\nCountingSortChangesCUDA2: change_list=%u,  densebuff_len[change_list]=%u, denselist_len[change_list]=%u ,\t\t threads=%u, numElem2=%u,  m_GridTotal=%u \t",
+        //       change_list, densebuff_len[change_list], denselist_len[change_list], threads, numElem2,  m_GridTotal );
         cuCtxSynchronize ();
         if(m_debug>2){
             uint fDenseList2[1000000] = {UINT_MAX};// NB 10* num particles.
@@ -2769,6 +2835,17 @@ void FluidSystem::CountingSortChangesCUDA ( ){
             
         }
     }
+}
+
+void FluidSystem::InitializeBondsCUDA (){
+    cout << "\n\nInitializeBondsCUDA ()\n"<<std::flush;
+    uint gene           = 1;                                                            // solid  (has springs)
+    uint list_length    = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
+    void* args[3]       = { &m_FParams.pnumActive, &list_length, &gene};                //initialize_bonds (int ActivePoints, uint list_length, uint gene)
+    int numBlocks, numThreads;
+    computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
+    cout << "\nInitializeBondsCUDA (): list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<" \t args{m_FParams.pnumActive="<<m_FParams.pnumActive<<", list_length="<<list_length<<", gene="<<gene<<"}"<<std::flush;
+    cuCheck ( cuLaunchKernel ( m_Func[FUNC_INITIALIZE_BONDS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputePressureCUDA", "cuLaunch", "FUNC_COMPUTE_PRESS", mbDebug);
 }
 
 void FluidSystem::ComputePressureCUDA (){

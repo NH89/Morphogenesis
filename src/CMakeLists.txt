@@ -179,6 +179,8 @@ add_dependencies(make_demo fluid_systemPTX)
 #add_dependencies(morphogenesis fluid_systemPTX)
 #add_dependencies(thread_demo fluid_systemPTX)
 
+include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+
 target_include_directories(load_sim PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(check_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(make_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )

@@ -96,6 +96,7 @@ if(debug>1) std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
     
  
 if(debug>1) std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
+    fluid.setFreeze(true);
     for (int k=0; k<freeze_steps; k++){
         if(debug>1) std::cout<<"\n\nFreeze()"<<k<<"\n"<<std::flush;
          /*
@@ -107,10 +108,11 @@ if(debug>1) std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         fluid.Run (outPath, file_num, (debug>4), (gene_activity=='y'), (remodelling=='y') );
         fluid.TransferPosVelVeval (); // Freeze movement until heal() has formed bonds, over 1st n timesteps.
         if(save_csv=='y'||save_vtp=='y') fluid.TransferFromCUDA ();
-        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num);
-        if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
+        if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num+90);
+        if(save_vtp=='y') fluid.SavePointsVTP2 ( outPath, file_num+90);
         file_num+=100;
     }
+    fluid.setFreeze(false);
 
     if(debug>1) printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
     
@@ -126,8 +128,7 @@ if(debug>1) std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
         auto begin = std::chrono::steady_clock::now();
         if(save_csv=='y'||save_vtp=='y') fluid.TransferFromCUDA ();
         if(save_csv=='y') fluid.SavePointsCSV2 ( outPath, file_num+90);
-        //if(save_ply=='y') fluid.SavePoints_asciiPLY_with_edges ( outPath, file_num );
-        if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num+90);
+        if(save_vtp=='y') fluid.SavePointsVTP2 ( outPath, file_num+90);
         
         auto end = std::chrono::steady_clock::now();
         std::chrono::duration<double> time = end - begin;
@@ -163,7 +164,7 @@ if(debug>1) std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
     if(debug>0) printf("\nAfter cuCtxDestroy(cuContext): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
     
     
-    if(debug>0) printf ( "\nClosing load_sim.\n" );
+    /*if(debug>0)*/ printf ( "\nClosing load_sim.\n" );
     return 0;
 }
 

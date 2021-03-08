@@ -33,6 +33,7 @@
 	#include <curand_kernel.h>
 	#include <stdio.h>
 	#include <math.h>
+    #include "/usr/local/cuda/include/math_constants.h"  // need better <path> . In CMakeLists.txt "include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})"
 
 	#define CUDA_KERNEL
 	#include "fluid.h"
@@ -95,6 +96,8 @@
         __device__ void find_closest_particle_per_axis(uint particle, float3 pos, uint neighbours[6]);
         __device__ void makeBondIndxMap( uint parentParticleIndx, int bondInxMap[6]);
         __global__ void cleanBonds (int pnum);
+        
+        __global__ void initialize_bonds    (int ActivePoints, uint list_length, int gene);
         
         __global__ void heal                ( int ActivePoints, uint list_length, int change_list, uint startNewPoints, uint mMaxPoints);
         __global__ void lengthen_muscle     ( int ActivePoints, int list_length, int change_list, uint startNewPoints, uint mMaxPoints);

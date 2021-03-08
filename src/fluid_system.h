@@ -116,6 +116,7 @@
 	#define PTIME_TOGPU			45
 	#define PTIME_FROMGPU		46
 	#define PFORCE_FREQ			47	
+    #define PSURFACE_TENSION    48
 
 	// Vector params   "m_Vec[]" 
 	#define PVOLMIN				0
@@ -194,9 +195,9 @@
     
     #define	FUNC_ASSEMBLE_MUSCLE_FIBRES_OUTGOING     38
     #define	FUNC_ASSEMBLE_MUSCLE_FIBRES_INCOMING     39
+    #define	FUNC_INITIALIZE_BONDS                    40
     
-    
-    #define FUNC_MAX			            40
+    #define FUNC_MAX			            41
 
     //  used for AllocateBuffer(  .... )
 	#define GPU_OFF				0
@@ -253,6 +254,7 @@
 		// Simulation
 		void Run ();	
         void Run( const char * relativePath, int frame, bool debug, bool gene_activity, bool remodelling );
+        void setFreeze(bool freeze);
         void Freeze ();
         void Freeze (const char * relativePath, int frame, bool debug, bool gene_activity, bool remodelling);
 		void AdvanceTime ();
@@ -272,12 +274,14 @@
 		Vector3DF GetGridDelta ()	{ return m_GridDelta; }
 
 		void FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, float3 delta, float3 gmin, float3 gmax, int total, int chk );
-		void FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, int emit );
+		void FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float surface_tension, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, int emit );
 
         void Init_FCURAND_STATE_CUDA ();
 		void InsertParticlesCUDA ( uint* gcell, uint* ccell, uint* gcnt );	
 		void PrefixSumCellsCUDA ( int zero_offsets );		
 		void CountingSortFullCUDA ( Vector3DF* gpos );
+        
+        void InitializeBondsCUDA ();
         
         void InsertChangesCUDA ( /*uint* gcell, uint* gndx, uint* gcnt*/ );
         void PrefixSumChangesCUDA ( int zero_offsets );
