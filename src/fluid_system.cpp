@@ -617,7 +617,7 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
     cntx = (int) ceil( (max.x-min.x-offs) / spacing );
     cntz = (int) ceil( (max.z-min.z-offs) / spacing );
     int cnt = cntx * cntz;
-    min += offs;
+    min += offs;            // NB by default offs=0.1f, & min=m_Vec[PINITMIN], when called in WriteDemoSimParams(..)
     max -= offs;
     dx = max.x-min.x;
     dy = max.y-min.y;
@@ -859,7 +859,7 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
             std::cout << "\n\nRun(relativePath,frame) Chk4.5, saved "<< frame+3 <<".csv  After InitializeBondsCUDA \n"<<std::flush;
         }
     }
-/*        
+        
     ComputePressureCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug);
     if(debug){
@@ -867,7 +867,7 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
         SavePointsCSV2 (  relativePath, frame+4 );
         std::cout << "\n\nRun(relativePath,frame) Chk5, saved "<< frame+4 <<".csv  After ComputePressureCUDA \n"<<std::flush;
     }
-*/    
+    
     ComputeForceCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug);
     if(debug){
@@ -878,7 +878,7 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
     // TODO compute nerve activation ? 
     
     // TODO compute muscle action ?
-/*    
+    
     ComputeDiffusionCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
     if(debug){
@@ -938,7 +938,7 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
         //CleanBondsCUDA ();
         //cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CleanBondsCUDA ", mbDebug);
     }
-*/
+
 
     TransferPosVelVeval ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval ", mbDebug);
@@ -1240,20 +1240,40 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     // points & vertices = FPOS 3df
     vtkSmartPointer<vtkPoints> points3D = vtkSmartPointer<vtkPoints>::New();                           // Points3D
 	vtkSmartPointer<vtkCellArray> Vertices = vtkSmartPointer<vtkCellArray>::New();                     // Vertices
-
+    uint num_active_points = 0;
     for ( unsigned int i = 0; i < mMaxPoints; ++i )
 	{	
-		vtkIdType pid[1];
-		//Point P = Model.Points[i];
-        Vector3DF* Pos = getPos(i); 
-		pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
-		Vertices->InsertNextCell(1,pid);
+        if( *getParticle_ID(i)<mMaxPoints ){ // if(active_particle)
+            vtkIdType pid[1];
+            //Point P = Model.Points[i];
+            Vector3DF* Pos = getPos(i); 
+            pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
+            Vertices->InsertNextCell(1,pid);
+            num_active_points++;
+        }else break;
 	}
+	// Inset vertices for sim volume
+	{
+        vtkIdType pid[1];
+        Vector3DF  pos = {0,0,0};
+        Vector3DF* Pos =&pos;
+        for(int corner=0; corner<8; corner++){
+            if(corner&1) Pos->x = m_Vec[ PVOLMAX ].x; // bitmask to select axes to swap to PVOLMAX
+            else Pos->x = m_Vec[ PVOLMIN ].x;
+            if(corner&2) Pos->y = m_Vec[ PVOLMAX ].y;
+            else Pos->y = m_Vec[ PVOLMIN ].y;
+            if(corner&4) Pos->z = m_Vec[ PVOLMAX ].z; 
+            else Pos->z = m_Vec[ PVOLMIN ].z;
+            pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
+            Vertices->InsertNextCell(1,pid);
+        }
+    }
+	
     // edges = FELASTIDX [0]current index uint                                                         // Lines
     vtkSmartPointer<vtkCellArray> Lines = vtkSmartPointer<vtkCellArray>::New();
     uint *ElastIdx;
     float *ElastIdxPtr;
-    for ( unsigned int i = 0; i < mMaxPoints; ++i )
+    for ( unsigned int i = 0; i < num_active_points; ++i )
 	{	
         ElastIdx = getElastIdx(i);
         //ElastIdxPtr = (float*)ElastIdx;
@@ -1267,6 +1287,31 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
             Lines->InsertNextCell(line);
         }
 	}
+	// Sim volume boundry lines
+	for(int corner=0; corner<8; corner++){
+    int firstParticle = corner + num_active_points;
+    vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
+    if(corner&1){ // Pos->x = m_Vec[ PVOLMAX ].x; // bitmask to select axes to swap to PVOLMAX
+        int secondParticle = corner -1 + num_active_points;
+        line->GetPointIds()->SetId(0,firstParticle);
+        line->GetPointIds()->SetId(1,secondParticle);
+        Lines->InsertNextCell(line);
+    }
+    if(corner&2){ // Pos->y = m_Vec[ PVOLMAX ].y;
+        int secondParticle = corner -2 + num_active_points;
+        line->GetPointIds()->SetId(0,firstParticle);
+        line->GetPointIds()->SetId(1,secondParticle);
+        Lines->InsertNextCell(line);
+    }
+    if(corner&4){ // Pos->z = m_Vec[ PVOLMAX ].z; 
+        int secondParticle = corner -4 + num_active_points;
+        line->GetPointIds()->SetId(0,firstParticle);
+        line->GetPointIds()->SetId(1,secondParticle);
+        Lines->InsertNextCell(line);
+    }
+    //pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
+    //Vertices->InsertNextCell(1,pid);
+    }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////// Particle Data 
     
@@ -1280,13 +1325,19 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
 	BondsFloatData->SetName("elastic limit, restlength, modulus, damping coeff, stress integrator");
     
     
-    for ( unsigned int i = 0; i < mMaxPoints; ++i )
+    for ( unsigned int i = 0; i < num_active_points; ++i )
 	{
         ElastIdx = getElastIdx(i);                     // FELASTIDX[BONDS_PER_PARTICLE]  [0]current index uint, [5]particle ID uint, [6]bond index uint
         ElastIdxPtr = (float*)ElastIdx;                // FELASTIDX[BONDS_PER_PARTICLE]  [1]elastic limit float, [2]restlength float, [3]modulus float, [4]damping coeff float,
         for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
             BondsUIntData->InsertNextTuple3(ElastIdx[j], ElastIdx[j+5], ElastIdx[j+6]);
             BondsFloatData->InsertNextTuple6(ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdxPtr[j+7], 0);
+        }
+    }
+    for(int corner=0; corner<8; corner++){
+        for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
+            BondsUIntData->InsertNextTuple3(0,0,0);
+            BondsFloatData->InsertNextTuple6(0,0,0,0,0,0);
         }
     }
     //BondsUIntData->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
@@ -1298,9 +1349,12 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     vtkSmartPointer<vtkFloatArray> fvel = vtkSmartPointer<vtkFloatArray>::New();
     fvel->SetNumberOfComponents(3);
 	fvel->SetName("FVEL");
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         Vel = getVel(i);
         fvel->InsertNextTuple3(Vel->x,Vel->y,Vel->z);
+    }
+    for(int corner=0; corner<8; corner++){
+        fvel->InsertNextTuple3(0,0,0);
     }
     fvel->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
     
@@ -1310,7 +1364,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     vtkSmartPointer<vtkFloatArray> fveval = vtkSmartPointer<vtkFloatArray>::New();
     fvel->SetNumberOfComponents(3);
 	fvel->SetName("FVEVAL");
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         Veval = getVeval(i);
         fveval->InsertNextTuple3(Veval->x,Veval->y,Veval->z);
     }
@@ -1322,7 +1376,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     vtkSmartPointer<vtkFloatArray> fforce = vtkSmartPointer<vtkFloatArray>::New();
     fforce->SetNumberOfComponents(3);
 	fforce->SetName("FFORCE");
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         Force = getForce(i);
         fforce->InsertNextTuple3(Force->x,Force->y,Force->z);
     }
@@ -1335,7 +1389,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     vtkSmartPointer<vtkFloatArray> fpres = vtkSmartPointer<vtkFloatArray>::New();
     fpres->SetNumberOfComponents(1);
 	fpres->SetName("FPRESS");
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         Pres = getPres(i);
         fpres->InsertNextTuple(Pres);
     }
@@ -1346,7 +1400,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     vtkSmartPointer<vtkFloatArray> fdens = vtkSmartPointer<vtkFloatArray>::New();
     fdens->SetNumberOfComponents(1);
 	fdens->SetName("FDENSITY");
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         Dens = getDensity(i);
         fdens->InsertNextTuple(Dens);
     }
@@ -1357,8 +1411,11 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     vtkSmartPointer<vtkUnsignedIntArray> fage = vtkSmartPointer<vtkUnsignedIntArray>::New();
     fage->SetNumberOfComponents(1);
 	fage->SetName("FAGE");
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         fage->InsertNextValue(age[i]);
+    }
+    for(int corner=0; corner<8; corner++){
+        fage->InsertNextValue(0);
     }
     
     // FCLR uint, 
@@ -1366,8 +1423,11 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     vtkSmartPointer<vtkUnsignedIntArray> fcolor = vtkSmartPointer<vtkUnsignedIntArray>::New();
     fcolor->SetNumberOfComponents(1);
 	fcolor->SetName("FCLR");
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         fcolor->InsertNextValue(color[i]);
+    }
+    for(int corner=0; corner<8; corner++){
+        fcolor->InsertNextValue(0);
     }
     
     // FGCELL	uint, 
@@ -1380,8 +1440,11 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     vtkSmartPointer<vtkUnsignedIntArray> fpid = vtkSmartPointer<vtkUnsignedIntArray>::New();
     fpid->SetNumberOfComponents(1);
 	fpid->SetName("FPARTICLE_ID");
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         fpid->InsertNextValue(pid[i]);
+    }
+    for(int corner=0; corner<8; corner++){
+        fpid->InsertNextValue(0);
     }
     
     // FMASS_RADIUS uint (holding modulus 16bit and limit 16bit.),    
@@ -1390,11 +1453,14 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     vtkSmartPointer<vtkUnsignedIntArray> fmass_radius = vtkSmartPointer<vtkUnsignedIntArray>::New();
     fmass_radius->SetNumberOfComponents(2);
 	fmass_radius->SetName("FMASS_RADIUS");
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         if(Mass_Radius[i]==0){   mass = 0; }else{  mass = Mass_Radius[i]; } 
         radius = mass >> 16;
         mass = mass & TWO_POW_16_MINUS_1;
         fmass_radius->InsertNextTuple2(mass,radius);
+    }
+    for(int corner=0; corner<8; corner++){
+        fmass_radius->InsertNextTuple2(0,0);
     }
     
     // FNERVEIDX uint, 
@@ -1402,8 +1468,11 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     vtkSmartPointer<vtkUnsignedIntArray> fnidx = vtkSmartPointer<vtkUnsignedIntArray>::New();
     fnidx->SetNumberOfComponents(1);
 	fnidx->SetName("FNERVEIDX");
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         fnidx->InsertNextValue(nidx[i]);
+    }
+    for(int corner=0; corner<8; corner++){
+        fnidx->InsertNextValue(0);
     }
     
     // FCONC float[NUM_TF].                                                                                     // commented out until Matt's edit FCONC uint->foat is merged
@@ -1418,7 +1487,12 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     float *conc;
     for ( unsigned int i = 0; i < NUM_GENES; ++i ){
         conc = getConc(i);                   
-        for(int j=0; j<mMaxPoints; j++)    fconc[i]->InsertNextValue(conc[j]);                              // now have one array for each column of fepigen
+        for(int j=0; j<num_active_points; j++){
+            fconc[i]->InsertNextValue(conc[j]);                              // now have one array for each column of fepigen
+        }
+        for(int corner=0; corner<8; corner++){
+            fconc[i]->InsertNextValue(0);
+        }
     }
     
     // FEPIGEN uint[NUM_GENES] ... make an array of arrays
@@ -1433,7 +1507,12 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     unsigned int *epigen;
     for ( unsigned int i = 0; i < NUM_GENES; ++i ){
         epigen = getEpiGen(i);                   
-        for(int j=0; j<mMaxPoints; j++)    fepigen[i]->InsertNextValue(epigen[j]);                              // now have one array for each column of fepigen
+        for(int j=0; j<num_active_points; j++){    
+            fepigen[i]->InsertNextValue(epigen[j]);                              // now have one array for each column of fepigen
+        }
+        for(int corner=0; corner<8; corner++){
+            fepigen[i]->InsertNextValue(0);
+        }
     }
 
     
@@ -1445,7 +1524,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     unsigned int *epigen_[NUM_GENES];
     for ( unsigned int i = 0; i < NUM_GENES; ++i )  epigen_[i] = getEpiGen(i);
     
-    for(unsigned int i=0;i<mMaxPoints;i++){
+    for(unsigned int i=0;i<num_active_points;i++){
         if      (epigen_[9][i] >0/*bone*/)      tissueType =9;                                                   
         else if (epigen_[6][i] >0/*tendon*/)    tissueType =6;
         else if (epigen_[7][i] >0/*muscle*/)    tissueType =7;
@@ -1453,6 +1532,9 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
         else if (epigen_[8][i] >0/*cartilage*/) tissueType =8;
         else                                    tissueType =0;
         ftissue->InsertNextValue(tissueType);
+    }
+    for(int corner=0; corner<8; corner++){
+        ftissue->InsertNextValue(0);
     }
     
     
@@ -1495,7 +1577,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
 	writer->Write();
     
 	//if (m_FParams.debug>1)cout << "\nFinished writing vtp file " << buf << "." << endl;
-	//if (m_FParams.debug>1)cout << "\tmMaxPoints: " << mMaxPoints << endl;
+	//if (m_FParams.debug>1)cout << "\tnum_active_points: " << num_active_points << endl;
 }
 
 void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
@@ -2845,6 +2927,7 @@ void FluidSystem::InitializeBondsCUDA (){
     int numBlocks, numThreads;
     computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
     cout << "\nInitializeBondsCUDA (): list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<" \t args{m_FParams.pnumActive="<<m_FParams.pnumActive<<", list_length="<<list_length<<", gene="<<gene<<"}"<<std::flush;
+    
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_INITIALIZE_BONDS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputePressureCUDA", "cuLaunch", "FUNC_COMPUTE_PRESS", mbDebug);
 }
 
