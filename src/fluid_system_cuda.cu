@@ -1740,6 +1740,7 @@ extern "C" __device__ void contribFindBonds ( int i, float3 ipos, int cell, int 
     
     for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {                            // For particles in this cell.
         j       = fbuf.bufI(FGRID)[ cndx ];
+        if (fbuf.bufI(FPARTICLE_ID)[ j ] == 0) continue;                                            // exclude bonding to boundary marker particles.
         dist    = ( ipos - fbuf.bufF3(FPOS)[ j ] );                                                 // dist in cm (Rama's comment)
         dsq     = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                                  // scalar distance squared
         

@@ -305,8 +305,7 @@
         uint            debug;
 		int				numThreads, numBlocks, threadsPerBlock;
 		int				gridThreads, gridBlocks;	
-
-		int				szPnts, szHash, szGrid;
+		int				szPnts, szGrid;
 		int				stride, pnum, pnumActive, maxPoints;
         bool            freeze;
         uint            frame;
@@ -318,18 +317,12 @@
 		float			pvel_limit, paccel_limit, pdamp;
 		float3			pboundmin, pboundmax, pgravity;
 		float			AL, AL2, VL, VL2;
-
 		float			H, d2, rd2, vterm, sterm;		// used in force calculation		 
-		
 		float			poly6kern, spikykern, lapkern, gausskern, wendlandC2kern;
-
 		float3			gridSize, gridDelta, gridMin, gridMax;
 		int3			gridRes, gridScanMax;
 		int				gridSrch, gridTotal, gridAdjCnt, gridActive;
 		int				gridAdj[64];
-
-		int3			brickRes;
-		int				pemit;
 	};
     
     //////////////////////
@@ -409,8 +402,4 @@
     // When finding particles in range for a small particle - consider (i) is the bin in range, (ii) iff particle x&y&z are in range 
     // When combining particles - (i) similar type ?, (ii) gradients, (iii) significance to simulation. 
     
-    
-
-
-
 #endif /*PARTICLE_H_*/

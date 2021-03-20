@@ -1,18 +1,14 @@
 #include <assert.h>
 #include <iostream>
 #include <cuda.h>
-#include "cutil_math.h"
-//#include "fluid_system.h"
 #include <stdlib.h>
 #include <unistd.h>
-#include <curand_kernel.h> // ../cuda-11.2/targets/x86_64-linux/include/
+#include <curand_kernel.h>
+#include <chrono>
+#include "cutil_math.h"
 #include "fluid_system.h"
-//#include <typeinfo>       // operator typeid
 
 
-extern bool gProfileRend;
-#define EPSILON			0.00001f			// for collision detection
-#define SCAN_BLOCKSIZE		512				// must match value in fluid_system_cuda.cu
 //bool cuCheck (CUresult launch_stat, const char* method, const char* apicall, const char* arg, bool bDebug);
 bool cuCheck (CUresult launch_stat, const char* method, const char* apicall, const char* arg, bool bDebug){
     CUresult kern_stat = CUDA_SUCCESS;
@@ -48,22 +44,16 @@ bool cuCheck (CUresult launch_stat, const char* method, const char* apicall, con
 }
 //////////////////////////////////////////////////
 FluidSystem::FluidSystem (){
+    cout<<"\n\nFluidSystem ()"<<std::flush;
+    memset ( &m_Fluid, 0,		sizeof(FBufs) );
+    memset ( &m_FluidTemp, 0,	sizeof(FBufs) );
+    memset ( &m_FParams, 0,		sizeof(FParams) );
+    memset ( &m_FGenome, 0,		sizeof(FGenome) );
     mNumPoints = 0;
     mMaxPoints = 0;
-/*remove this line ?*/mPackBuf = 0x0;   // pointer to the array of particles ?  not used ?
     mPackGrid = 0x0;
-    mbRecord = false;
-    mbRecordBricks = false;
-    mSelected = -1;
     m_Frame = 0;
-    m_Thresh = 0;
-    m_NeighborTable = 0x0;
-    m_NeighborDist = 0x0;
     for (int n=0; n < FUNC_MAX; n++ ) m_Func[n] = (CUfunction) -1;
-    m_Toggle [ PDEBUG ]		=	false;
-    m_Toggle [ PUSE_GRID ]	=	false;
-    m_Toggle [ PPROFILE ]	=	false;
-    m_Toggle [ PCAPTURE ]   =	false;
 }
 
 bool FluidSystem::cuCheck (CUresult launch_stat, const char* method, const char* apicall, const char* arg, bool bDebug){
@@ -195,13 +185,15 @@ void FluidSystem::InitializeCuda (){         // used for load_sim  /home/nick/Pr
     cuCheck ( cuModuleGetGlobal ( &cuFGenome, &len,	m_Module, "fgenome" ),	"LoadKernel", "cuModuleGetGlobal", "cuFGenome", mbDebug);   // NB defined differently in kernel vs cpu code.
     // An FBufs struct holds an array of pointers.
     if (m_FParams.debug>1)std::cout << "Chk1.3 \n";
+    /*
     uint debug = m_FParams.debug;
-    // Clear all buffers
+    // Clear all buffers                            // now done by FluidSystem constructor.
     memset ( &m_Fluid,     0,	sizeof(FBufs)   );
     memset ( &m_FluidTemp, 0,	sizeof(FBufs)   );
     memset ( &m_FParams,   0,	sizeof(FParams) );
     memset ( &m_FGenome,   0,	sizeof(FGenome) );
     SetDebug ( debug );                                                                                                                 // Carry over debug setting
+    */
 
     if (m_FParams.debug>1)std::cout << "Chk1.4 \n";
     // Allocate the sim parameters
@@ -287,8 +279,7 @@ void FluidSystem::UpdateParams (){
     FluidParamCUDA (  m_Param[PSIMSCALE], m_Param[PSMOOTHRADIUS], m_Param[PRADIUS], m_Param[PMASS], m_Param[PRESTDENSITY],
                       *(float3*)& m_Vec[PBOUNDMIN], *(float3*)& m_Vec[PBOUNDMAX], m_Param[PEXTSTIFF], m_Param[PINTSTIFF],
                       m_Param[PVISC], m_Param[PSURFACE_TENSION], m_Param[PEXTDAMP], m_Param[PFORCE_MIN], m_Param[PFORCE_MAX], m_Param[PFORCE_FREQ],
-                      m_Param[PGROUND_SLOPE], grav.x, grav.y, grav.z, m_Param[PACCEL_LIMIT], m_Param[PVEL_LIMIT],
-                      (int) m_Vec[PEMIT_RATE].x );
+                      m_Param[PGROUND_SLOPE], grav.x, grav.y, grav.z, m_Param[PACCEL_LIMIT], m_Param[PVEL_LIMIT] ); 
 }
 
 void FluidSystem::SetParam (int p, float v ){
@@ -361,14 +352,13 @@ void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucn
 void FluidSystem::AllocateParticles ( int cnt, int gpu_mode, int cpu_mode ){ // calls AllocateBuffer(..) for each buffer.  
 // Defaults in header : int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES
 // Called by FluidSystem::ReadPointsCSV(..), and FluidSystem::WriteDemoSimParams(...), cnt = mMaxPoints.
-if (m_FParams.debug>1)std::cout<<"\nAllocateParticles ( int cnt="<<cnt<<", int "<<gpu_mode<<", int "<<cpu_mode<<" )\t";//<<std::flush;
+if (m_FParams.debug>1)std::cout<<"\n\nAllocateParticles ( int cnt="<<cnt<<", int "<<gpu_mode<<", int "<<cpu_mode<<" ), debug="<<m_FParams.debug<<", launchParams.debug="<<launchParams.debug<<"\t";//<<std::flush;
 if (m_FParams.debug>1)std::cout<<"\tGPU_OFF=0, GPU_SINGLE=1, GPU_TEMP=2, GPU_DUAL=3, CPU_OFF=4, CPU_YES=5"<<std::flush;
-    AllocateBuffer ( FPOS,		sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );//AllocateBuffer ( int buf_id, int stride,     int cpucnt, int gpucnt,    int gpumode,    int cpumode )
-//std::cout<<"\nm_Fluid.gpu(FPOS)="<< m_Fluid.gpu(FPOS)<<"\tm_Fluid.bufC(FPOS)="<< static_cast<void*>(m_Fluid.bufC(FPOS))<<"\n"<<std::flush;
+    AllocateBuffer ( FPOS,		sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FCLR,		sizeof(uint),		cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FVEL,		sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );// NB gpu_mode means create buffers for _both_  "m_Fluid.mgpu[buf_id]" and "m_FluidTemp.mgpu[buf_id]"
+    AllocateBuffer ( FVEL,		sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FVEVAL,	sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FAGE,		sizeof(uint/*unsigned short*/), cnt,m_FParams.szPnts,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FAGE,		sizeof(uint),       cnt,    m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FPRESS,	sizeof(float),		cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FDENSITY,	sizeof(float),		cnt, 	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FFORCE,	sizeof(Vector3DF),	cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
@@ -380,23 +370,15 @@ if (m_FParams.debug>1)std::cout<<"\tGPU_OFF=0, GPU_SINGLE=1, GPU_TEMP=2, GPU_DUA
     AllocateBuffer ( FNBRCNT,	sizeof(uint),		cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FSTATE,	sizeof(uint),		cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     // extra buffers for morphogenesis
-//if (m_FParams.debug>1)std::cout<<"\nchl2.11.1\n"<<std::flush;
-    AllocateBuffer ( FELASTIDX,	sizeof(uint[BOND_DATA]),             cnt,   m_FParams.szPnts,	gpu_mode, cpu_mode );  // used to be [BONDS_PER_PARTICLE * 2]
-    AllocateBuffer ( FPARTICLEIDX,	sizeof(uint[BONDS_PER_PARTICLE *2]),cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FPARTICLE_ID,	sizeof(uint),		             cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FMASS_RADIUS,	sizeof(uint),		             cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
-    
-    AllocateBuffer ( FNERVEIDX,	sizeof(uint),		                 cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FCONC,	    sizeof(float[NUM_TF]),		         cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FEPIGEN,	sizeof(uint[NUM_GENES]),	         cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
-    
-    
-    
-    AllocateBuffer ( FCURAND_STATE,	sizeof(curandState_t),	         cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FCURAND_SEED,	sizeof(unsigned long long),	     cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
-    
-    
-//if (m_FParams.debug>1)std::cout<<"\nchl2.11.2\n"<<std::flush;
+    AllocateBuffer ( FELASTIDX,	    sizeof(uint[BOND_DATA]),             cnt,   m_FParams.szPnts,	gpu_mode, cpu_mode ); 
+    AllocateBuffer ( FPARTICLEIDX,	sizeof(uint[BONDS_PER_PARTICLE *2]), cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FPARTICLE_ID,	sizeof(uint),		                 cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FMASS_RADIUS,	sizeof(uint),		                 cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FNERVEIDX,	    sizeof(uint),		                 cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FCONC,	        sizeof(float[NUM_TF]),		         cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FEPIGEN,	    sizeof(uint[NUM_GENES]),	         cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FCURAND_STATE,	sizeof(curandState_t),	             cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FCURAND_SEED,	sizeof(unsigned long long),	         cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     
     // Update GPU access pointers
     if (gpu_mode != GPU_OFF ) {
@@ -406,8 +388,6 @@ if (m_FParams.debug>1)std::cout<<"\tGPU_OFF=0, GPU_SINGLE=1, GPU_TEMP=2, GPU_DUA
         cuCheck( cuMemcpyHtoD(cuFGenome, &m_FGenome, sizeof(FGenome)),  "AllocateParticles", "cuMemcpyHtoD", "cuFGenome", mbDebug);
         cuCheck(cuCtxSynchronize(), "AllocateParticles", "cuCtxSynchronize", "", mbDebug );
     }
-
-    m_Param[PSTAT_PMEM] = 68.0f * 2 * cnt;
 
     // Allocate auxiliary buffers (prefix sums)
     int blockSize = SCAN_BLOCKSIZE << 1;
@@ -422,22 +402,6 @@ if (m_FParams.debug>1)std::cout<<"\tGPU_OFF=0, GPU_SINGLE=1, GPU_TEMP=2, GPU_DUA
         AllocateBuffer ( FAUXSCAN2,	    sizeof(uint),		0,	numElem3, GPU_SINGLE, CPU_OFF );
     }
 }
-
-/*
-void FluidSystem::AllocateGrid(){  // not used.
-    // Allocate grid
-    int cnt = m_GridTotal;
-    m_FParams.szGrid = (m_FParams.gridBlocks * m_FParams.gridThreads);
-    AllocateBuffer ( FGRID,		sizeof(uint),		mMaxPoints,	m_FParams.szPnts,	GPU_SINGLE, CPU_YES );    // # grid elements = number of points
-    AllocateBuffer ( FGRIDCNT,	sizeof(uint),		cnt,	m_FParams.szGrid,	GPU_SINGLE, CPU_YES );
-    AllocateBuffer ( FGRIDOFF,	sizeof(uint),		cnt,	m_FParams.szGrid,	GPU_SINGLE, CPU_YES );
-    AllocateBuffer ( FGRIDACT,	sizeof(uint),		cnt,	m_FParams.szGrid,	GPU_SINGLE, CPU_YES );
-
-    // Update GPU access pointers
-    cuCheck(cuMemcpyHtoD(cuFBuf, &m_Fluid, sizeof(FBufs)), "AllocateGrid", "cuMemcpyHtoD", "cuFBuf", mbDebug);
-    cuCheck(cuCtxSynchronize(), "AllocateParticles", "cuCtxSynchronize", "", mbDebug);
-}
-*/
 
 void FluidSystem::AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt, int lists ) {    // mallocs a buffer - called by FluidSystem::AllocateGrid(int gpu_mode, int cpu_mode)
 // Need to save "pointers to the allocated gpu buffers" in a cpu array, AND then cuMemcpyHtoD(...) that list of pointers into the device array.   
@@ -467,6 +431,7 @@ void FluidSystem::AllocateGrid(int gpu_mode, int cpu_mode){ // NB void FluidSyst
     // Allocate grid
     int cnt = m_GridTotal;
     m_FParams.szGrid = (m_FParams.gridBlocks * m_FParams.gridThreads);
+    cout<<"\nAllocateGrid: m_FParams.szGrid = ("<<m_FParams.gridBlocks<<" * "<<m_FParams.gridThreads<<")"<<std::flush;
     AllocateBuffer ( FGRID,		sizeof(uint),		mMaxPoints,	m_FParams.szPnts,	gpu_mode, cpu_mode );    // # grid elements = number of points
     AllocateBuffer ( FGRIDCNT,	sizeof(uint),		cnt,	    m_FParams.szGrid,	gpu_mode, cpu_mode );
     AllocateBuffer ( FGRIDOFF,	sizeof(uint),		cnt,	    m_FParams.szGrid,	gpu_mode, cpu_mode );
@@ -618,8 +583,8 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
     cntz = (int) ceil( (max.z-min.z-offs) / spacing );
     int cnt = cntx * cntz;
     min += offs;            // NB by default offs=0.1f, & min=m_Vec[PINITMIN], when called in WriteDemoSimParams(..)
-    max -= offs;
-    dx = max.x-min.x;
+    max -= offs;            // m_Vec[PINITMIN] is set in SetupExampleParams()
+    dx = max.x-min.x;       // m_Vec[PBOUNDMIN] is set in SetupSpacing 
     dy = max.y-min.y;
     dz = max.z-min.z;
     Vector3DF rnd;
@@ -631,15 +596,11 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
     uint Particle_Idx[BONDS_PER_PARTICLE*2]; // FPARTICLE_IDX : other particles with incoming bonds attaching here. 
     float Conc[NUM_TF];
     uint EpiGen[NUM_GENES]={0};
-    Particle_ID = 0; // NB Particle_ID=0 means "no particle" in ElastIdx.
-    /*
-    for (Pos.x = min.x; Pos.x <= max.x; Pos.x += spacing ) {
-        for (Pos.y = min.y; Pos.y <= max.y; Pos.y += spacing){
-            for (Pos.z = min.z; Pos.z <= max.z; Pos.z += spacing){     //for (int xz=0; xz < cnt; xz++ ) {
-    */            
+    Particle_ID = 0;                         // NB Particle_ID=0 means "no particle" in ElastIdx.           
     Vector3DF volV3DF = max-min;    
-    int num_particles_to_make = 27 * int(volV3DF.x*volV3DF.y*volV3DF.z);//int(volV3DF.x*volV3DF.y*volV3DF.z / spacing*spacing*spacing);
+    int num_particles_to_make = 8 * 27 * int(volV3DF.x*volV3DF.y*volV3DF.z);//int(volV3DF.x*volV3DF.y*volV3DF.z / spacing*spacing*spacing);
     srand((unsigned int)time(NULL));
+    cout<<"\nSetupAddVolumeMorphogenesis2: min=("<<min.x<<","<<min.y<<","<<min.z<<"), max=("<<max.x<<","<<max.y<<","<<max.z<<") "<<std::flush;
     for (int i=0; i<num_particles_to_make; i++){
         Pos.x =  min.x + (float(rand())/float((RAND_MAX)) * dx) ;
         Pos.y =  min.y + (float(rand())/float((RAND_MAX)) * dy) ;
@@ -664,11 +625,6 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                 for (int i = 0; i<BONDS_PER_PARTICLE;i++){ 
                     for (int j = 0; j< DATA_PER_BOND; j++){ ElastIdxU[i*DATA_PER_BOND +j] = UINT_MAX; ElastIdxF[i*DATA_PER_BOND +j] = 0; } 
                     ElastIdxU[i*DATA_PER_BOND +8] = 0;
-                    //uint * uint_ptr = (uint*)ElastIdx;
-                    //uint_ptr[i*DATA_PER_BOND +0] = UINT_MAX;
-                    //uint_ptr[i*DATA_PER_BOND +5] = UINT_MAX;
-                    //uint_ptr[i*DATA_PER_BOND +6] = UINT_MAX;
-                    //  FELASTIDX[6*9]	[0]curIdx	 [1]elastLim	 [2]restLn	 [3]modulus	 [4]damping	 [5]partID	 [6]bond index	 [7]stress integrator	 [8]change-type
                 }
                 //NB #define DATA_PER_BOND 6 //6 : [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index
                 for (int i = 0; i<BONDS_PER_PARTICLE*2;i++) { Particle_Idx[i] = UINT_MAX; }
@@ -688,7 +644,7 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                 EpiGen[2] = fixedActive;                                        // living/telomere, i.e. has genes
                 
                 if(demoType == 1){                                                                    ////// Remodelling & actuation demo
-                                                                                                // Fixed base, bone, tendon, muscle, elastic, external actuation
+                                                                                // Fixed base, bone, tendon, muscle, elastic, external actuation
                     if(Pos.z == min.z)                                        EpiGen[11]=fixedActive;   // fixed particle
                     if(Pos.z >= max.z-spacing)                                EpiGen[12]=fixedActive;   // external actuation particle 
                     
@@ -697,10 +653,10 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                     if(Pos.z >= min.z+15*spacing && Pos.z < min.z+20*spacing) EpiGen[7] =fixedActive;   // muscle
                     if(Pos.z >= min.z+20*spacing && Pos.z < min.z+25*spacing) EpiGen[10]=fixedActive;   // elastic tissue
                 }else if (demoType == 2){                                                            ////// Diffusion & epigenetics demo
-                                                                                                // Fixed base, homogeneous particles (initially) 
+                                                                            // Fixed base, homogeneous particles (initially) 
                     if(Pos.z == min.z) EpiGen[0]=fixedActive;                                           // fixed particle
-                    EpiGen[2]=1;                                                              // living particle NB set gene behaviour
-                }                                                                               // => (i) French flag, (ii) polartity, (iii) clock & wave front
+                    EpiGen[2]=1;                                            // living particle NB set gene behaviour
+                }                                                           // => (i) French flag, (ii) polartity, (iii) clock & wave front
                 
                 p = AddParticleMorphogenesis2 (
                 /* Vector3DF* */ &Pos, 
@@ -720,10 +676,8 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                     if (m_FParams.debug>1){std::cout << "\n SetupAddVolumeMorphogenesis2 exited on p==-1, Pos=("<<Pos.x<<","<<Pos.y<<","<<Pos.z<<"), Particle_ID="<<Particle_ID<<",  EpiGen[0]="<<EpiGen[0]<<" \n " << std::flush ;} 
                     return;
                 }
-        //    }
-        //}
     }
-    AddNullPoints ();                                                           // If spare particles remain, fill with null points. NB these can be used to "create" particles.
+    AddNullPoints ();            // If spare particles remain, fill with null points. NB these can be used to "create" particles.
     if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 finished \n" << std::flush ;
 }
 
@@ -1009,51 +963,30 @@ void FluidSystem::Freeze (const char * relativePath, int frame, bool debug, bool
 
 void FluidSystem::AdvanceTime () {  // may need to prune unused details from this fn.
     m_Time += m_DT;
-
-    m_Frame += m_FrameRange.z;
-
-    if ( m_Frame > m_FrameRange.y && m_FrameRange.y != -1 ) {
-
-        m_Frame = m_FrameRange.x;
-        mbRecord = false;
-        mbRecordBricks = false;
-        m_Toggle[ PCAPTURE ] = false;
-        if (m_FParams.debug>1)std::cout << "Exiting.\n";
-        exit ( 1 );
-    }
 }
 
 ///////////////////////////////////////////////////
 // Ideal grid cell size (gs) = 2 * smoothing radius = 0.02*2 = 0.04
 // Ideal domain size = k*gs/d = k*0.02*2/0.005 = k*8 = {8, 16, 24, 32, 40, 48, ..}
 //    (k = number of cells, gs = cell size, d = simulation scale)
-void FluidSystem::SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, float cell_size, float border ){
+void FluidSystem::SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, float cell_size){
     float world_cellsize = cell_size / sim_scale;
-
     m_GridMin = min;
     m_GridMax = max;
     m_GridSize = m_GridMax;
     m_GridSize -= m_GridMin;
-#if 0
-    m_GridRes.Set ( 6, 6, 6 );				// Fixed grid res
-#else
     m_GridRes.x = (int) ceil ( m_GridSize.x / world_cellsize );		// Determine grid resolution
     m_GridRes.y = (int) ceil ( m_GridSize.y / world_cellsize );
     m_GridRes.z = (int) ceil ( m_GridSize.z / world_cellsize );
     m_GridSize.x = m_GridRes.x * cell_size / sim_scale;				// Adjust grid size to multiple of cell size
     m_GridSize.y = m_GridRes.y * cell_size / sim_scale;
     m_GridSize.z = m_GridRes.z * cell_size / sim_scale;
-#endif
     m_GridDelta = m_GridRes;		// delta = translate from world space to cell #
     m_GridDelta /= m_GridSize;
-
     m_GridTotal = (int)(m_GridRes.x * m_GridRes.y * m_GridRes.z);
-
-    m_Param[PSTAT_GMEM] = 12.0f * m_GridTotal;		// Grid memory used
 
     // Number of cells to search:
     // n = (2r / w) +1,  where n = 1D cell search count, r = search radius, w = world cell width
-    //
     m_GridSrch = (int) (floor(2.0f*(m_Param[PSMOOTHRADIUS]/sim_scale) / world_cellsize) + 1.0f);
     if ( m_GridSrch < 2 ) m_GridSrch = 2;
     m_GridAdjCnt = m_GridSrch * m_GridSrch * m_GridSrch ;			// 3D search count = n^3, e.g. 2x2x2=8, 3x3x3=27, 4x4x4=64
@@ -1074,961 +1007,8 @@ void FluidSystem::SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, flo
 }
 
 ///////////////////////////////////////////////////////////////
-void FluidSystem::ReadGenome( const char * relativePath){
-    // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
-    const char * genes_file_path = relativePath;
-    if (m_FParams.debug>1)printf("\n## opening file %s \n", genes_file_path);
-    FILE * genes_file = fopen(genes_file_path, "rb");
-    if (genes_file == NULL) {
-        if (m_FParams.debug>1)std::cout << "\nvoid FluidSystem::ReadGenome( const char * relativePath, int gpu_mode, int cpu_mode)  Could not read file "<< genes_file_path <<"\n"<< std::flush;
-        assert(0);
-    }
-    int num_genes1, num_tf, ret=0;
-    ret += std::fscanf(genes_file, "num genes = %i,\tnum transcription factors = %i \n", &num_genes1, &num_tf);
-    
-    if (m_FParams.debug>1 && ((num_genes1 != NUM_GENES) || (num_tf != NUM_TF ))){
-        std::cout << "\n! Miss-match of parameters ! ((num_genes1 != num_genes2) || (num_genes1 != NUM_GENES) || (num_tf != NUM_TF ) )\n";
-        std::cout << "num_genes = " << num_genes1 <<"\t NUM_GENES = "<<NUM_GENES<<"\tnum_tf = "<<num_tf<<"\n";
-    }
-    ret += std::fscanf(genes_file, "mutability, delay,\tsensitivity[NUM_GENES]");
-    for(int i=0; i<NUM_GENES; i++)ret += std::fscanf(genes_file, ",\t");
-    
-    ret += std::fscanf(genes_file, "secrete[NUM_TF][2]");
-    for(int i=0; i<NUM_TF; i++)ret += std::fscanf(genes_file, ",,\t");
-    
-    ret += std::fscanf(genes_file, "secrete[2*NUM_TF], ");
-    
-    ret += std::fscanf(genes_file, "activate[NUM_GENES][2]");
-    for(int i=0; i<NUM_GENES; i++)ret += std::fscanf(genes_file, ",,\t");
-    
-    ret += std::fscanf(genes_file, "activate[2*NUM_GENES]");
-    
-    ret=0;
-    int i, j;
-    for (i=0; i<num_genes1; i++ ) {
-        ret = std::fscanf(genes_file,"%i,%i,",&m_FGenome.mutability[i],&m_FGenome.delay[i] );
-        for(int j=0; j<NUM_GENES; j++)  ret += std::fscanf(genes_file,"%i,", &m_FGenome.sensitivity[i][j] );
-        for(int j=0; j<NUM_TF; j++) ret += std::fscanf(genes_file, "%i,%i,\t", &m_FGenome.secrete[i][j*2], &m_FGenome.secrete[i][j*2 + 1] );//(elemID, secretion_rate)
-        ret += std::fscanf(genes_file, "%i,\t\t", &m_FGenome.secrete[i][2*NUM_TF] );            //num active elements, NB sparse list, kernel will only read active elems.
-        for(int j=0; j<NUM_GENES; j++) ret += std::fscanf(genes_file, "%i,%i,\t", &m_FGenome.activate[i][j*2], &m_FGenome.activate[i][j*2 + 1] );//(elemID, other_geneID)
-        ret += std::fscanf(genes_file, "%i,\t\t \n", &m_FGenome.activate[i][2*NUM_GENES] );        //num active elements,
-        if (ret != (2 + NUM_GENES + NUM_TF*2 + 1 + NUM_GENES*2 + 1) ) {
-            if (m_FParams.debug>1)std::cout << "\nvoid FluidSystem::ReadGenome, read failure !  gene number = " << i << ", ret = "<< ret <<"\n " << std::flush;
-            fclose(genes_file);
-            return;
-        }
-        if (m_FParams.debug>1) for(int j=0; j<NUM_GENES; j++)  std::cout << m_FGenome.sensitivity[i][j] <<",";
-        if (m_FParams.debug>1)std::cout <<"\n";
-    }
-    if (m_FParams.debug>1)std::cout << "\n" << i << " genes read.\n" << std::flush;
-    
-    ret=0;
-    ret += std::fscanf(genes_file,"\nTranscription Factors (tf_difusibility,tf_breakdown_rate) \n" );
-    for(i=0; i<num_tf; i++) { 
-        ret += std::fscanf(genes_file,"\t%u,\t",&m_FGenome.tf_diffusability[i] );
-        ret += std::fscanf(genes_file,"%u,\t",&m_FGenome.tf_breakdown_rate[i] );
-        if (m_FParams.debug>1)std::cout <<"\t("<< m_FGenome.tf_diffusability[i] <<"," << m_FGenome.tf_breakdown_rate[i] <<"),"<< std::flush;
-    }
-    if (ret != NUM_TF*2)if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadGenome, Transcription Factor read failure !  gene number = " << i << ", ret = "<< ret <<"\n " << std::flush;
-    if (m_FParams.debug>1)std::cout << "\n" << i << " transcription factors read.\n" << std::flush;
-    
-    ret=0;
-    ret += std::fscanf(genes_file, "\nRemodelling parameters, rows : elastin,collagen,apatite\n" );
-    ret += std::fscanf(genes_file, "\ncollumns : /*triggering bond parameter changes*/, /*triggering particle changes*/, /*initial values for new bonds*/" );
-    ret += std::fscanf(genes_file, "\nelongation_threshold,\telongation_factor,\tstrength_threshold,\tstrengthening_factor,\t\t\
-    max_rest_length,\tmin_rest_length,\tmax_modulus,\tmin_modulus,\t\t\t\
-    elastLim,\tdefault_rest_length,\tdefault_modulus,\tdefault_damping\n");
-    
-    for(i=0; i<3; i++){
-        for(j=0; j<12;j++) ret += std::fscanf(genes_file, "\t%f,\t", &m_FGenome.param[i][j] ); 
-        ret += std::fscanf(genes_file, "\n");
-    }
-    if (m_FParams.debug>1)std::cout << "\n" << i <<"*"<< j << " remodelling parameters read. ret = "<< ret <<"\n" << std::flush;
-    
-    fclose(genes_file);
-}
-
-void FluidSystem::WriteGenome( const char * relativePath){
-    if (m_FParams.debug>1)std::cout << "\n  FluidSystem::WriteGenome( const char * relativePath)  started \n" << std::flush;
-    char buf[256];
-    sprintf ( buf, "%s/genome.csv", relativePath );
-    FILE* fp = fopen ( buf, "w" );
-    if (fp == NULL) {
-        if (m_FParams.debug>1)std::cout << "\nvoid FluidSystem::WriteGenome( const char * relativePath)  Could not open file "<< fp <<"\n"<< std::flush;
-        assert(0);
-    }
-    fprintf(fp, "num genes = %i,\tnum transcription factors = %i \n", NUM_GENES, NUM_TF );
-    
-    fprintf(fp, "mutability, delay,\tsensitivity[NUM_GENES]");
-    for(int i=0; i<NUM_GENES; i++)fprintf(fp, ",\t");
-    
-    fprintf(fp, "secrete[NUM_TF][2]");
-    for(int i=0; i<NUM_TF; i++)fprintf(fp, ",,\t");
-    
-    fprintf(fp, "secrete[2*NUM_TF], ");
-    
-    fprintf(fp, "activate[NUM_GENES][2]");
-    for(int i=0; i<NUM_GENES; i++)fprintf(fp, ",,\t");
-    
-    fprintf(fp, "activate[2*NUM_GENES] \n" );
-    
-    for(int i=0; i<NUM_GENES; i++) {
-        fprintf(fp, "%i,\t", m_FGenome.mutability[i] );
-        fprintf(fp, "%i,\t\t", m_FGenome.delay[i] );
-        
-        for(int j=0; j<NUM_GENES; j++) fprintf(fp, "%i,\t", m_FGenome.sensitivity[i][j] );
-        fprintf(fp, " \t\t" );
-        for(int j=0; j<NUM_TF; j++) fprintf(fp, "%i,%i,\t", m_FGenome.secrete[i][j*2], m_FGenome.secrete[i][j*2 + 1] );//secretion_rate
-        
-        fprintf(fp, "\t\t%i,\t\t", m_FGenome.secrete[i][2*NUM_TF] );    //num active elements, NB sparse list, kernel will only read active elems.
-        
-        for(int j=0; j<NUM_GENES; j++) fprintf(fp, "%i,%i,\t", m_FGenome.activate[i][j*2], m_FGenome.activate[i][j*2 + 1] );
-        
-        fprintf(fp, "\t\t%i,\t\t", m_FGenome.activate[i][2*NUM_GENES] );  
-        fprintf(fp, " \n" );
-    }
-    fprintf(fp, "\nTranscription Factors (tf_difusibility,tf_breakdown_rate) \n" );
-    for(int i=0; i<NUM_TF; i++) {    
-        fprintf(fp, "\t%i,\t", m_FGenome.tf_diffusability[i] );
-        fprintf(fp, "%i,\t", m_FGenome.tf_breakdown_rate[i] );
-    }
-    fprintf(fp, "\n\nRemodelling parameters, rows : elastin,collagen,apatite" );
-    fprintf(fp, "\ncollumns : /*triggering bond parameter changes*/, /*triggering particle changes*/, /*initial values for new bonds*/" );
-    fprintf(fp, "\nelongation_threshold,\telongation_factor,\tstrength_threshold,\tstrengthening_factor,\t\t\
-    max_rest_length,\tmin_rest_length,\tmax_modulus,\tmin_modulus,\t\t\t\
-    elastLim,\tdefault_rest_length,\tdefault_modulus,\tdefault_damping\n");
-    
-    for(int i=0; i<3; i++){
-        for(int j=0; j<12;j++) fprintf(fp, "\t%f,\t", m_FGenome.param[i][j]);
-        fprintf(fp, "\n");
-    }
-    
-    fprintf(fp, "\n\n\
-    struct FGenome{   // ## currently using fixed size genome for efficiency. NB Particle data size depends on genome size.\n\
-        uint mutability[NUM_GENES];\n\
-        uint delay[NUM_GENES];\n\
-        uint sensitivity[NUM_GENES][NUM_GENES];     // for each gene, its sensitivity to each TF or morphogen\n\
-        uint tf_diffusability[NUM_TF];              // for each transcription_factor, the diffusion and breakdown rates of its TF.\n\
-        uint tf_breakdown_rate[NUM_TF];\n\
-                                                    // sparse lists final entry = num elem, other entries (elem_num, param)\n\
-        int secrete[NUM_GENES][2*NUM_TF+1];         // -ve secretion => active breakdown. Can be useful for pattern formation.\n\
-        int activate[NUM_GENES][2*NUM_GENES+1];\n\
-        //uint *function[NUM_GENES];                // cancelled// Hard code a case-switch that calls each gene's function iff the gene is active.\n\
-        enum {elastin,collagen,apatite};\n\
-                                                    //FBondParams fbondparams[3];   // 0=elastin, 1=collagen, 2=apatite\n\
-        \n\
-        enum params{  /*triggering bond parameter changes*/ elongation_threshold,   elongation_factor,      strength_threshold,     strengthening_factor,\n\
-                      /*triggering particle changes*/       max_rest_length,        min_rest_length,        max_modulus,            min_modulus,\n\
-                      /*initial values for new bonds*/      elastLim,               default_rest_length,    default_modulus,        default_damping\n\
-        };\n\
-        float param[3][12];\n\
-    };\n\
-    ");
-    
-    fclose(fp);
-}
-
-void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// uses vtk library to write binary vtp files
-    // based on VtpWrite(....)demo at https://vtk.org/Wiki/Write_a_VTP_file  (30 April 2009)
-    // and on https://lorensen.github.io/VTKExamples/site/Cxx/IO/WriteVTP/   (post vtk-8.90.9)
-
-    // Header information:  ?? how can this be added ??
-    //  A) fparams & fgenome
-    //  B) header of the.csv file, giving sizes of arrays.
-    
-    // points, vertices & lines
-    // points & vertices = FPOS 3df
-    vtkSmartPointer<vtkPoints> points3D = vtkSmartPointer<vtkPoints>::New();                           // Points3D
-	vtkSmartPointer<vtkCellArray> Vertices = vtkSmartPointer<vtkCellArray>::New();                     // Vertices
-    uint num_active_points = 0;
-    for ( unsigned int i = 0; i < mMaxPoints; ++i )
-	{	
-        if( *getParticle_ID(i)<mMaxPoints ){ // if(active_particle)
-            vtkIdType pid[1];
-            //Point P = Model.Points[i];
-            Vector3DF* Pos = getPos(i); 
-            pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
-            Vertices->InsertNextCell(1,pid);
-            num_active_points++;
-        }else break;
-	}
-	// Inset vertices for sim volume
-	{
-        vtkIdType pid[1];
-        Vector3DF  pos = {0,0,0};
-        Vector3DF* Pos =&pos;
-        for(int corner=0; corner<8; corner++){
-            if(corner&1) Pos->x = m_Vec[ PVOLMAX ].x; // bitmask to select axes to swap to PVOLMAX
-            else Pos->x = m_Vec[ PVOLMIN ].x;
-            if(corner&2) Pos->y = m_Vec[ PVOLMAX ].y;
-            else Pos->y = m_Vec[ PVOLMIN ].y;
-            if(corner&4) Pos->z = m_Vec[ PVOLMAX ].z; 
-            else Pos->z = m_Vec[ PVOLMIN ].z;
-            pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
-            Vertices->InsertNextCell(1,pid);
-        }
-    }
-	
-    // edges = FELASTIDX [0]current index uint                                                         // Lines
-    vtkSmartPointer<vtkCellArray> Lines = vtkSmartPointer<vtkCellArray>::New();
-    uint *ElastIdx;
-    float *ElastIdxPtr;
-    for ( unsigned int i = 0; i < num_active_points; ++i )
-	{	
-        ElastIdx = getElastIdx(i);
-        //ElastIdxPtr = (float*)ElastIdx;
-        for(int j=0; j<(BONDS_PER_PARTICLE ); j++) { 
-            int secondParticle = ElastIdx[j * DATA_PER_BOND];
-            int bond = ElastIdx[j * DATA_PER_BOND +2];          // NB [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
-            if (bond==0 || bond==UINT_MAX) secondParticle = i;                    // i.e. if [2]restlength, then bond is broken, therefore bond to self.
-            vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
-            line->GetPointIds()->SetId(0,i);
-            line->GetPointIds()->SetId(1,secondParticle);
-            Lines->InsertNextCell(line);
-        }
-	}
-	// Sim volume boundry lines
-	for(int corner=0; corner<8; corner++){
-    int firstParticle = corner + num_active_points;
-    vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
-    if(corner&1){ // Pos->x = m_Vec[ PVOLMAX ].x; // bitmask to select axes to swap to PVOLMAX
-        int secondParticle = corner -1 + num_active_points;
-        line->GetPointIds()->SetId(0,firstParticle);
-        line->GetPointIds()->SetId(1,secondParticle);
-        Lines->InsertNextCell(line);
-    }
-    if(corner&2){ // Pos->y = m_Vec[ PVOLMAX ].y;
-        int secondParticle = corner -2 + num_active_points;
-        line->GetPointIds()->SetId(0,firstParticle);
-        line->GetPointIds()->SetId(1,secondParticle);
-        Lines->InsertNextCell(line);
-    }
-    if(corner&4){ // Pos->z = m_Vec[ PVOLMAX ].z; 
-        int secondParticle = corner -4 + num_active_points;
-        line->GetPointIds()->SetId(0,firstParticle);
-        line->GetPointIds()->SetId(1,secondParticle);
-        Lines->InsertNextCell(line);
-    }
-    //pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
-    //Vertices->InsertNextCell(1,pid);
-    }
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////////// Particle Data 
-    
-    // FELASTIDX bond data, float and uint vtkDataArrays, stored in particles
-    vtkSmartPointer<vtkUnsignedIntArray> BondsUIntData = vtkSmartPointer<vtkUnsignedIntArray>::New();
-    BondsUIntData->SetNumberOfComponents(3);
-	BondsUIntData->SetName("curr_idx, particle ID, bond index");
-    
-    vtkSmartPointer<vtkFloatArray> BondsFloatData = vtkSmartPointer<vtkFloatArray>::New();
-    BondsFloatData->SetNumberOfComponents(6);
-	BondsFloatData->SetName("elastic limit, restlength, modulus, damping coeff, stress integrator");
-    
-    
-    for ( unsigned int i = 0; i < num_active_points; ++i )
-	{
-        ElastIdx = getElastIdx(i);                     // FELASTIDX[BONDS_PER_PARTICLE]  [0]current index uint, [5]particle ID uint, [6]bond index uint
-        ElastIdxPtr = (float*)ElastIdx;                // FELASTIDX[BONDS_PER_PARTICLE]  [1]elastic limit float, [2]restlength float, [3]modulus float, [4]damping coeff float,
-        for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
-            BondsUIntData->InsertNextTuple3(ElastIdx[j], ElastIdx[j+5], ElastIdx[j+6]);
-            BondsFloatData->InsertNextTuple6(ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdxPtr[j+7], 0);
-        }
-    }
-    for(int corner=0; corner<8; corner++){
-        for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
-            BondsUIntData->InsertNextTuple3(0,0,0);
-            BondsFloatData->InsertNextTuple6(0,0,0,0,0,0);
-        }
-    }
-    //BondsUIntData->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
-    //BondsFloatData->SetNumberOfComponents(BONDS_PER_PARTICLE *4); 
-    
-
-    // FVEL 3df, 
-    Vector3DF* Vel;
-    vtkSmartPointer<vtkFloatArray> fvel = vtkSmartPointer<vtkFloatArray>::New();
-    fvel->SetNumberOfComponents(3);
-	fvel->SetName("FVEL");
-    for(unsigned int i=0;i<num_active_points;i++){
-        Vel = getVel(i);
-        fvel->InsertNextTuple3(Vel->x,Vel->y,Vel->z);
-    }
-    for(int corner=0; corner<8; corner++){
-        fvel->InsertNextTuple3(0,0,0);
-    }
-    fvel->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
-    
-    
-/*    // FVEVAL 3df, 
-    Vector3DF* Veval;
-    vtkSmartPointer<vtkFloatArray> fveval = vtkSmartPointer<vtkFloatArray>::New();
-    fvel->SetNumberOfComponents(3);
-	fvel->SetName("FVEVAL");
-    for(unsigned int i=0;i<num_active_points;i++){
-        Veval = getVeval(i);
-        fveval->InsertNextTuple3(Veval->x,Veval->y,Veval->z);
-    }
-    fveval->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
-*/
-    
-/*    // FFORCE 3df, 
-    Vector3DF* Force;
-    vtkSmartPointer<vtkFloatArray> fforce = vtkSmartPointer<vtkFloatArray>::New();
-    fforce->SetNumberOfComponents(3);
-	fforce->SetName("FFORCE");
-    for(unsigned int i=0;i<num_active_points;i++){
-        Force = getForce(i);
-        fforce->InsertNextTuple3(Force->x,Force->y,Force->z);
-    }
-    fforce->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
-*/
-    
-    
-/*    // FPRESS f,
-    float* Pres;
-    vtkSmartPointer<vtkFloatArray> fpres = vtkSmartPointer<vtkFloatArray>::New();
-    fpres->SetNumberOfComponents(1);
-	fpres->SetName("FPRESS");
-    for(unsigned int i=0;i<num_active_points;i++){
-        Pres = getPres(i);
-        fpres->InsertNextTuple(Pres);
-    }
-*/     
-    
-/*    // FDENSITY f, 
-    float* Dens;
-    vtkSmartPointer<vtkFloatArray> fdens = vtkSmartPointer<vtkFloatArray>::New();
-    fdens->SetNumberOfComponents(1);
-	fdens->SetName("FDENSITY");
-    for(unsigned int i=0;i<num_active_points;i++){
-        Dens = getDensity(i);
-        fdens->InsertNextTuple(Dens);
-    }
-*/
-    
-    // FAGE ushort, 
-    unsigned int* age = getAge(0);
-    vtkSmartPointer<vtkUnsignedIntArray> fage = vtkSmartPointer<vtkUnsignedIntArray>::New();
-    fage->SetNumberOfComponents(1);
-	fage->SetName("FAGE");
-    for(unsigned int i=0;i<num_active_points;i++){
-        fage->InsertNextValue(age[i]);
-    }
-    for(int corner=0; corner<8; corner++){
-        fage->InsertNextValue(0);
-    }
-    
-    // FCLR uint, 
-    unsigned int* color = getClr(0);
-    vtkSmartPointer<vtkUnsignedIntArray> fcolor = vtkSmartPointer<vtkUnsignedIntArray>::New();
-    fcolor->SetNumberOfComponents(1);
-	fcolor->SetName("FCLR");
-    for(unsigned int i=0;i<num_active_points;i++){
-        fcolor->InsertNextValue(color[i]);
-    }
-    for(int corner=0; corner<8; corner++){
-        fcolor->InsertNextValue(0);
-    }
-    
-    // FGCELL	uint, 
-    
-    // FPARTICLEIDX uint[BONDS_PER_PARTICLE *2],  
-
-    
-    // FPARTICLE_ID  uint, 
-    unsigned int* pid = getParticle_ID(0);
-    vtkSmartPointer<vtkUnsignedIntArray> fpid = vtkSmartPointer<vtkUnsignedIntArray>::New();
-    fpid->SetNumberOfComponents(1);
-	fpid->SetName("FPARTICLE_ID");
-    for(unsigned int i=0;i<num_active_points;i++){
-        fpid->InsertNextValue(pid[i]);
-    }
-    for(int corner=0; corner<8; corner++){
-        fpid->InsertNextValue(0);
-    }
-    
-    // FMASS_RADIUS uint (holding modulus 16bit and limit 16bit.),    
-    unsigned int* Mass_Radius = getMass_Radius(0);
-    uint mass, radius;
-    vtkSmartPointer<vtkUnsignedIntArray> fmass_radius = vtkSmartPointer<vtkUnsignedIntArray>::New();
-    fmass_radius->SetNumberOfComponents(2);
-	fmass_radius->SetName("FMASS_RADIUS");
-    for(unsigned int i=0;i<num_active_points;i++){
-        if(Mass_Radius[i]==0){   mass = 0; }else{  mass = Mass_Radius[i]; } 
-        radius = mass >> 16;
-        mass = mass & TWO_POW_16_MINUS_1;
-        fmass_radius->InsertNextTuple2(mass,radius);
-    }
-    for(int corner=0; corner<8; corner++){
-        fmass_radius->InsertNextTuple2(0,0);
-    }
-    
-    // FNERVEIDX uint, 
-    unsigned int* nidx = getNerveIdx(0);
-    vtkSmartPointer<vtkUnsignedIntArray> fnidx = vtkSmartPointer<vtkUnsignedIntArray>::New();
-    fnidx->SetNumberOfComponents(1);
-	fnidx->SetName("FNERVEIDX");
-    for(unsigned int i=0;i<num_active_points;i++){
-        fnidx->InsertNextValue(nidx[i]);
-    }
-    for(int corner=0; corner<8; corner++){
-        fnidx->InsertNextValue(0);
-    }
-    
-    // FCONC float[NUM_TF].                                                                                     // commented out until Matt's edit FCONC uint->foat is merged
-    vtkSmartPointer<vtkFloatArray> fconc[NUM_TF];
-    char buf_conc[256];
-    for (int a=0; a<NUM_GENES; a++){ 
-        fconc[a] = vtkSmartPointer<vtkFloatArray>::New();
-        fconc[a]->SetNumberOfComponents(1);
-        sprintf ( buf_conc, "FCONC_%i",a);
-        fconc[a]->SetName(buf_conc);
-    }
-    float *conc;
-    for ( unsigned int i = 0; i < NUM_GENES; ++i ){
-        conc = getConc(i);                   
-        for(int j=0; j<num_active_points; j++){
-            fconc[i]->InsertNextValue(conc[j]);                              // now have one array for each column of fepigen
-        }
-        for(int corner=0; corner<8; corner++){
-            fconc[i]->InsertNextValue(0);
-        }
-    }
-    
-    // FEPIGEN uint[NUM_GENES] ... make an array of arrays
-    vtkSmartPointer<vtkUnsignedIntArray> fepigen[NUM_GENES];
-    char buf_epigen[256];
-    for (int a=0; a<NUM_GENES; a++){ 
-        fepigen[a] = vtkSmartPointer<vtkUnsignedIntArray>::New();
-        fepigen[a]->SetNumberOfComponents(1);
-        sprintf ( buf_epigen, "FEPIGEN_%i",a);
-        fepigen[a]->SetName(buf_epigen);
-    }
-    unsigned int *epigen;
-    for ( unsigned int i = 0; i < NUM_GENES; ++i ){
-        epigen = getEpiGen(i);                   
-        for(int j=0; j<num_active_points; j++){    
-            fepigen[i]->InsertNextValue(epigen[j]);                              // now have one array for each column of fepigen
-        }
-        for(int corner=0; corner<8; corner++){
-            fepigen[i]->InsertNextValue(0);
-        }
-    }
-
-    
-    // F_TISSUE_TYPE  uint, 
-    unsigned int tissueType;
-    vtkSmartPointer<vtkUnsignedIntArray> ftissue = vtkSmartPointer<vtkUnsignedIntArray>::New();
-    ftissue->SetNumberOfComponents(1);
-	ftissue->SetName("F_TISSUE_TYPE");
-    unsigned int *epigen_[NUM_GENES];
-    for ( unsigned int i = 0; i < NUM_GENES; ++i )  epigen_[i] = getEpiGen(i);
-    
-    for(unsigned int i=0;i<num_active_points;i++){
-        if      (epigen_[9][i] >0/*bone*/)      tissueType =9;                                                   
-        else if (epigen_[6][i] >0/*tendon*/)    tissueType =6;
-        else if (epigen_[7][i] >0/*muscle*/)    tissueType =7;
-        else if (epigen_[10][i]>0/*elast lig*/) tissueType =10;
-        else if (epigen_[8][i] >0/*cartilage*/) tissueType =8;
-        else                                    tissueType =0;
-        ftissue->InsertNextValue(tissueType);
-    }
-    for(int corner=0; corner<8; corner++){
-        ftissue->InsertNextValue(0);
-    }
-    
-    
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // POLYDATA
-	vtkSmartPointer<vtkPolyData> polydata = vtkPolyData::New();                                        // polydata
-	polydata->SetPoints(points3D);
-	//polydata->SetVerts(Vertices);
-    polydata->SetLines(Lines);
-    
-    
-    //if (m_FParams.debug>1)cout << "\nStarting writing bond data to polydata\n" << std::flush;
-    polydata->GetCellData()->AddArray(BondsUIntData);
-    polydata->GetCellData()->AddArray(BondsFloatData);
-    //polydata->GetPointData()->AddArray(BondsUIntData);
-    //polydata->GetPointData()->AddArray(BondsFloatData);
-    polydata->GetPointData()->AddArray(fage);
-    polydata->GetPointData()->AddArray(fcolor);
-    polydata->GetPointData()->AddArray(fpid);
-    polydata->GetPointData()->AddArray(fmass_radius);
-    polydata->GetPointData()->AddArray(fnidx);
-    
-    for(int i=0;i<NUM_TF; i++)      polydata->GetPointData()->AddArray(fconc[i]);
-    for(int i=0;i<NUM_GENES; i++)   polydata->GetPointData()->AddArray(fepigen[i]);
-    
-    polydata->GetPointData()->AddArray(ftissue);
-    
-    //if (m_FParams.debug>1)cout << "\nFinished writing bond data to polydata\n" << std::flush;
-    
-    // WRITER  
-	vtkSmartPointer<vtkXMLPolyDataWriter> writer = vtkSmartPointer<vtkXMLPolyDataWriter>::New();       // writer
-    char buf[256];
-    frame += 100000;                                                                                              // ensures numerical and alphabetic order match of filenames
-    sprintf ( buf, "%s/particles_pos_vel_color%04d.vtp", relativePath, frame );
-	writer->SetFileName(buf);
-	writer->SetInputData(polydata);
-    //writer->SetDataModeToAscii();   
-    writer->SetDataModeToAppended();    // prefered, produces a human readable header followed by a binary blob.
-    //writer->SetDataModeToBinary();
-	writer->Write();
-    
-	//if (m_FParams.debug>1)cout << "\nFinished writing vtp file " << buf << "." << endl;
-	//if (m_FParams.debug>1)cout << "\tnum_active_points: " << num_active_points << endl;
-}
-
-void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
-    if (m_FParams.debug>1) std::cout << "\n  SavePointsCSV2 ( const char * relativePath = "<< relativePath << ", int frame = "<< frame << " );  started \n" << std::flush;
-    char buf[256];
-    frame += 100000;    // ensures numerical and alphabetic order match
-    sprintf ( buf, "%s/particles_pos_vel_color%04d.csv", relativePath, frame );
-    FILE* fp = fopen ( buf, "w" );
-    if (fp == NULL) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::SavePointsCSV ( const char * relativePath, int frame )  Could not open file "<< fp <<"\n"<< std::flush;
-        assert(0);
-    }
-    int numpnt = mMaxPoints;//NumPoints();
-    Vector3DF* Pos;
-    Vector3DF* Vel;
-    float *Conc;
-    uint* Age, *Clr, *NerveIdx, *ElastIdx, *Particle_Idx, *Particle_ID, *Mass_Radius, *EpiGen;                  // Q: why are these pointers? A: they get dereferenced below.
-    uint mass, radius;
-    float *ElastIdxPtr;
-    
-    fprintf(fp, "i,, x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", BONDS_PER_PARTICLE, DATA_PER_BOND);  // This system inserts commas to align header with csv data
-    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",(%u)[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator, [8]change-type,,  ",i);
-    fprintf(fp, "\t"); 
-    fprintf(fp, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u*2]", BONDS_PER_PARTICLE);    
-    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, "%u,,, ",i);
-    fprintf(fp, "\t\tFCONC[%u] ", NUM_TF);
-    for (int i=0; i<NUM_TF; i++)fprintf(fp, "%u, ",i);
-    fprintf(fp, "\t\tFEPIGEN[%u] ", NUM_GENES);
-    for (int i=0; i<NUM_GENES; i++)fprintf(fp, "%u, ",i);
-    fprintf(fp, "\n");
-
-    for(int i=0; i<numpnt; i++) {       // nb need get..() accessors for private data.
-        Pos = getPos(i);                // e.g.  Vector3DF* getPos ( int n )	{ return &m_Fluid.bufV3(FPOS)[n]; }
-        Vel = getVel(i);
-        Age = getAge(i);
-        Clr = getClr(i);
-        ElastIdx = getElastIdx(i);      // NB [BONDS_PER_PARTICLE]
-      //if (m_FParams.debug>1)printf("\t%u,",ElastIdx[0]);
-        ElastIdxPtr = (float*)ElastIdx; // #############packing floats and uints into the same array - should replace with a struct.#################
-        Particle_Idx = getParticle_Idx(i);
-        Particle_ID = getParticle_ID(i);//# uint  original pnum, used for bonds between particles. 32bit, track upto 4Bn particles.
-        if(*Particle_ID==0){
-         if (m_FParams.debug>1) std::cout << "SavePointsCSV2: Particle_ID = pointer not assigned. i="<<i<<". \t" << std::flush;
-         return;
-        }
-        // ? should I be splitting mass_radius with bitshift etc  OR just use two uit arrays .... where are/will these used anyway ?
-        Mass_Radius = getMass_Radius(i);//# uint holding modulus 16bit and limit 16bit.
-        if(*Mass_Radius==0){   mass = 0; }else{  mass = *Mass_Radius; }    // modulus          // '&' bitwise AND is bit masking. ;
-        radius = mass >> 16;
-        mass = mass & TWO_POW_16_MINUS_1;
-        
-        NerveIdx = getNerveIdx(i);      //# uint
-        //Conc = getConc(i);              //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
-        //EpiGen = getEpiGen(i);          //# uint[NUM_GENES]  see below.
-        
-        fprintf(fp, "%u,,%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t", i, Pos->x, Pos->y,Pos->z, Vel->x,Vel->y,Vel->z, *Age, *Clr );
-        //if (m_FParams.debug>1) std::cout<<"\t"<<Pos->z<<std::flush;
-        for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
-            fprintf(fp, "%u, %f, %f, %f, %f, %u, %u, %f, %u, ", ElastIdx[j], ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdx[j+5], ElastIdx[j+6], ElastIdxPtr[j+7], ElastIdx[j+8] );
-            
-           /*
-            // if ((j%DATA_PER_BOND==0)||((j+1)%DATA_PER_BOND==0))  fprintf(fp, "%u, ",  ElastIdx[j] );  // print as int   [0]current index, [5]particle ID, [6]bond index 
-           // else  fprintf(fp, "%f, ",  ElastIdxPtr[j] );                                              // print as float [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, 
-           //  if((j+1)%DATA_PER_BOND==0)  
-            */
-            fprintf(fp, "\t\t");
-        }
-        fprintf(fp, " \t%u, %u, %u, %u, \t\t", *Particle_ID, mass, radius, *NerveIdx );
-        for(int j=0; j<(BONDS_PER_PARTICLE*2); j+=2)   { fprintf(fp, "%u, %u,, ",  Particle_Idx[j], Particle_Idx[j+1] );}  fprintf(fp, "\t\t"); // NB index of other particle AND other particle's index of the bond
-        
-        for(int j=0; j<(NUM_TF); j++)               { 
-            Conc = getConc(j);
-            fprintf(fp, "%f, ",  Conc[i] ); 
-        }fprintf(fp, "\t\t");
-        
-        for(int j=0; j<(NUM_GENES); j++)            { 
-            EpiGen = getEpiGen(j);
-            fprintf(fp, "%u, ",  EpiGen[i] );   // NB FEPIGEN[gene][particle], for memory efficiency on the device. ? Need to test.
-        }fprintf(fp, " \n");
-    }
-    fclose ( fp );
-    fflush ( fp );
-}
-
-void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode){ // NB allocates buffers as well.
-    //if (m_FParams.debug>1) std::cout << "\n  ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);  started \n" << std::flush;
-    const char * points_file_path = relativePath;
-    if (m_FParams.debug>1)printf("\n## opening file %s ", points_file_path);
-    FILE * points_file = fopen(points_file_path, "rb");
-    if (points_file == NULL) {
-        assert(0);
-    }
-    // find number of lines = number of particles
-    int ch, number_of_lines = 0;
-    while (EOF != (ch=getc(points_file)))   if ('\n' == ch)  ++number_of_lines;
-
-    // Allocate buffers for points
-    m_Param [PNUM] = number_of_lines -1;                                    // NB there is a line of text above the particles, hence -1.
-    mMaxPoints = m_Param [PNUM];
-    m_Param [PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
-
-    SetupKernels ();
-    SetupSpacing ();
-    SetupGrid ( m_Vec[PVOLMIN]/*bottom corner*/, m_Vec[PVOLMAX]/*top corner*/, m_Param[PSIMSCALE], m_Param[PGRIDSIZE], 1.0f );
-    if (gpu_mode != GPU_OFF) {     // create CUDA instance etc.. 
-        FluidSetupCUDA ( mMaxPoints, m_GridSrch, *(int3*)& m_GridRes, *(float3*)& m_GridSize, *(float3*)& m_GridDelta, *(float3*)& m_GridMin, *(float3*)& m_GridMax, m_GridTotal, 0 );
-        UpdateParams();            //  sends simulation params to device.
-        UpdateGenome();            //  sends genome to device.              // NB need to initialize genome from file, or something.
-    }
-    AllocateParticles ( mMaxPoints, gpu_mode, cpu_mode );  // allocates only cpu buffer for particles
-    AllocateGrid(gpu_mode, cpu_mode);
-    //////////////////////////////////////// 
-    uint Clr, Age;
-    Vector3DF Pos, Vel, PosMin, PosMax;
-    uint  ElastIdxU[BOND_DATA];
-    float ElastIdxF[BOND_DATA];
-    uint Particle_Idx[BONDS_PER_PARTICLE * 2];
-    uint Particle_ID, mass, radius, Mass_Radius, NerveIdx, discard_uint;
-    float Conc[NUM_TF];
-    uint EpiGen[NUM_GENES];
-    
-    float vel_lim = GetParam ( PVEL_LIMIT );
-    PosMin = GetVec ( PBOUNDMIN );  //PBOUNDMIN  // PVOLMIN
-    PosMax = GetVec ( PBOUNDMAX );  //PBOUNDMAX  // PVOLMAX
-
-    if (m_FParams.debug>1) cout<<"\n\nPosMin = PBOUNDMIN=("<<m_Vec[PBOUNDMIN].x <<","<<m_Vec[PBOUNDMIN].y <<","<<m_Vec[PBOUNDMIN].z 
-        <<"),  PosMax = PBOUNDMAX=("<<m_Vec[PBOUNDMAX].x <<","<<m_Vec[PBOUNDMAX].y <<","<< m_Vec[PBOUNDMAX].z
-        <<"),  PVOLMIN=("<<m_Vec[PVOLMIN].x <<","<<m_Vec[PVOLMIN].y <<","<<m_Vec[PVOLMIN].z 
-        <<"),  PVOLMAX=("<<m_Vec[PVOLMAX].x <<","<<m_Vec[PVOLMAX].y <<","<<m_Vec[PVOLMAX].z 
-        <<")\n"<<std::flush;
-    
-    std::fseek(points_file, 0, SEEK_SET);
-    uint bond_data=999, data_per_bond=999, bonds_per_particle=999, num_TF=999, num_genes=999;
-    int result=-2;
-    result = std::fscanf(points_file, "i,, x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", &bond_data, &data_per_bond);
-//if (m_FParams.debug>1) std::cout<<"\n\n ReadPointsCSV2() line 1241: scanf result="<<result<<"\n"<<std::flush; 
-    for (int i=0; i<data_per_bond; i++) result+=std::fscanf(points_file, ",(%u)[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator, [8]change-type,,  ",&discard_uint);
-    bond_data = bond_data * data_per_bond;
-    result += fscanf(points_file, "\t");
-//if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() line 1246: scanf result="<<result<<"\n"<<std::flush; 
-    result = std::fscanf(points_file, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u*2]", &bonds_per_particle);
-    for (int i=0; i<BONDS_PER_PARTICLE; i++) result+=fscanf(points_file, "%u,,, ",&discard_uint);
-//if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() line 1249: scanf result="<<result<<"\n"<<std::flush;     
-    result = std::fscanf(points_file, "\t\tFCONC[%u]",&num_TF);
-    for (int i=0; i<NUM_TF; i++)result += fscanf(points_file, "%u, ",&discard_uint);
-//if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() line 1252: scanf result="<<result<<"\n"<<std::flush;     
-    result = std::fscanf(points_file, "\t\tFEPIGEN[%u] ", &num_genes );
-    for (int i=0; i<NUM_GENES; i++)result += fscanf(points_file, "%u, ",&discard_uint);
-    result += fscanf(points_file, "\n");
-//if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() line 1254: scanf result="<<result<<"\n"<<std::flush;     
-    
-if (m_FParams.debug>1) std::cout<<"\n\n ReadPointsCSV2() starting loop: number_of_lines="<<number_of_lines<<"\n"<<std::flush;
-    ////////////////////
-    int i, index, ret;
-    for (i=1; i<number_of_lines; i++ ) {
-        // transcribe particle data from file to Pos, Vel and Clr
-        ret=0;
-        ret += std::fscanf(points_file, "%u,,%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t",&index, &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Age, &Clr );
-//if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() row="<< i <<", (line 1259, ret="<<ret<<"),\t"<<std::flush;
-        for(int j=0; j<BOND_DATA; j+=DATA_PER_BOND) {// BONDS_PER_PARTICLE * DATA_PER_BOND
-            ret += std::fscanf(points_file, "%u, %f, %f, %f, %f, %u, %u, %f, %u, ", &ElastIdxU[j+0], &ElastIdxF[j+1], &ElastIdxF[j+2], &ElastIdxF[j+3], &ElastIdxF[j+4], &ElastIdxU[j+5], &ElastIdxU[j+6], &ElastIdxF[j+7], &ElastIdxU[j+8] );
-        }
-      //if (m_FParams.debug>1)printf("\t%u\t",ElastIdxU[0]);
-//if (m_FParams.debug>1) std::cout<<"(line 1263, ret="<<ret<<")\t"<<std::flush;
-        ret += std::fscanf(points_file, " \t%u, %u, %u, %u, \t\t", &Particle_ID, &mass, &radius, &NerveIdx);
-        Mass_Radius = mass + (radius << 16);                                    // pack two 16bit uint  into one 32bit uint.
-//if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1266, ret="<<ret<<"),\t"<<std::flush;
-        for(int j=0; j<(BONDS_PER_PARTICLE*2); j+=2) {
-            ret += std::fscanf(points_file, "%u, %u,, ",  &Particle_Idx[j], &Particle_Idx[j+1] );
-        }
-//if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1270, ret="<<ret<<"),\t"<<std::flush;        
-        for(int j=0; j<(NUM_TF); j++)       {    ret += std::fscanf(points_file, "%f, ",  &Conc[j] );   } ret += std::fscanf(points_file, "\t");
-//if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1272, ret="<<ret<<"),\t"<<std::flush;
-        for(int j=0; j<(NUM_GENES); j++)    {    ret += std::fscanf(points_file, "%u, ",  &EpiGen[j] ); } ret += std::fscanf(points_file, " \n");
-//if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1274, ret="<<ret<<"),\t"<<std::flush;
-
-if (ret != (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  // 9 + 6*9 + 4 + 6*2 + 16 + 16 = 111
-            if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() fail line 1276, ret="<<ret<<"\n"<<std::flush;// ret=39
-            fclose(points_file);
-            return;
-        } // ret=8 ret=32 ret=36 ret=48 ret=64 ret=80 
-
-        // check particle is within simulation bounds
-        if (Pos.x < PosMin.x || Pos.y < PosMin.y || Pos.z < PosMin.z
-                || Pos.x > PosMax.x   || Pos.y > PosMax.y || Pos.z > PosMax.z
-                || (Vel.x * Vel.x + Vel.y * Vel.y + Vel.z * Vel.z) > vel_lim * vel_lim )
-        {
-            //if (m_FParams.debug>1) {
-            //  std::cout << "\n void FluidSystem::ReadPointsCSV, out of bounds !  particle number = " << i;
-            //  std::cout << "\n Pos.x = " << Pos.x << "  Pos.y = " << Pos.y << "  Pos.z = " << Pos.z;
-            //  std::cout << "\n PosMax.x = " << PosMax.x << "  PosMax.y = " << PosMax.y << "  PosMax.z = " << PosMax.z;
-            //  std::cout << "\n PosMin.x = " << PosMin.x << "  PosMin.y = " << PosMin.y << "  PosMin.z = " << PosMin.z;
-            //  std::cout << "\n velocity = " << sqrt(Vel.x * Vel.x + Vel.y * Vel.y + Vel.z * Vel.z) << "   vel_lim = " << vel_lim;
-            //  std::cout << "\n " << std::flush;
-            //}
-            if (m_FParams.debug>1)printf("\nParticle out of bounds, i=%u\t Pos=(%f,%f,%f), PosMin=(%f,%f,%f), PosMax=(%f,%f,%f), Closing file and exiting.",
-                   i, Pos.x, Pos.y, Pos.z, PosMin.x, PosMin.y, PosMin.z, PosMax.x, PosMax.y, PosMax.z );
-            fclose(points_file);
-            Exit();
-        }
-        AddParticleMorphogenesis2 (&Pos, &Vel, Age, Clr, ElastIdxU, ElastIdxF, Particle_Idx, Particle_ID, Mass_Radius,  NerveIdx, Conc, EpiGen );
-    }
-    if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() finished reading points. i="<<i<<", NumPoints()="<<NumPoints()<<"\n"<<std::flush;
-    fclose(points_file);
-    AddNullPoints ();                                   // add null particles up to mMaxPoints // should be redundant here as mMaxPoints = number_of_lines-1
-    if (gpu_mode != GPU_OFF) TransferToCUDA ();         // Initial transfer
-  //if (m_FParams.debug>1)printf("\n m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES)=%llu, \t m_Fluid.gpu(FGRIDOFF_CHANGES)=%llu, \t m_Fluid.gpu(FGRIDCNT_CHANGES)=%llu   \n",m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES), m_Fluid.gpu(FGRIDOFF_CHANGES) , m_Fluid.gpu(FGRIDCNT_CHANGES)   );
-    if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() finished extra functions. NumPoints()="<<NumPoints()<<"\n"<<std::flush;
-}
-
-void FluidSystem::ReadSimParams ( const char * relativePath ) { // transcribe SimParams from file to fluid_system object.
-    const char * SimParams_file_path = relativePath;
-    if (m_FParams.debug>1)printf ( "\n## opening file %s ", SimParams_file_path );
-    FILE * SimParams_file = fopen ( SimParams_file_path, "rb" );
-    if ( SimParams_file == NULL ) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadSimParams (const char * relativePath )  Could not read file "<< SimParams_file_path <<"\n"<< std::flush;
-        assert ( 0 );
-    }
-    // find number of lines
-    int ch, number_of_lines = 0;
-    while ( EOF != ( ch=getc ( SimParams_file ) ) )   if ( '\n' == ch )  ++number_of_lines; // chk num lines
-    if (m_FParams.debug>1) std::cout << "\nNumber of lines in SimParams_file = " << number_of_lines << std::flush;
-
-    Vector3DF point_grav_pos, pplane_grav_dir, pemit_pos, pemit_rate, pemit_ang, pemit_dang, pvolmin, pvolmax, pinitmin, pinitmax;
-    int pwrapx, pwall_barrier, plevy_barrier, pdrain_barrier, prun;
-
-    std::fseek(SimParams_file, 0, SEEK_SET);
-    int ret = std::fscanf ( SimParams_file, " m_Time = %f\n ", &m_Time );
-    ret += std::fscanf ( SimParams_file, "m_DT = %f\n ", &m_DT );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PSIMSCALE ] = %f\n ", &m_Param [ PSIMSCALE ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PGRID_DENSITY ] = %f\n ", &m_Param [ PGRID_DENSITY ] ); // added
-    ret += std::fscanf ( SimParams_file, "m_Param [ PVISC ] = %f\n ", &m_Param [ PVISC ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PSURFACE_TENSION ] = %f\n ", &m_Param [ PSURFACE_TENSION ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PRESTDENSITY ] = %f\n ", &m_Param [ PRESTDENSITY ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PSPACING ] = %f\n ", &m_Param [ PSPACING ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PMASS ] = %f\n ", &m_Param [ PMASS ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PRADIUS ] = %f\n ", &m_Param [ PRADIUS ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PDIST ] = %f\n ", &m_Param [ PDIST ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PSMOOTHRADIUS ] = %f\n ", &m_Param [ PSMOOTHRADIUS ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PINTSTIFF ] = %f\n ", &m_Param [ PINTSTIFF ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PEXTSTIFF ] = %f\n ", &m_Param [ PEXTSTIFF ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PEXTDAMP ] = %f\n ", &m_Param [ PEXTDAMP ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PACCEL_LIMIT ] = %f\n ", &m_Param [ PACCEL_LIMIT ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PVEL_LIMIT ] = %f\n ", &m_Param [ PVEL_LIMIT ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PMAX_FRAC ] = %f\n ", &m_Param [ PMAX_FRAC ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PGRAV ] = %f\n ", &m_Param [ PGRAV ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PGROUND_SLOPE ] = %f\n ", &m_Param [ PGROUND_SLOPE ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PFORCE_MIN ] = %f\n ", &m_Param [ PFORCE_MIN ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PFORCE_MAX ] = %f\n ", &m_Param [ PFORCE_MAX ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PFORCE_FREQ ] = %f\n ", &m_Param [ PFORCE_FREQ ] );
-    ret += std::fscanf ( SimParams_file, "m_Toggle [ PWRAP_X ] = %i\n ", &pwrapx );
-    ret += std::fscanf ( SimParams_file, "m_Toggle [ PWALL_BARRIER ] = %i\n ", &pwall_barrier );
-    ret += std::fscanf ( SimParams_file, "m_Toggle [ PLEVY_BARRIER ] = %i\n ", &plevy_barrier );
-    ret += std::fscanf ( SimParams_file, "m_Toggle [ PDRAIN_BARRIER ] = %i\n ", &pdrain_barrier );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PSTAT_NBRMAX ] = %f\n ", &m_Param [ PSTAT_NBRMAX ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PSTAT_SRCHMAX ] = %f\n ", &m_Param [ PSTAT_SRCHMAX ] );
-    ret += std::fscanf ( SimParams_file, "m_Vec [ PPOINT_GRAV_POS ].Set ( %f, %f, %f )\n ", &point_grav_pos.x, &point_grav_pos.y, &point_grav_pos.z );
-    ret += std::fscanf ( SimParams_file, "m_Vec [ PPLANE_GRAV_DIR ].Set ( %f, %f, %f )\n ", &pplane_grav_dir.x, &pplane_grav_dir.y, &pplane_grav_dir.z );
-    ret += std::fscanf ( SimParams_file, "m_Vec [ PEMIT_POS ].Set ( %f, %f, %f )\n ", &pemit_pos.x, &pemit_pos.y, &pemit_pos.z );
-    ret += std::fscanf ( SimParams_file, "m_Vec [ PEMIT_RATE ].Set ( %f, %f, %f )\n ", &pemit_rate.x, &pemit_rate.y, &pemit_rate.z );
-    ret += std::fscanf ( SimParams_file, "m_Vec [ PEMIT_ANG ].Set ( %f, %f, %f )\n ", &pemit_ang.x, &pemit_ang.y, &pemit_ang.z );
-    ret += std::fscanf ( SimParams_file, "m_Vec [ PEMIT_DANG ].Set ( %f, %f, %f )\n ", &pemit_dang.x, &pemit_dang.y, &pemit_dang.z );
-    ret += std::fscanf ( SimParams_file, "// Default sim config\n ");
-    ret += std::fscanf ( SimParams_file, "m_Toggle [ PRUN ] = %i\n ", &prun );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PGRIDSIZE ] = %f\n ", &m_Param [ PGRIDSIZE ] );
-    ret += std::fscanf ( SimParams_file, "m_Vec [ PVOLMIN ].Set ( %f, %f, %f )\n ", &pvolmin.x, &pvolmin.y, &pvolmin.z );
-    ret += std::fscanf ( SimParams_file, "m_Vec [ PVOLMAX ].Set ( %f, %f, %f )\n ", &pvolmax.x, &pvolmax.y, &pvolmax.z );
-    ret += std::fscanf ( SimParams_file, "m_Vec [ PINITMIN ].Set ( %f, %f, %f )\n ", &pinitmin.x, &pinitmin.y, &pinitmin.z );
-    ret += std::fscanf ( SimParams_file, "m_Vec [ PINITMAX ].Set ( %f, %f, %f )\n ", &pinitmax.x, &pinitmax.y, &pinitmax.z );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PFORCE_MIN ] = %f\n ", &m_Param [ PFORCE_MIN ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PFORCE_FREQ ] = %f\n ", &m_Param [ PFORCE_FREQ ] );
-    ret += std::fscanf ( SimParams_file, "m_Param [ PGROUND_SLOPE ] = %f\n ", &m_Param [ PGROUND_SLOPE ] );
-
-    if ( ret != 64 ) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadSimParams(..), read failure ! ret = " << ret << std::flush;
-        fclose ( SimParams_file );
-        return;
-    }
-
-    m_Vec [ PPOINT_GRAV_POS ].Set ( point_grav_pos.x, point_grav_pos.y, point_grav_pos.z );
-    m_Vec [ PPLANE_GRAV_DIR ].Set ( pplane_grav_dir.x, pplane_grav_dir.y, pplane_grav_dir.z );
-    m_Vec [ PEMIT_POS ].Set ( pemit_pos.x, pemit_pos.y, pemit_pos.z );
-    m_Vec [ PEMIT_RATE ].Set ( pemit_rate.x, pemit_rate.y, pemit_rate.z );
-    m_Vec [ PEMIT_ANG ].Set ( pemit_ang.x, pemit_ang.y, pemit_ang.z );
-    m_Vec [ PEMIT_DANG ].Set ( pemit_dang.x, pemit_dang.y, pemit_dang.z );
-    // Default sim config
-    m_Vec [ PVOLMIN ].Set ( pvolmin.x, pvolmin.y, pvolmin.z );
-    m_Vec [ PVOLMAX ].Set ( pvolmax.x, pvolmax.y, pvolmax.z );
-    m_Vec [ PINITMIN ].Set ( pinitmin.x, pinitmin.y, pinitmin.z );
-    m_Vec [ PINITMAX ].Set ( pinitmax.x, pinitmax.y, pinitmax.z );
-
-    m_Toggle [ PWRAP_X ] = ( bool ) pwrapx;
-    m_Toggle [ PWALL_BARRIER ] = ( bool ) pwall_barrier;
-    m_Toggle [ PLEVY_BARRIER ] = ( bool ) plevy_barrier;
-    m_Toggle [ PDRAIN_BARRIER ] = ( bool ) pdrain_barrier;
-    m_Toggle [ PRUN ] = ( bool ) prun;
-
-    if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadSimParams(..), read success !  ret = " << ret << "\n" << std::flush;
-    fclose ( SimParams_file );
-    return;
-}
-
-void FluidSystem::WriteSimParams ( const char * relativePath ){
-    Vector3DF point_grav_pos, pplane_grav_dir, pemit_pos, pemit_rate, pemit_ang, pemit_dang, pvolmin, pvolmax, pinitmin, pinitmax;
-
-    int pwrapx, pwall_barrier, plevy_barrier, pdrain_barrier, prun;
-
-    point_grav_pos = m_Vec [ PPOINT_GRAV_POS ];
-    pplane_grav_dir = m_Vec [ PPLANE_GRAV_DIR ];
-    pemit_pos = m_Vec [ PEMIT_POS ];
-    pemit_rate = m_Vec [ PEMIT_RATE ];
-    pemit_ang = m_Vec [ PEMIT_ANG ];
-    pemit_dang = m_Vec [ PEMIT_DANG ];
-    pvolmin = m_Vec [ PVOLMIN ];
-    pvolmax = m_Vec [ PVOLMAX ];
-    pinitmin = m_Vec [ PINITMIN ];
-    pinitmax = m_Vec [ PINITMAX ];
-
-    pwrapx = m_Toggle [ PWRAP_X ] ;
-    pwall_barrier =  m_Toggle [ PWALL_BARRIER ];
-    plevy_barrier = m_Toggle [ PLEVY_BARRIER ];
-    pdrain_barrier = m_Toggle [ PDRAIN_BARRIER ];
-    prun = m_Toggle [ PRUN ];
-
-    // open file to write SimParams to
-    char SimParams_file_path[256];
-    sprintf ( SimParams_file_path, "%s/SimParams.txt", relativePath );
-    if (m_FParams.debug>1)printf("\n## opening file %s ", SimParams_file_path);
-    FILE* SimParams_file = fopen ( SimParams_file_path, "w" );
-    if (SimParams_file == NULL) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::WriteSimParams (const char * relativePath )  Could not open file "<< SimParams_file_path <<"\n"<< std::flush;
-        assert(0);
-    }
-
-    int ret = std::fprintf(SimParams_file,
-                           " m_Time = %f\n m_DT = %f\n m_Param [ PSIMSCALE ] = %f\n m_Param [ PGRID_DENSITY ] = %f\n m_Param [ PVISC ] = %f\n m_Param [ PSURFACE_TENSION ] = %f\n m_Param [ PRESTDENSITY ] = %f\n m_Param [ PSPACING ] = %f\n m_Param [ PMASS ] = %f\n m_Param [ PRADIUS ] = %f\n m_Param [ PDIST ] = %f\n m_Param [ PSMOOTHRADIUS ] = %f\n m_Param [ PINTSTIFF ] = %f\n m_Param [ PEXTSTIFF ] = %f\n m_Param [ PEXTDAMP ] = %f\n m_Param [ PACCEL_LIMIT ] = %f\n m_Param [ PVEL_LIMIT ] = %f\n m_Param [ PMAX_FRAC ] = %f\n m_Param [ PGRAV ] = %f\n m_Param [ PGROUND_SLOPE ] = %f\n m_Param [ PFORCE_MIN ] = %f\n m_Param [ PFORCE_MAX ] = %f\n m_Param [ PFORCE_FREQ ] = %f\n m_Toggle [ PWRAP_X ] = %i\n m_Toggle [ PWALL_BARRIER ] = %i\n m_Toggle [ PLEVY_BARRIER ] = %i\n m_Toggle [ PDRAIN_BARRIER ] = %i\n m_Param [ PSTAT_NBRMAX ] = %f\n m_Param [ PSTAT_SRCHMAX ] = %f\n m_Vec [ PPOINT_GRAV_POS ].Set ( %f, %f, %f )\n m_Vec [ PPLANE_GRAV_DIR ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_POS ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_RATE ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_ANG ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_DANG ].Set ( %f, %f, %f )\n // Default sim config\n m_Toggle [ PRUN ] = %i\n m_Param [ PGRIDSIZE ] = %f\n m_Vec [ PVOLMIN ].Set ( %f, %f, %f )\n m_Vec [ PVOLMAX ].Set ( %f, %f, %f )\n m_Vec [ PINITMIN ].Set ( %f, %f, %f )\n m_Vec [ PINITMAX ].Set ( %f, %f, %f )\n m_Param [ PFORCE_MIN ] = %f\n m_Param [ PFORCE_FREQ ] = %f\n m_Param [ PGROUND_SLOPE ] = %f\n ",
-                           m_Time,
-                           m_DT,
-                           m_Param [ PSIMSCALE ],
-                           m_Param [ PGRID_DENSITY ],
-                           m_Param [ PVISC ],
-                           m_Param [ PSURFACE_TENSION ],
-                           m_Param [ PRESTDENSITY ],
-                           m_Param [ PSPACING ],
-                           m_Param [ PMASS ],
-                           m_Param [ PRADIUS ],
-                           m_Param [ PDIST ],
-                           m_Param [ PSMOOTHRADIUS ],
-                           m_Param [ PINTSTIFF ],
-                           m_Param [ PEXTSTIFF ],
-                           m_Param [ PEXTDAMP ],
-                           m_Param [ PACCEL_LIMIT ],
-                           m_Param [ PVEL_LIMIT ],
-                           m_Param [ PMAX_FRAC ],
-                           m_Param [ PGRAV ],
-                           m_Param [ PGROUND_SLOPE ],
-                           m_Param [ PFORCE_MIN ],
-                           m_Param [ PFORCE_MAX ],
-                           m_Param [ PFORCE_FREQ ],
-                           pwrapx, pwall_barrier, plevy_barrier, pdrain_barrier,
-                           m_Param [ PSTAT_NBRMAX ],
-                           m_Param [ PSTAT_SRCHMAX ],
-                           point_grav_pos.x, point_grav_pos.y, point_grav_pos.z,
-                           pplane_grav_dir.x, pplane_grav_dir.y, pplane_grav_dir.z,
-                           pemit_pos.x, pemit_pos.y, pemit_pos.z,
-                           pemit_rate.x, pemit_rate.y, pemit_rate.z,
-                           pemit_ang.x, pemit_ang.y, pemit_ang.z,
-                           pemit_dang.x, pemit_dang.y, pemit_dang.z,
-                           // Default sim config
-                           prun,
-                           m_Param [ PGRIDSIZE ],
-                           pvolmin.x, pvolmin.y, pvolmin.z,
-                           pvolmax.x, pvolmax.y, pvolmax.z,
-                           pinitmin.x, pinitmin.y, pinitmin.z,
-                           pinitmax.x, pinitmax.y, pinitmax.z,
-                           m_Param [ PFORCE_MIN ],
-                           m_Param [ PFORCE_FREQ ],
-                           m_Param [ PGROUND_SLOPE ]
-                          );
-
-    if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::WriteSimParams (const char * relativePath ) wrote file "<< SimParams_file_path <<"\t"<<
-              "ret = " << ret << "\n" << std::flush;
-    fclose(SimParams_file);
-    return;
-}
-
-void FluidSystem::WriteDemoSimParams ( const char * relativePath, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim, uint demoType, uint simSpace){
-    memset ( &m_Fluid, 0,		sizeof(FBufs) );
-    memset ( &m_FluidTemp, 0,	sizeof(FBufs) );
-    memset ( &m_FParams, 0,		sizeof(FParams) );
-    memset ( &m_FGenome, 0,		sizeof(FGenome) );
-    
-    m_Param[PEXAMPLE] = simSpace;          // simSpace==2 : wave pool example.
-    m_Param[PGRID_DENSITY] = 2.0;
-    m_Param[PNUM] = num_particles;  // 1000000;    //1000 = minimal simulation, 1000000 = large simulation
-    AllocateBuffer ( FPARAMS, sizeof(FParams), 1,0, GPU_OFF, CPU_YES ); 
-    m_Time = 0;
-    mNumPoints = 0;			        // reset count
-    SetupDefaultParams();           // set up the standard demo
-    SetupExampleParams(spacing);
-    SetupExampleGenome();
-    mMaxPoints = m_Param[PNUM];    
-    m_Param[PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
-    SetupKernels();
-    SetupSpacing();
-    SetupGrid ( m_Vec[PVOLMIN], m_Vec[PVOLMAX], m_Param[PSIMSCALE], m_Param[PGRIDSIZE], 1.0f );  if (m_FParams.debug>1) std::cout << " chk1.0 " << std::flush ;
-    AllocateParticles ( mMaxPoints, GPU_OFF, CPU_YES );                                          if (m_FParams.debug>1) std::cout << " chk1.1 " << std::flush ;
-    AllocateGrid(GPU_OFF, CPU_YES);                                                              if (m_FParams.debug>1) std::cout << " chk1.2 " << std::flush ;
-    
-    m_Vec[PBOUNDMIN].x= m_Vec[PVOLMIN].x + 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
-    m_Vec[PBOUNDMIN].y= m_Vec[PVOLMIN].y + 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
-    m_Vec[PBOUNDMIN].z= m_Vec[PVOLMIN].z + 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
-    m_Vec[PINITMIN].x = max(m_Vec[PINITMIN].x , m_Vec[PBOUNDMIN].x+1 );
-    m_Vec[PINITMIN].y = max(m_Vec[PINITMIN].y , m_Vec[PBOUNDMIN].y+1 );
-    m_Vec[PINITMIN].z = max(m_Vec[PINITMIN].z , m_Vec[PBOUNDMIN].z+1 );
-    
-    Vector3DF pinit_max = {x_dim,y_dim,z_dim};
-    pinit_max += m_Vec[PINITMIN];
-    
-    m_Vec[PBOUNDMAX].x= m_Vec[PVOLMAX].x - 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
-    m_Vec[PBOUNDMAX].y= m_Vec[PVOLMAX].y - 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
-    m_Vec[PBOUNDMAX].z= m_Vec[PVOLMAX].z - 2*(m_Param[PGRIDSIZE]/m_Param[PSIMSCALE]);
-    pinit_max.x = min(pinit_max.x , m_Vec[PBOUNDMAX].x-1 );
-    pinit_max.y = min(pinit_max.y , m_Vec[PBOUNDMAX].y-1 );
-    pinit_max.z = min(pinit_max.z , m_Vec[PBOUNDMAX].z-1 );
-    if (m_FParams.debug>1) {
-    cout<<"\n\nPGRIDSIZE=("<<m_Vec[PGRIDSIZE].x<<","<<m_Vec[PGRIDSIZE].y<<","<<m_Vec[PGRIDSIZE].z
-        <<"),  PSIMSCALE=("<<m_Vec[PSIMSCALE].x<<","<<m_Vec[PSIMSCALE].y<<","<<m_Vec[PSIMSCALE].z
-        <<"),  m_Param[PGRIDSIZE]="<<m_Param[PGRIDSIZE]<<",  m_Param[PSIMSCALE]="<<m_Param[PSIMSCALE]
-        <<"\n"<<std::flush;
-    
-    cout<<"\n\nPBOUNDMIN=("<<m_Vec[PBOUNDMIN].x <<","<<m_Vec[PBOUNDMIN].y <<","<<m_Vec[PBOUNDMIN].z 
-        <<"), PBOUNDMAX=("<<m_Vec[PBOUNDMAX].x <<","<<m_Vec[PBOUNDMAX].y <<","<< m_Vec[PBOUNDMAX].z
-        <<"),  PVOLMIN=("<<m_Vec[PVOLMIN].x <<","<<m_Vec[PVOLMIN].y <<","<<m_Vec[PVOLMIN].z 
-        <<"),   PVOLMAX=("<<m_Vec[PVOLMAX].x <<","<<m_Vec[PVOLMAX].y <<","<<m_Vec[PVOLMAX].z 
-        <<")\n"<<std::flush;
-    
-    cout<<"\n\n### WriteDemoSimParams: SetupAddVolumeMorphogenesis2"
-        <<"(  min=("<<m_Vec[PINITMIN].x<<","<<m_Vec[PINITMIN].y<<","<<m_Vec[PINITMIN].z
-        <<"), max=("<<pinit_max.x<<","<<pinit_max.y<<","<<pinit_max.z
-        <<"), spacing="<<spacing<<", 0.1f, demoType="<<demoType
-        <<")\n"<<std::flush;
-    }
-    SetupAddVolumeMorphogenesis2(m_Vec[PINITMIN], pinit_max, spacing, 0.1f, demoType); if (m_FParams.debug>1) std::cout << " chk1.3 " << std::flush ;
-    WriteSimParams ( relativePath );    if (m_FParams.debug>1) std::cout << "\n WriteSimParams ( relativePath );  completed \n" << std::flush ;  // write data to file
-    WriteGenome ( relativePath);        if (m_FParams.debug>1) std::cout << "\n WriteGenome ( relativePath );  completed \n" << std::flush ;
-    SavePointsCSV2 ( relativePath, 1 ); if (m_FParams.debug>1) std::cout << "\n SavePointsCSV ( relativePath, 1 );  completed \n" << std::flush ;
-}
-
 /////////////////////////////////////////////////////////////
-void FluidSystem::SetupKernels (){
+void FluidSystem::SetupSPH_Kernels (){
     m_Param [ PDIST ] = pow ( (float) m_Param[PMASS] / m_Param[PRESTDENSITY], 1.0f/3.0f );
     m_R2 = m_Param [PSMOOTHRADIUS] * m_Param[PSMOOTHRADIUS];
     m_Poly6Kern = 315.0f / (64.0f * 3.141592f * pow( m_Param[PSMOOTHRADIUS], 9.0f) );	// Wpoly6 kernel (denominator part) - 2003 Muller, p.4
@@ -2088,35 +1068,16 @@ void FluidSystem::SetupDefaultParams (){
     m_Param [ PEXTDAMP ] =		100.0f;
     m_Param [ PACCEL_LIMIT ] =	150.0f;			// m / s^2
     m_Param [ PVEL_LIMIT ] =	3.0f;			// m / s
-    m_Param [ PMAX_FRAC ] =		1.0f;
     m_Param [ PGRAV ] =			1.0f;
 
     m_Param [ PGROUND_SLOPE ] = 0.0f;
     m_Param [ PFORCE_MIN ] =	0.0f;
     m_Param [ PFORCE_MAX ] =	0.0f;
     m_Param [ PFORCE_FREQ ] =	16.0f;
-    m_Toggle [ PWRAP_X ] = false;
-    m_Toggle [ PWALL_BARRIER ] = false;
-    m_Toggle [ PLEVY_BARRIER ] = false;
-    m_Toggle [ PDRAIN_BARRIER ] = false;
-
-    m_Param [ PSTAT_NBRMAX ] = 0 ;
-    m_Param [ PSTAT_SRCHMAX ] = 0 ;
-
-    m_Vec [ PPOINT_GRAV_POS ].Set ( 0, 0, 0 );
     m_Vec [ PPLANE_GRAV_DIR ].Set ( 0, -9.8f, 0 );
-    m_Vec [ PEMIT_POS ].Set ( 0, 0, 0 );
-    m_Vec [ PEMIT_RATE ].Set ( 0, 0, 0 );
-    m_Vec [ PEMIT_ANG ].Set ( 0, 90, 1.0f );
-    m_Vec [ PEMIT_DANG ].Set ( 0, 0, 0 );
 
     // Default sim config
-    m_Toggle [ PRUN ] = true;				// Run integrator
     m_Param [PGRIDSIZE] = m_Param[PSMOOTHRADIUS] * 2;
-    m_Param [PDRAWMODE] = 1;				// Sprite drawing
-    m_Param [PDRAWGRID] = 0;				// No grid
-    m_Param [PDRAWTEXT] = 0;				// No text
-
 }
 
 void FluidSystem::SetupExampleParams (uint spacing){
@@ -2138,10 +1099,10 @@ void FluidSystem::SetupExampleParams (uint spacing){
         m_Vec [ PPLANE_GRAV_DIR ].Set ( 0.0, 0.0, 0.0 );
         //m_Param [ PSPACING ] = spacing;//0.5;				// Fixed spacing		Dx = x-axis density
         m_Param [ PSMOOTHRADIUS ] =	m_Param [PSPACING];		// Search radius
-        m_Toggle [ PRUN ] = false;				// Do NOT run sim. Neighbors only.
-        m_Param [PDRAWMODE] = 1;				// Point drawing
-        m_Param [PDRAWGRID] = 1;				// Grid drawing
-        m_Param [PDRAWTEXT] = 1;				// Text drawing
+        //m_Toggle [ PRUN ] = false;				// Do NOT run sim. Neighbors only.
+        //m_Param [PDRAWMODE] = 1;				// Point drawing
+        //m_Param [PDRAWGRID] = 1;				// Grid drawing
+        //m_Param [PDRAWTEXT] = 1;				// Text drawing
         m_Param [PSIMSCALE ] = 1.0f;
 
     }
@@ -2187,8 +1148,21 @@ void FluidSystem::SetupExampleParams (uint spacing){
         m_Vec [ PPLANE_GRAV_DIR ].Set ( 0, -1, 0 );
         m_Param [ PGROUND_SLOPE ] = 0.1f;
         break;
+    case 6:     // Morphogenesis small demo
+        m_Param [ PSIMSCALE ] = 1.0f;
+        m_Param [ PRADIUS ] = 1.0f;
+        m_Param [ PSMOOTHRADIUS ] = 1.0f;
+        
+        m_Vec [ PVOLMIN ].Set ( 0, 0, 0 );
+        m_Vec [ PVOLMAX ].Set ( 80, 50, 80 );
+        m_Vec [ PINITMIN ].Set ( m_Vec [ PVOLMIN ].x,  m_Vec [ PVOLMIN ].y, m_Vec [ PVOLMIN ].z );// will be reset to m_Vec[PBOUNDMIN].
+        m_Vec [ PINITMAX ].Set ( 60, 80, 60 );
+        
+        m_Param [ PGRAV ] = 2.000000f;
+        m_Vec [ PPLANE_GRAV_DIR ].Set ( 0, -1, 0 );
+        m_Param [ PGROUND_SLOPE ] = 0.1f;
+        break;
     }
-
 }
 
 void FluidSystem::SetupExampleGenome()  {   // need to set up a demo genome
@@ -2286,866 +1260,88 @@ void FluidSystem::SetupSpacing (){
     m_Vec[PBOUNDMAX] -= 2.0*(m_Param[PGRIDSIZE] / m_Param[PSIMSCALE]);
 }
 
-int iDivUp (int a, int b) {
-    return (a % b != 0) ? (a / b + 1) : (a / b);
-}
-
-void computeNumBlocks (int numPnts, int minThreads, int &numBlocks, int &numThreads){
-    numThreads = min( minThreads, numPnts );
-    numBlocks = (numThreads==0) ? 1 : iDivUp ( numPnts, numThreads );
-}
-
-void FluidSystem::TransferToTempCUDA ( int buf_id, int sz ){
-    cuCheck ( cuMemcpyDtoD ( m_FluidTemp.gpu(buf_id), m_Fluid.gpu(buf_id), sz ), "TransferToTempCUDA", "cuMemcpyDtoD", "m_FluidTemp", mbDebug);
-}
-
-void FluidSystem::FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, float3 delta, float3 gmin, float3 gmax, int total, int chk ){
-    m_FParams.pnum = num;
-    m_FParams.maxPoints = num;
-    m_FParams.freeze = false;
-    m_FParams.gridRes = res;
-    m_FParams.gridSize = size;
-    m_FParams.gridDelta = delta;
-    m_FParams.gridMin = gmin;
-    m_FParams.gridMax = gmax;
-    m_FParams.gridTotal = total;
-    m_FParams.gridSrch = gsrch;
-    m_FParams.gridAdjCnt = gsrch*gsrch*gsrch;
-    m_FParams.gridScanMax = res;
-    m_FParams.gridScanMax -= make_int3( m_FParams.gridSrch, m_FParams.gridSrch, m_FParams.gridSrch );
-    m_FParams.chk = chk;
-
-    // Build Adjacency Lookup
-    int cell = 0;
-    for (int y=0; y < gsrch; y++ )
-        for (int z=0; z < gsrch; z++ )
-            for (int x=0; x < gsrch; x++ )
-                m_FParams.gridAdj [ cell++]  = ( y * m_FParams.gridRes.z+ z )*m_FParams.gridRes.x +  x ;
-
-    // Compute number of blocks and threads
-    m_FParams.threadsPerBlock = 512;                    //TODO probe hardware to set m_FParams.threadsPerBlock
-
-    computeNumBlocks ( m_FParams.pnum, m_FParams.threadsPerBlock, m_FParams.numBlocks, m_FParams.numThreads);				// particles
-    computeNumBlocks ( m_FParams.gridTotal, m_FParams.threadsPerBlock, m_FParams.gridBlocks, m_FParams.gridThreads);		// grid cell
-
-    // Compute particle buffer & grid dimensions
-    m_FParams.szPnts = (m_FParams.numBlocks  * m_FParams.numThreads);
-}
-
-void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float surface_tension, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, int emit ){
-    m_FParams.psimscale = ss;
-    m_FParams.psmoothradius = sr;
-    m_FParams.pradius = pr;
-    m_FParams.r2 = sr * sr;
-    m_FParams.pmass = mass;
-    m_FParams.prest_dens = rest;
-    m_FParams.pboundmin = bmin;
-    m_FParams.pboundmax = bmax;
-    m_FParams.pextstiff = estiff;
-    m_FParams.pintstiff = istiff;
-    m_FParams.pvisc = visc;
-    m_FParams.sterm = surface_tension;
-    m_FParams.pdamp = damp;
-    m_FParams.pforce_min = fmin;
-    m_FParams.pforce_max = fmax;
-    m_FParams.pforce_freq = ffreq;
-    m_FParams.pground_slope = gslope;
-    m_FParams.pgravity = make_float3( gx, gy, gz );
-    m_FParams.AL = al;
-    m_FParams.AL2 = al * al;
-    m_FParams.VL = vl;
-    m_FParams.VL2 = vl * vl;
-    m_FParams.pemit = emit;
-                                                                            
-    m_FParams.pdist = pow ( m_FParams.pmass / m_FParams.prest_dens, 1/3.0f );
-                                                                                // Normalization constants.
-    m_FParams.poly6kern = 315.0f / (64.0f * 3.141592f * pow( sr, 9.0f) );
-    m_FParams.wendlandC2kern = 21 / (16 * 3.141592f );   
-    /* My notes from Sympy my notebook. 
-    Where Wendland C2 kernel:
+void FluidSystem::SetupSimulation(int gpu_mode, int cpu_mode){ // const char * relativePath, int gpu_mode, int cpu_mode
+     // Allocate buffers for points
+    //std::cout<<"\nSetupSimulation chk1, m_FParams.debug="<<m_FParams.debug<<std::flush;
+    m_Param [PNUM] = launchParams.num_particles;                             // NB there is a line of text above the particles, hence -1.
+    mMaxPoints = m_Param [PNUM];
+    m_Param [PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
+    //std::cout<<"\nSetupSimulation chk2, m_FParams.debug="<<m_FParams.debug<<std::flush;
     
-        wc2 = (1-r*ss/2*sr)**4  * ((2*q) +1)
+    SetupSPH_Kernels ();
+    SetupSpacing ();
+    SetupGrid ( m_Vec[PVOLMIN]/*bottom corner*/, m_Vec[PVOLMAX]/*top corner*/, m_Param[PSIMSCALE], m_Param[PGRIDSIZE]);
+    //std::cout<<"\nSetupSimulation chk3, m_FParams.debug="<<m_FParams.debug<<std::flush;
     
-    Normalisation constant = 1/integrate( (wc2*(4*pi*r**2)), (r,0, 2*sr/ss)),  NB *(4*pi*r**2) area of a sphere, & 2=basis of wc2.
-    
-        =  1/ (288pi - 15552.0πss^2/sr^2 + 77760.0πss^3/sr^3 - 149965.714285714πss^4/sr^4 + 104976.0πss^5/sr^5  )
-    
-    */
-    /* Notes from DualSPHysics Wiki
-    // Normalization const = reciprocal of radial integral of (kernel * area of sphere), found using Sympy.      
-    // NB using W(r,h)=alpha_D (1-q/2)**4 *(2*q +1), 0<=q<=2, as per DualSPHysics Wiki. Where alpha_D is the normaliation constant.
-    // * m_FParams.pmass * m_FParams.psimscale
-    */
-    m_FParams.spikykern = -45.0f / (3.141592f * pow( sr, 6.0f) );            // spikykern used for force due to pressure.
-    m_FParams.lapkern = 45.0f / (3.141592f * pow( sr, 6.0f) );               
-    // NB Viscosity uses a different kernel, this is the constant portion of its Laplacian.
-    // NB Laplacian is a scalar 2nd order differential, "The divergence of the gradient" 
-    // This Laplacian comes from Muller et al 2003, NB The kernel is defined by the properties of  its Laplacian, gradient and value at the basis (outer limit) of the kernel. The Laplacian is the form used in the code. The equation of the kernel in Muller et al seems to be wrong, but this does not matter.
-    
-/*
-    // -32*(1 - r)**3 + 12*(1 - r)**2*(4*r + 1)  // the Laplacian of  WC2 = (1-r)**4 *(1+4*r)
-//(15*r**2*(h/r**3 + 2/h**2 - 3*r/h**3)/(2*pi*h**3) + 15*r*(-h/(2*r**2) + 2*r/h**2 - 3*r**2/(2*h**3))/(pi*h**3))/r**2
-//(45/pi*h^6)((h^2/12r^3)+(2h/3)-(3r/4))
-    
-//(r**2*(h/r**3 + 2/h**2 - 3*r/h**3) + 2*r*(-h/(2*r**2) + 2*r/h**2 - 3*r**2/(2*h**3) ) )/r**2
-*/
-    
-    m_FParams.gausskern = 1.0f / pow(3.141592f * 2.0f*sr*sr, 3.0f/2.0f);     // Gaussian not currently used.
-
-    m_FParams.H = m_FParams.psmoothradius / m_FParams.psimscale;
-    m_FParams.d2 = m_FParams.psimscale * m_FParams.psimscale;
-    m_FParams.rd2 = m_FParams.r2 / m_FParams.d2;
-    m_FParams.vterm = m_FParams.lapkern * m_FParams.pvisc;
-
-    // Transfer sim params to device
-    cuCheck ( cuMemcpyHtoD ( cuFParams,	&m_FParams,		sizeof(FParams) ), "FluidParamCUDA", "cuMemcpyHtoD", "cuFParams", mbDebug);
-}
-
-void FluidSystem::TransferToCUDA (){
-if (m_FParams.debug>1) std::cout<<"\nTransferToCUDA ()\n"<<std::flush;
-    // Send particle buffers
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FPOS),          m_Fluid.bufC(FPOS),         mMaxPoints *sizeof(float) * 3),                     "TransferToCUDA", "cuMemcpyHtoD", "FPOS",           mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FVEL),          m_Fluid.bufC(FVEL),         mMaxPoints *sizeof(float)*3 ),                      "TransferToCUDA", "cuMemcpyHtoD", "FVEL",           mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FVEVAL),        m_Fluid.bufC(FVEVAL),       mMaxPoints *sizeof(float)*3 ),                      "TransferToCUDA", "cuMemcpyHtoD", "FVELAL",         mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FFORCE),        m_Fluid.bufC(FFORCE),       mMaxPoints *sizeof(float)*3 ),                      "TransferToCUDA", "cuMemcpyHtoD", "FFORCE",         mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FPRESS),        m_Fluid.bufC(FPRESS),       mMaxPoints *sizeof(float) ),                        "TransferToCUDA", "cuMemcpyHtoD", "FPRESS",         mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FDENSITY),      m_Fluid.bufC(FDENSITY),     mMaxPoints *sizeof(float) ),                        "TransferToCUDA", "cuMemcpyHtoD", "FDENSITY",       mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FCLR),          m_Fluid.bufC(FCLR),         mMaxPoints *sizeof(uint) ),                         "TransferToCUDA", "cuMemcpyHtoD", "FCLR",           mbDebug);
-    // add extra data for morphogenesis
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FELASTIDX),     m_Fluid.bufC(FELASTIDX),    mMaxPoints *sizeof(uint[BOND_DATA]) ),              "TransferToCUDA", "cuMemcpyHtoD", "FELASTIDX",      mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FPARTICLEIDX),  m_Fluid.bufC(FPARTICLEIDX), mMaxPoints *sizeof(uint[BONDS_PER_PARTICLE *2]) ),  "TransferToCUDA", "cuMemcpyHtoD", "FPARTICLEIDX",   mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FPARTICLE_ID),  m_Fluid.bufC(FPARTICLE_ID), mMaxPoints *sizeof(uint) ),                         "TransferToCUDA", "cuMemcpyHtoD", "FPARTICLE_ID",   mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FMASS_RADIUS),  m_Fluid.bufC(FMASS_RADIUS), mMaxPoints *sizeof(uint) ),                         "TransferToCUDA", "cuMemcpyHtoD", "FMASS_RADIUS",   mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FNERVEIDX),     m_Fluid.bufC(FNERVEIDX),    mMaxPoints *sizeof(uint) ),                         "TransferToCUDA", "cuMemcpyHtoD", "FNERVEIDX",      mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FCONC),         m_Fluid.bufC(FCONC),        mMaxPoints *sizeof(float[NUM_TF]) ),                "TransferToCUDA", "cuMemcpyHtoD", "FCONC",          mbDebug);
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FEPIGEN),       m_Fluid.bufC(FEPIGEN),      mMaxPoints *sizeof(uint[NUM_GENES]) ),              "TransferToCUDA", "cuMemcpyHtoD", "FEPIGEN",        mbDebug);
-if (m_FParams.debug>1) std::cout<<"TransferToCUDA ()  finished\n"<<std::flush;
-
-}
-  
-void FluidSystem::TransferFromCUDA (){
-//std::cout<<"\nTransferFromCUDA () \n"<<std::flush;    
-    // Return particle buffers
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPOS),         m_Fluid.gpu(FPOS),          mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FPOS",         mbDebug);
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FVEL),         m_Fluid.gpu(FVEL),          mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FVEL",         mbDebug);
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FAGE),         m_Fluid.gpu(FAGE),          mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FAGE",         mbDebug);
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FCLR),         m_Fluid.gpu(FCLR),          mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FCLR",         mbDebug);
-    // add extra data for morphogenesis
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FELASTIDX),	m_Fluid.gpu(FELASTIDX),	    mMaxPoints *sizeof(uint[BOND_DATA]) ),                 "TransferFromCUDA", "cuMemcpyDtoH", "FELASTIDX",    mbDebug); 
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FPARTICLEIDX),	m_Fluid.gpu(FPARTICLEIDX),	mMaxPoints *sizeof(uint[BONDS_PER_PARTICLE *2]) ),     "TransferFromCUDA", "cuMemcpyDtoH", "FPARTICLEIDX", mbDebug);
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FPARTICLE_ID),	m_Fluid.gpu(FPARTICLE_ID),	mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FPARTICLE_ID", mbDebug);
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FMASS_RADIUS),	m_Fluid.gpu(FMASS_RADIUS),	mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FMASS_RADIUS", mbDebug);
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FNERVEIDX),	m_Fluid.gpu(FNERVEIDX),	    mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FNERVEIDX",    mbDebug);
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufF(FCONC),	    m_Fluid.gpu(FCONC),	        mMaxPoints *sizeof(float[NUM_TF]) ),                   "TransferFromCUDA", "cuMemcpyDtoH", "FCONC",        mbDebug);
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN),	    m_Fluid.gpu(FEPIGEN),	    mMaxPoints *sizeof(uint[NUM_GENES]) ),                 "TransferFromCUDA", "cuMemcpyDtoH", "FEPIGEN",      mbDebug);
-}   // NB found FEPIGEN needed bufI and mMaxPoints, otherwise produced garbled files.
-
-void FluidSystem::Init_FCURAND_STATE_CUDA (){ // designed to use to bootstrap itself. Set j=0 from host, call kernel repeatedly for 256^n threads, n=0-> to pnum threads.
-    unsigned long long  seed=0; // sequence=0, offset=1,
-    srand (time(NULL));
-    for (int i=0;i<mNumPoints;i++){ // generate seeds
-        seed = rand();
-        //seed = seed << 32;
-        //seed += rand();
-        //seed = clock(); 
-        m_Fluid.bufI(FCURAND_SEED)[i] = seed;
-        //curand_init(seed, sequence, offset, &m_Fluid.bufCuRNDST(FCURAND_STATE)[i]);
-        //if (m_FParams.debug>1)printf("\n(2:seed=%llu,(FCURAND_SEED)[i]=%llu, rand()=%u), ",seed, m_Fluid.bufULL(FCURAND_SEED)[i], rand() );
-        //if (m_FParams.debug>1) cout<<"\t(seed="<<seed<<",(FCURAND_SEED)[i]="<<m_Fluid.bufI(FCURAND_SEED)[i]<<"), "<<std::flush;
-       
+    if (gpu_mode != GPU_OFF) {     // create CUDA instance etc.. 
+        FluidSetupCUDA ( mMaxPoints, m_GridSrch, *(int3*)& m_GridRes, *(float3*)& m_GridSize, *(float3*)& m_GridDelta, *(float3*)& m_GridMin, *(float3*)& m_GridMax, m_GridTotal, 0 );
+        UpdateParams();            //  sends simulation params to device.
+        UpdateGenome();            //  sends genome to device.              // NB need to initialize genome from file, or something.
     }
-    // transfer to cuda
-    //cuCheck( cuMemcpyDtoH ( gcell,	m_Fluid.gpu(FGCELL),	mNumPoints *sizeof(uint) ), "InsertParticlesCUDA", "cuMemcpyDtoH", "FGCELL", mbDebug );
-    //cuCheck( cuMemcpyDtoH ( m_Fluid.bufCuRNDST(FCURAND_STATE),	m_Fluid.gpu(FCURAND_STATE),	mNumPoints *sizeof(curandState_t) ), 
-    //         "Init_FCURAND_STATE_CUDA", "cuMemcpyDtoH", "FCURAND_STATE", mbDebug );
+    std::cout<<"\nSetupSimulation chk4, mMaxPoints="<<mMaxPoints<<", gpu_mode="<<gpu_mode<<", cpu_mode="<<cpu_mode<<", m_FParams.debug="<<m_FParams.debug<<std::flush;
     
-    cuCheck( cuMemcpyHtoD (m_Fluid.gpu(FCURAND_SEED), m_Fluid.bufC(FCURAND_SEED), mNumPoints *sizeof(uint) ), 
-             "Init_FCURAND_STATE_CUDA", "cuMemcpyDtoH", "FCURAND_SEED", mbDebug );
+    AllocateParticles ( mMaxPoints, gpu_mode, cpu_mode );  // allocates only cpu buffer for particles
+    std::cout<<"\nSetupSimulation chk5 "<<std::flush;
     
-    if (m_FParams.debug>1) std::cout <<"\nInit_FCURAND_STATE_CUDA_2.0\n\n"<<std::flush;
-    /*
-    int n=0;
-    void* args[1] = {&n};
-    int numBlocks_=1, numThreads_=1;
-    if (m_FParams.debug>1) std::cout <<"\nInit_FCURAND_STATE_CUDA_1.0\t n="<<n<<",  pow(256,n)="<<pow(256,n)<<",  mNumPoints/256="<<mNumPoints/256<<",\t mNumPoints="<<mNumPoints<<", mMaxPoints="<<mMaxPoints<<"  \n"<<std::flush;
+    AllocateGrid(gpu_mode, cpu_mode);
+    std::cout<<"\nSetupSimulation chk6 "<<std::flush;
     
-    do {
-        computeNumBlocks ( pow(256,n), m_FParams.threadsPerBlock, numBlocks_, numThreads_);
+}
+
+void FluidSystem::RunSimulation (){
+    //std::cout<<"\nRunSimulation chk1 "<<std::flush;
+    Init_FCURAND_STATE_CUDA ();
+    //std::cout<<"\nRunSimulation chk2 "<<std::flush;
+    auto old_begin = std::chrono::steady_clock::now();
+    //std::cout<<"\nRunSimulation chk3 "<<std::flush;
+    TransferPosVelVeval ();
+    //std::cout<<"\nRunSimulation chk4 "<<std::flush;
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval, before 1st timestep", 1/*mbDebug*/);
+    //std::cout<<"\nRunSimulation chk5 "<<std::flush;
+    
+    setFreeze(true);
+    std::cout<<"\nRunSimulation chk6,  launchParams.freeze_steps="<<launchParams.freeze_steps
+    <<",  launchParams.file_num="<<launchParams.file_num
+    <<",  launchParams.num_files="<<launchParams.num_files
+    <<",  launchParams.freeze_steps="<<launchParams.freeze_steps
+    <<",  launchParams.save_vtp="<<launchParams.save_vtp
+    <<" ."<<std::flush;
+    for (int k=0; k<launchParams.freeze_steps; k++){
+      std::cout<<"\n\nFreeze()"<<k<<"\n"<<std::flush;
+      Run (launchParams.outPath, launchParams.file_num, (launchParams.debug>4), (launchParams.gene_activity=='y'), (launchParams.remodelling=='y') );
+      TransferPosVelVeval ();
+      if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+      if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
+      if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
+      launchParams.file_num+=100;
+    }
+    setFreeze(false);
+    printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
+    
+    for ( ; launchParams.file_num<launchParams.num_files; launchParams.file_num+=100 ) {
+        for ( int j=0; j<launchParams.steps_per_file; j++ ) {//, bool gene_activity, bool remodelling 
+            Run (launchParams.outPath, launchParams.file_num, (launchParams.debug>4), (launchParams.gene_activity=='y'), (launchParams.remodelling=='y') );  // run the simulation  // Run(outPath, file_num) saves file after each kernel,, Run() does not.
+        }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
+
+        //fluid.SavePoints (i);                         // alternate file formats to write
+        // TODO flip mutex
+        auto begin = std::chrono::steady_clock::now();
+        if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+        if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
+        if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
+        cout << "\n File# " << launchParams.file_num << ". " << std::flush;
         
-        if (m_FParams.debug>1) std::cout <<"\nInit_FCURAND_STATE_CUDA_2.0\t n="<<n<<",  pow(256,n)="<<pow(256,n)<<",  mNumPoints/256="<<mNumPoints/256<<
-        "\t numBlocks_="<<numBlocks_<<", numThreads_="<<numThreads_<<"  \n"<<std::flush;
-        
-        cuCheck(cuCtxSynchronize(), "Init_FCURAND_STATE_CUDA", "cuCtxSynchronize", "Before m_Func[FUNC_INIT_FCURAND_STATE], in do-while loop", 1);
-        
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_INIT_FCURAND_STATE],  numBlocks_, 1, 1, numThreads_, 1, 1, 0, NULL, args, NULL), "Init_FCURAND_STATE_CUDA", "cuLaunch", "FUNC_INIT_FCURAND_STATE", mbDebug);
-        
-        n++;
-    } while (pow(256,n) < mNumPoints/256) ;
-    
-    if (m_FParams.debug>1) std::cout <<"\nInit_FCURAND_STATE_CUDA_3.0\t n="<<n<<",  pow(256,n)="<<pow(256,n)<<",  mNumPoints/256="<<mNumPoints/256<<
-    "\t m_FParams.numBlocks="<<m_FParams.numBlocks<<",  m_FParams.numThreads="<<m_FParams.numThreads<<".  \n"<<std::flush;
-        
-    */
-    void* args[1] = {&mNumPoints};
-    
-    cuCheck(cuCtxSynchronize(), "Init_FCURAND_STATE_CUDA", "cuCtxSynchronize", "Before m_Func[FUNC_INIT_FCURAND_STATE], after do-while loop", 1);
-    
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_INIT_FCURAND_STATE],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "Init_FCURAND_STATE_CUDA", "cuLaunch", "FUNC_INIT_FCURAND_STATE", mbDebug);
-
-    cuCheck(cuCtxSynchronize(), "Init_FCURAND_STATE_CUDA", "cuCtxSynchronize", "After cuMemcpyDtoH FCURAND_STATE, before 1st timestep", 1);
-    if (m_FParams.debug>1) std::cout <<"\nInit_FCURAND_STATE_CUDA_4.0\n"<<std::flush;
-    
-}
-
-
-void FluidSystem::InsertParticlesCUDA ( uint* gcell, uint* gndx, uint* gcnt ){   // first zero the counters
-    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT), 0,	m_GridTotal*sizeof(int) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF), 0,	m_GridTotal*sizeof(int) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
-    
-    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES), 0,	m_GridTotal *sizeof(uint[NUM_GENES]) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES), 0,	m_GridTotal *sizeof(uint[NUM_GENES]) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
-    
-    // Set long list to sort all particles.
-    computeNumBlocks ( m_FParams.pnum, m_FParams.threadsPerBlock, m_FParams.numBlocks, m_FParams.numThreads);				// particles
-    // launch kernel "InsertParticles"
-    void* args[1] = { &mMaxPoints };  //&mNumPoints
-    cuCheck(cuLaunchKernel(m_Func[FUNC_INSERT], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),
-            "InsertParticlesCUDA", "cuLaunch", "FUNC_INSERT", mbDebug);
-    if (m_FParams.debug>1) cout<<"\nCalling InsertParticles kernel: args[1] = {"<<mNumPoints<<"}, mMaxPoints="<<mMaxPoints
-        <<"\t m_FParams.numBlocks="<<m_FParams.numBlocks<<", m_FParams.numThreads="<<m_FParams.numThreads<<" \t"<<std::flush;
-
-    // Transfer data back if requested (for validation)
-    if (gcell != 0x0) {
-        cuCheck( cuMemcpyDtoH ( gcell,	m_Fluid.gpu(FGCELL),	mNumPoints *sizeof(uint) ), "InsertParticlesCUDA", "cuMemcpyDtoH", "FGCELL", mbDebug );
-        cuCheck( cuMemcpyDtoH ( gndx,	m_Fluid.gpu(FGNDX),		mNumPoints *sizeof(uint) ), "InsertParticlesCUDA", "cuMemcpyDtoH", "FGNDX", mbDebug);
-        cuCheck( cuMemcpyDtoH ( gcnt,	m_Fluid.gpu(FGRIDCNT),	m_GridTotal*sizeof(uint) ), "InsertParticlesCUDA", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-        cuCtxSynchronize ();
+        auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> time = end - begin;
+        std::chrono::duration<double> begin_dbl = begin - old_begin;
+        if(launchParams.debug>0) std::cout << "\nLoop duration : "
+                    << begin_dbl.count() <<" seconds. Time taken to write files for "
+                    << NumPoints() <<" particles : " 
+                    << time.count() << " seconds\n" << std::endl;
+        old_begin = begin;
     }
-    if(m_debug>4){
-        if (m_FParams.debug>1) cout<<"\nSaving (FGCELL) InsertParticlesCUDA: (particleIdx, cell) , mMaxPoints="<<mMaxPoints<<"\t"<<std::flush;
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGCELL), m_Fluid.gpu(FGCELL),	sizeof(uint[mMaxPoints]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGCELL", mbDebug);
-        SaveUintArray( m_Fluid.bufI(FGCELL), mMaxPoints, "InsertParticlesCUDA__m_Fluid.bufI(FGCELL).csv" );
-    }
-}
-/*
-void FluidSystem::InsertChangesCUDA ( /_*uint* gcell, uint* gndx, uint* gcnt*_/ ){ // NB This is now done by ComputeBondChangesCUDA(..) 
-    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
-    
-    // launch kernel "InsertParticles"
-    void* args[1] = { &mNumPoints };
-    cuCheck(cuLaunchKernel(m_Func[FUNC_INSERT_CHANGES], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),   
-            "InsertParticlesCUDA", "cuLaunch", "FUNC_INSERT", mbDebug);
-}
-*/
-void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
-    // Prefix Sum - determine grid offsets
-    int blockSize = SCAN_BLOCKSIZE << 1;                // NB 1024 = 512 << 1.  NB SCAN_BLOCKSIZE is the number of threads per block
-    int numElem1 = m_GridTotal;                         // tot num bins, computed in SetupGrid() 
-    int numElem2 = int ( numElem1 / blockSize ) + 1;    // num sheets of bins? NB not spatial, but just dividing the linear array of bins, by a factor of 512*2
-    int numElem3 = int ( numElem2 / blockSize ) + 1;    // num rows of bins?
-    int threads = SCAN_BLOCKSIZE;
-    int zon=1;
-
-    CUdeviceptr array1  = m_Fluid.gpu(FGRIDCNT);		// input
-    CUdeviceptr scan1   = m_Fluid.gpu(FGRIDOFF);		// output
-    CUdeviceptr array2  = m_Fluid.gpu(FAUXARRAY1);
-    CUdeviceptr scan2   = m_Fluid.gpu(FAUXSCAN1);
-    CUdeviceptr array3  = m_Fluid.gpu(FAUXARRAY2);
-    CUdeviceptr scan3   = m_Fluid.gpu(FAUXSCAN2);
-
-#ifndef xlong
-    typedef unsigned long long	xlong;		// 64-bit integer
-#endif
-    if ( numElem1 > SCAN_BLOCKSIZE*xlong(SCAN_BLOCKSIZE)*SCAN_BLOCKSIZE) { if (m_FParams.debug>1)printf ( "\nERROR: Number of elements exceeds prefix sum max. Adjust SCAN_BLOCKSIZE.\n" );  }
-
-    void* argsA[5] = {&array1, &scan1, &array2, &numElem1, &zero_offsets };     // sum array1. output -> scan1, array2.         i.e. FGRIDCNT -> FGRIDOFF, FAUXARRAY1
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsA, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
-
-    void* argsB[5] = { &array2, &scan2, &array3, &numElem2, &zon };             // sum array2. output -> scan2, array3.         i.e. FAUXARRAY1 -> FAUXSCAN1, FAUXARRAY2
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsB, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
-
-    if ( numElem3 > 1 ) {
-        CUdeviceptr nptr = {0};
-        void* argsC[5] = { &array3, &scan3, &nptr, &numElem3, &zon };	        // sum array3. output -> scan3                  i.e. FAUXARRAY2 -> FAUXSCAN2, &nptr
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], 1, 1, 1, threads, 1, 1, 0, NULL, argsC, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
-
-        void* argsD[3] = { &scan2, &scan3, &numElem2 };	                        // merge scan3 into scan2. output -> scan2      i.e. FAUXSCAN2, FAUXSCAN1 -> FAUXSCAN1
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsD, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
-    }
-    void* argsE[3] = { &scan1, &scan2, &numElem1 };		                        // merge scan2 into scan1. output -> scan1      i.e. FAUXSCAN1, FGRIDOFF -> FGRIDOFF
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
-    
-    // Loop to PrefixSum the Dense Lists - NB by doing one gene at a time, we reuse the FAUX* arrays & scans.
-    // For each gene, input FGRIDCNT_ACTIVE_GENES[gene*m_GridTotal], output FGRIDOFF_ACTIVE_GENES[gene*m_GridTotal]
-    CUdeviceptr array0  = m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES);
-    CUdeviceptr scan0   = m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES);
-
-    for(int gene=0;gene<NUM_GENES;gene++){
-      //if (m_FParams.debug>1) cout<<"\nPrefixSumCellsCUDA()1:gene="<<gene<<"\t"<<std::flush;
-        array1  = array0 + gene*numElem1*sizeof(int); //m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES);//[gene*numElem1]   ;///
-        scan1   = scan0 + gene*numElem1*sizeof(int);
-
-        //cuCheck ( cuMemsetD8 ( array1, 0,	numElem1*sizeof(int) ), "PrefixSumCellsCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        cuCheck ( cuMemsetD8 ( scan1,  0,	numElem1*sizeof(int) ), "PrefixSumCellsCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        
-        cuCheck ( cuMemsetD8 ( array2, 0,	numElem2*sizeof(int) ), "PrefixSumCellsCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        cuCheck ( cuMemsetD8 ( scan2,  0,	numElem2*sizeof(int) ), "PrefixSumCellsCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        
-        cuCheck ( cuMemsetD8 ( array3, 0,	numElem3*sizeof(int) ), "PrefixSumCellsCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        cuCheck ( cuMemsetD8 ( scan3,  0,	numElem3*sizeof(int) ), "PrefixSumCellsCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        
-        void* argsA[5] = {&array1, &scan1, &array2, &numElem1, &zero_offsets };     // sum array1. output -> scan1, array2.         i.e. FGRIDCNT -> FGRIDOFF, FAUXARRAY1
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsA, NULL ), 
-                  "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
-
-        void* argsB[5] = { &array2, &scan2, &array3, &numElem2, &zon };             // sum array2. output -> scan2, array3.         i.e. FAUXARRAY1 -> FAUXSCAN1, FAUXARRAY2
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsB, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
-
-        if ( numElem3 > 1 ) {
-            CUdeviceptr nptr = {0};
-            void* argsC[5] = { &array3, &scan3, &nptr, &numElem3, &zon };	        // sum array3. output -> scan3                  i.e. FAUXARRAY2 -> FAUXSCAN2, &nptr
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], 1, 1, 1, threads, 1, 1, 0, NULL, argsC, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
-
-            void* argsD[3] = { &scan2, &scan3, &numElem2 };	                        // merge scan3 into scan2. output -> scan2      i.e. FAUXSCAN2, FAUXSCAN1 -> FAUXSCAN1
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsD, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
-        }
-        void* argsE[3] = { &scan1, &scan2, &numElem1 };		                        // merge scan2 into scan1. output -> scan1      i.e. FAUXSCAN1, FGRIDOFF -> FGRIDOFF
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
-    }
-    
-    int num_lists = NUM_GENES, length = FDENSE_LIST_LENGTHS, fgridcnt = FGRIDCNT_ACTIVE_GENES, fgridoff = FGRIDOFF_ACTIVE_GENES;
-    void* argsF[4] = {&num_lists, &length,&fgridcnt,&fgridoff};
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLYLISTS], NUM_GENES, 1, 1, NUM_GENES, 1, 1, 0, NULL, argsF, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_TALLYLISTS", mbDebug); //256 threads launched
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS), m_Fluid.gpu(FDENSE_LIST_LENGTHS),	sizeof(uint[NUM_GENES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS", mbDebug);
-                                                                                    //if active particles for gene > existing buff, then enlarge buff.
-    uint * densebuff_len = m_Fluid.bufI(FDENSE_BUF_LENGTHS);                    // and only m_Fluid.bufI(FDENSE_LIST_LENGTHS); copied to host.
-    uint * denselist_len = m_Fluid.bufI(FDENSE_LIST_LENGTHS);                   // For each gene allocate intial buffer, 
-    
-    for(int gene=0;gene<NUM_GENES;gene++){                                          // Note this calculation could be done by a kernel, 
-      //if (m_FParams.debug>1) cout<<"\nPrefixSumCellsCUDA()2:gene="<<gene<<", densebuff_len["<<gene<<"]="<<densebuff_len[gene]<<", denselist_len["<<gene<<"]="<<denselist_len[gene]<<" \t"<<std::flush;
-        if (denselist_len[gene] > densebuff_len[gene]) {                            // write pointer and size to FDENSE_LISTS and FDENSE_LIST_LENGTHS 
-            if (m_FParams.debug>1)printf("\n\nPrefixSumCellsCUDA: enlarging densebuff_len[%u],  m_Fluid.gpuptr(FDENSE_LIST_LENGTHS)[gene]=%llu .\t",gene, m_Fluid.gpuptr(FDENSE_LIST_LENGTHS)[gene] );
-            while(denselist_len[gene] >  densebuff_len[gene]) densebuff_len[gene] *=4;                  // m_Fluid.bufI(FDENSE_BUF_LENGTHS)[i]
-            AllocateBufferDenseLists( gene, sizeof(uint), m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene], FDENSE_LISTS );   // NB frees previous buffer &=> clears data
-        }
-    }
-    cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS),         m_Fluid.bufC(FDENSE_LISTS),         NUM_GENES * sizeof(CUdeviceptr)  );  // update pointers to lists on device
-    cuMemcpyHtoD(m_Fluid.gpu(FDENSE_BUF_LENGTHS),   m_Fluid.bufC(FDENSE_BUF_LENGTHS),   NUM_GENES * sizeof(CUdeviceptr)  );
-
-    if (m_FParams.debug>1){ 
-        std::cout << "\nChk: PrefixSumCellsCUDA 4"<<std::flush;
-        for(int gene=0;gene<NUM_GENES;gene++){    std::cout<<"\nlist_length["<<gene<<"]="<<m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene]<<"\t"<<std::flush;}
-        }
-//#endif
-}
-
-
-void FluidSystem::SaveUintArray( uint* array, int numElem1, const char * relativePath ){ /// Used to save an array to .csv for debugging.
-   FILE* fp = fopen ( relativePath, "w" );
-    if (fp == NULL) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::SaveUintArray ( const char * relativePath, int frame )  Could not open file "<< fp <<"\n"<< std::flush;
-        assert(0);
-    } 
-    for(uint i=0; i<numElem1; i+=100){ 
-        fprintf(fp, "\n"); 
-        for(uint j=0;j<100 && i+j<numElem1;j++) fprintf(fp, ",%u,%u,",i+j,array[i+j]); 
-    }
-    fclose ( fp );
-    fflush ( fp );
-    std::string s;
-    std::stringstream ss;
-    ss << relativePath;
-    ss >> s;  
-    if (m_FParams.debug>1) cout<<"\nSaved UintArray file: "<< s <<"\n"<<std::flush;
-}
-
-void FluidSystem::SaveUintArray_2Columns( uint* array, int numElem1, int buff_len, const char * relativePath ){ /// Used to save DESNSE_LIST_CHANGES (particle,bondIdx) arrays to .csv for debugging.
-   FILE* fp = fopen ( relativePath, "w" );
-    if (fp == NULL) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::SaveUintArray_2Collumns ( const char * relativePath, int frame )  Could not open file "<< fp <<"\n"<< std::flush;
-        assert(0);
-    } 
-    for(uint i=0; i<numElem1; i+=100){ 
-        fprintf(fp, "\n"); 
-        for(uint j=0;j<100 && i+j<numElem1;j++) fprintf(fp, ",%u,%u,%u,",i+j,array[i+j],array[i+j+buff_len]); // i.e. listIdx, ParticleIdx, BondIdx.
-    }
-    fclose ( fp );
-    fflush ( fp );
-    std::string s;
-    std::stringstream ss;
-    ss << relativePath;
-    ss >> s;  
-    if (m_FParams.debug>1) cout<<"\nSaved UintArray_2Columns file: "<< s <<"\n"<<std::flush;
-}
-
-void FluidSystem::SaveUintArray_2D( uint* array, int numElem1, int numElem2, const char * relativePath ){ /// Used to save DESNSE_LIST_CHANGES (particle,bondIdx) arrays to .csv for debugging.
-   FILE* fp = fopen ( relativePath, "w" );
-    if (fp == NULL) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::SaveUintArray_2D ( const char * relativePath, int frame )  Could not open file "<< fp <<"\n"<< std::flush;
-        assert(0);
-    } 
-    for(uint i=0; i<numElem1; i++){ 
-        fprintf(fp, "\n"); 
-        for(uint j=0; j<numElem2; j++) fprintf(fp, ",%u,",array[j*numElem1+i]); // i.e. listIdx, ParticleIdx, BondIdx.
-    }
-    fclose ( fp );
-    fflush ( fp );
-    std::string s;
-    std::stringstream ss;
-    ss << relativePath;
-    ss >> s;  
-    if (m_FParams.debug>1) cout<<"\nSaved UintArray_2D file: "<< s <<"\n"<<std::flush;
-}
-
-
-void FluidSystem::PrefixSumChangesCUDA ( int zero_offsets ){
-    // Prefix Sum - determine grid offsets
-    int blockSize = SCAN_BLOCKSIZE << 1;                // NB 1024 = 512 << 1.  NB SCAN_BLOCKSIZE is the number of threads per block
-    int numElem1 = m_GridTotal;                         // tot num bins, computed in SetupGrid() 
-    int numElem2 = int ( numElem1 / blockSize ) + 1;    // num sheets of bins? NB not spatial, but just dividing the linear array of bins, by a factor of 512*2
-    int numElem3 = int ( numElem2 / blockSize ) + 1;    // num rows of bins?
-    int threads = SCAN_BLOCKSIZE;
-    int zon=1;
-    CUdeviceptr array1  ;		// input
-    CUdeviceptr scan1   ;		// output
-    CUdeviceptr array2  = m_Fluid.gpu(FAUXARRAY1);
-    CUdeviceptr scan2   = m_Fluid.gpu(FAUXSCAN1);
-    CUdeviceptr array3  = m_Fluid.gpu(FAUXARRAY2);
-    CUdeviceptr scan3   = m_Fluid.gpu(FAUXSCAN2);
-
-    // Loop to PrefixSum the Dense Lists - NB by doing one change_list at a time, we reuse the FAUX* arrays & scans.
-    // For each change_list, input FGRIDCNT_ACTIVE_GENES[change_list*m_GridTotal], output FGRIDOFF_ACTIVE_GENES[change_list*m_GridTotal]
-    CUdeviceptr array0  = m_Fluid.gpu(FGRIDCNT_CHANGES);
-    CUdeviceptr scan0   = m_Fluid.gpu(FGRIDOFF_CHANGES);
-    
-    if(m_debug>3){
-        // debug chk
-        cout<<"\nSaving (FGRIDCNT_CHANGES): (bin,#particles) , numElem1="<<numElem1<<"\t"<<std::flush;
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGRIDCNT_CHANGES), m_Fluid.gpu(FGRIDCNT_CHANGES),	sizeof(uint[numElem1]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGRIDCNT_CHANGES", mbDebug); // NUM_CHANGES*
-        //### print to a csv file   AND do the same afterwards for FGRIDOFF_CHANGES ###
-        SaveUintArray( m_Fluid.bufI(FGRIDCNT_CHANGES), numElem1, "m_Fluid.bufI(FGRIDCNT_CHANGES).csv" );
-        //
-        cout<<"\nSaving (FGCELL): (particleIdx, cell) , mMaxPoints="<<mMaxPoints<<"\t"<<std::flush;
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGCELL), m_Fluid.gpu(FGCELL),	sizeof(uint[mMaxPoints]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGCELL", mbDebug);
-        SaveUintArray( m_Fluid.bufI(FGCELL), mMaxPoints, "m_Fluid.bufI(FGCELL).csv" );
-        //
-        //   cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LISTS), m_Fluid.gpu(FDENSE_LISTS),	sizeof(uint[mMaxPoints]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FDENSE_LISTS", mbDebug);
-        //   SaveUintArray( m_Fluid.bufI(FDENSE_LISTS), numElem1, "m_Fluid.bufI(FDENSE_LISTS).csv" );
-    }
-    cuCtxSynchronize ();
-
-    for(int change_list=0;change_list<NUM_CHANGES;change_list++){
-        array1  = array0 + change_list*numElem1*sizeof(int); //m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES);//[change_list*numElem1]   ;///
-        scan1   = scan0 + change_list*numElem1*sizeof(int);
-        cuCheck ( cuMemsetD8 ( scan1,  0,	numElem1*sizeof(int) ), "PrefixSumChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );        
-        cuCheck ( cuMemsetD8 ( array2, 0,	numElem2*sizeof(int) ), "PrefixSumChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        cuCheck ( cuMemsetD8 ( scan2,  0,	numElem2*sizeof(int) ), "PrefixSumChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        cuCheck ( cuMemsetD8 ( array3, 0,	numElem3*sizeof(int) ), "PrefixSumChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        cuCheck ( cuMemsetD8 ( scan3,  0,	numElem3*sizeof(int) ), "PrefixSumChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        
-        void* argsA[5] = {&array1, &scan1, &array2, &numElem1, &zero_offsets };     // sum array1. output -> scan1, array2.         i.e. FGRIDCNT -> FGRIDOFF, FAUXARRAY1
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsA, NULL ), 
-                  "PrefixSumChangesCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
-        void* argsB[5] = { &array2, &scan2, &array3, &numElem2, &zon };             // sum array2. output -> scan2, array3.         i.e. FAUXARRAY1 -> FAUXSCAN1, FAUXARRAY2
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsB, NULL ), "PrefixSumChangesCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
-        if ( numElem3 > 1 ) {
-            CUdeviceptr nptr = {0};
-            void* argsC[5] = { &array3, &scan3, &nptr, &numElem3, &zon };	        // sum array3. output -> scan3                  i.e. FAUXARRAY2 -> FAUXSCAN2, &nptr
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], 1, 1, 1, threads, 1, 1, 0, NULL, argsC, NULL ), "PrefixSumChangesCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
-            void* argsD[3] = { &scan2, &scan3, &numElem2 };	                        // merge scan3 into scan2. output -> scan2      i.e. FAUXSCAN2, FAUXSCAN1 -> FAUXSCAN1
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsD, NULL ), "PrefixSumChangesCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
-        }
-        void* argsE[3] = { &scan1, &scan2, &numElem1 };		                        // merge scan2 into scan1. output -> scan1      i.e. FAUXSCAN1, FGRIDOFF -> FGRIDOFF
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumChangesCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
-    }
-    
-    int num_lists = NUM_CHANGES, length = FDENSE_LIST_LENGTHS_CHANGES, fgridcnt = FGRIDCNT_CHANGES, fgridoff = FGRIDOFF_CHANGES;
-    void* argsF[4] = {&num_lists, &length,&fgridcnt,&fgridoff};
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLYLISTS], NUM_CHANGES, 1, 1, NUM_CHANGES, 1, 1, 0, NULL, argsF, NULL ), "PrefixSumChangesCUDA", "cuLaunch", "FUNC_TALLYLISTS", mbDebug); //256 threads launched
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES), m_Fluid.gpu(FDENSE_LIST_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS_CHANGES", mbDebug);
-
-                                                                                                                    // If active particles for change_list > existing buff, then enlarge buff.
-    for(int change_list=0;change_list<NUM_CHANGES;change_list++){                                                   // Note this calculation could be done by a kernel, 
-        uint * densebuff_len = m_Fluid.bufI(FDENSE_BUF_LENGTHS_CHANGES);                                            // and only m_Fluid.bufI(FDENSE_LIST_LENGTHS); copied to host.
-        uint * denselist_len = m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES);                                           // For each change_list allocate intial buffer, 
-        //if (m_FParams.debug>1)printf("\nPrefixSumChangesCUDA: change_list=%u,  densebuff_len[change_list]=%u, denselist_len[change_list]=%u ,",change_list, densebuff_len[change_list], denselist_len[change_list] );
-        if (denselist_len[change_list] > densebuff_len[change_list]) {                                              // write pointer and size to FDENSE_LISTS and FDENSE_LIST_LENGTHS 
-            while(denselist_len[change_list] >  densebuff_len[change_list])   densebuff_len[change_list] *=4;       // m_Fluid.bufI(FDENSE_BUF_LENGTHS)[i].  
-                                                                                                                    // NB Need 2*densebuff_len[change_list] for particle & bond
-            if (m_FParams.debug>1)printf("\nPrefixSumChangesCUDA: ## enlarging buffer## change_list=%u,  densebuff_len[change_list]=%u, denselist_len[change_list]=%u ,",change_list, densebuff_len[change_list], denselist_len[change_list] );
-            AllocateBufferDenseLists( change_list, sizeof(uint), 2*densebuff_len[change_list], FDENSE_LISTS_CHANGES );// NB frees previous buffer &=> clears data
-        }                                                                                                           // NB buf[2][list_length] holding : particleIdx, bondIdx
-    }
-    cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FDENSE_BUF_LENGTHS_CHANGES), m_Fluid.bufC(FDENSE_BUF_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumChangesCUDA", "cuMemcpyHtoD", "FDENSE_BUF_LENGTHS_CHANGES", mbDebug);
-    cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS_CHANGES), m_Fluid.bufC(FDENSE_LISTS_CHANGES),  NUM_CHANGES * sizeof(CUdeviceptr)  );                      // update pointers to lists on device
-    
-    if (m_FParams.debug>1) {
-        std::cout << "\nChk: PrefixSumChangesCUDA 4"<<std::flush;
-        for(int change_list=0;change_list<NUM_CHANGES;change_list++){
-            std::cout<<"\nPrefixSumChangesCUDA: list_length["<<change_list<<"]="<<m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list]<<"\t"<<std::flush;
-        }
-    }
-}
-
-void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
-    if (m_FParams.debug>1) std::cout << "\nCountingSortFullCUDA()1: mMaxPoints="<<mMaxPoints<<", mNumPoints="<<mNumPoints<<",\tmActivePoints="<<mActivePoints<<".\n"<<std::flush;
-    // get number of active particles & set short lists for later kernels
-    int grid_ScanMax = (m_FParams.gridScanMax.y * m_FParams.gridRes.z + m_FParams.gridScanMax.z) * m_FParams.gridRes.x + m_FParams.gridScanMax.x;
-    cuCheck( cuMemcpyDtoH ( &mNumPoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax+1)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA1", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
-    cuCheck( cuMemcpyDtoH ( &mActivePoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA2", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
-    m_FParams.pnumActive = mActivePoints;                                                       // TODO eliminate duplication of information & variables between fluid.h and fluid_system.h                               
-    cuCheck ( cuMemcpyHtoD ( cuFParams,	&m_FParams, sizeof(FParams) ), "CountingSortFullCUDA3", "cuMemcpyHtoD", "cuFParams", mbDebug); // seems the safest way to update fparam.pnumActive on device.
-    
-    if (m_FParams.debug>1) std::cout<<"\nCountingSortFullCUDA()2: mMaxPoints="<<mMaxPoints<<" mNumPoints="<<mNumPoints<<",\tmActivePoints="<<mActivePoints<<",  m_GridTotal="<<m_GridTotal<<", grid_ScanMax="<<grid_ScanMax<<"\n"<<std::flush;
-
-    // Transfer particle data to temp buffers
-    //  (gpu-to-gpu copy, no sync needed)
-    //TransferToTempCUDA ( FPOS,		mMaxPoints *sizeof(Vector3DF) );    // NB if some points have been removed, then the existing list is no longer dense,  
-    //TransferToTempCUDA ( FVEL,		mMaxPoints *sizeof(Vector3DF) );    // hence must use mMaxPoints, not mNumPoints
-    //TransferToTempCUDA ( FVEVAL,	mMaxPoints *sizeof(Vector3DF) );    // { Could potentially use (old_mNumPoints + mNewPoints) instead of mMaxPoints}
-    TransferToTempCUDA ( FFORCE,	mMaxPoints *sizeof(Vector3DF) );    // NB buffers are declared and initialized on mMaxPoints.
-    TransferToTempCUDA ( FPRESS,	mMaxPoints *sizeof(float) );
-    TransferToTempCUDA ( FDENSITY,	mMaxPoints *sizeof(float) );
-    TransferToTempCUDA ( FCLR,		mMaxPoints *sizeof(uint) );
-    TransferToTempCUDA ( FAGE,		mMaxPoints *sizeof(uint) );
-    TransferToTempCUDA ( FGCELL,	mMaxPoints *sizeof(uint) );
-    TransferToTempCUDA ( FGNDX,		mMaxPoints *sizeof(uint) );
-    
-    // extra data for morphogenesis
-    TransferToTempCUDA ( FELASTIDX,		mMaxPoints *sizeof(uint[BOND_DATA]) );
-    TransferToTempCUDA ( FPARTICLEIDX,	mMaxPoints *sizeof(uint[BONDS_PER_PARTICLE *2]) );
-    TransferToTempCUDA ( FPARTICLE_ID,	mMaxPoints *sizeof(uint) );
-    TransferToTempCUDA ( FMASS_RADIUS,	mMaxPoints *sizeof(uint) );
-    TransferToTempCUDA ( FNERVEIDX,		mMaxPoints *sizeof(uint) );
-    TransferToTempCUDA ( FCONC,		    mMaxPoints *sizeof(float[NUM_TF]) );
-    TransferToTempCUDA ( FEPIGEN,	    mMaxPoints *sizeof(uint[NUM_GENES]) );
-
-    // debug chk
-    //cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN), m_FluidTemp.gpu(FEPIGEN),	mMaxPoints *sizeof(uint[NUM_GENES]) ), "CountingSortFullCUDA4", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-    //SaveUintArray_2D( m_Fluid.bufI(FEPIGEN), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_FluidTemp.bufI(FEPIGEN)2.csv" );
-    
-    // reset bonds and forces in fbuf FELASTIDX, FPARTICLEIDX and FFORCE, required to prevent interference between time steps, 
-    // because these are not necessarily overwritten by the FUNC_COUNTING_SORT kernel.
-    cuCtxSynchronize ();    // needed to prevent colision with previous operations
-    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FELASTIDX),    UINT_MAX,  mMaxPoints * BOND_DATA              ),  "CountingSortFullCUDA", "cuMemsetD32", "FELASTIDX",    mbDebug);
-    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPARTICLEIDX), UINT_MAX,  mMaxPoints * BONDS_PER_PARTICLE *2  ),  "CountingSortFullCUDA", "cuMemsetD32", "FPARTICLEIDX", mbDebug);
-    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FFORCE),      (uint)0.0,  mMaxPoints * 3 /* ie num elements */),  "CountingSortFullCUDA", "cuMemsetD32", "FFORCE",       mbDebug);
-    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FCONC),             0.0,  mMaxPoints * NUM_TF                 ),  "CountingSortFullCUDA", "cuMemsetD32", "FCONC",        mbDebug);
-    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FEPIGEN),     (uint)0.0,  mMaxPoints * NUM_GENES              ),  "CountingSortFullCUDA", "cuMemsetD32", "FEPIGEN",      mbDebug);
-    cuCtxSynchronize ();    // needed to prevent colision with previous operations
-
-    // Reset grid cell IDs
-    // cuCheck(cuMemsetD32(m_Fluid.gpu(FGCELL), GRID_UNDEF, numPoints ), "cuMemsetD32(Sort)");
-    void* args[1] = { &mMaxPoints };
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_COUNTING_SORT], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),
-              "CountingSortFullCUDA5", "cuLaunch", "FUNC_COUNTING_SORT", mbDebug );
-
-    // Having sorted the particle data, we can start using a shortened list of particles.
-    // NB have to reset to long list at start of time step. 
-    computeNumBlocks ( m_FParams.pnumActive, m_FParams.threadsPerBlock, m_FParams.numBlocks, m_FParams.numThreads);				// particles
-    
-    if (m_FParams.debug>1) std::cout<<"\n CountingSortFullCUDA : FUNC_COUNT_SORT_LISTS\n"<<std::flush;
-    // countingSortDenseLists ( int pnum ) // NB launch on bins not particles.
-    int blockSize = SCAN_BLOCKSIZE/2 << 1; 
-    int numElem1 = m_GridTotal;  
-    int numElem2 = 2*  int( numElem1 / blockSize ) + 1;  
-    int threads = SCAN_BLOCKSIZE/2;
-    cuCtxSynchronize ();
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_COUNT_SORT_LISTS], /*m_FParams.numBlocks*/ numElem2, 1, 1, /*m_FParams.numThreads/2*/ threads , 1, 1, 0, NULL, args, NULL),
-              "CountingSortFullCUDA7", "cuLaunch", "FUNC_COUNT_SORT_LISTS", mbDebug );                                   // NB threads/2 required on GTX970m
-    cuCtxSynchronize ();
-    
-    if(m_debug>3){//debug chk
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN), m_FluidTemp.gpu(FEPIGEN),	mMaxPoints *sizeof(uint[NUM_GENES]) ), "CountingSortFullCUDA8", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-        SaveUintArray_2D( m_Fluid.bufI(FEPIGEN), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_FluidTemp.bufI(FEPIGEN)3.csv" );
-        
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN), m_Fluid.gpu(FEPIGEN),	/*mMaxPoints*/mNumPoints *sizeof(uint[NUM_GENES]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-        SaveUintArray_2D( m_Fluid.bufI(FEPIGEN), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_Fluid.bufI(FEPIGEN)3.csv" );
-        
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGRIDCNT), m_Fluid.gpu(FGRIDCNT),	sizeof(uint[m_GridTotal]) ), "CountingSortFullCUDA9", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-        SaveUintArray( m_Fluid.bufI(FGRIDCNT), m_GridTotal, "CountingSortFullCUDA__m_Fluid.bufI(FGRIDCNT).csv" );
-        
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGRIDOFF), m_Fluid.gpu(FGRIDOFF),	sizeof(uint[m_GridTotal]) ), "CountingSortFullCUDA10", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
-        SaveUintArray( m_Fluid.bufI(FGRIDOFF), m_GridTotal, "CountingSortFullCUDA__m_Fluid.bufI(FGRIDOFF).csv" );
-    
-       // uint fDenseList2[100000];
-       // CUdeviceptr*  _list2pointer = (CUdeviceptr*) &m_Fluid.bufC(FDENSE_LISTS)[2 * sizeof(CUdeviceptr)];
-       // cuCheck( cuMemcpyDtoH ( fDenseList2, *_list2pointer,	sizeof(uint[ m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2] ])/*sizeof(uint[2000])*/ ), "CountingSortFullCUDA11", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-       // SaveUintArray( fDenseList2, m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2], "CountingSortFullCUDA__m_Fluid.bufII(FDENSE_LISTS)[2].csv" );
-    }
-}
-
-void FluidSystem::CountingSortChangesCUDA ( ){
-    /* ////////
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES), m_Fluid.gpu(FDENSE_LIST_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS_CHANGES", mbDebug);
-    
-                                                                                                                    // If active particles for change_list > existing buff, then enlarge buff.
-    for(int change_list=0;change_list<NUM_CHANGES;change_list++){                                                   // Note this calculation could be done by a kernel, 
-        uint * densebuff_len = m_Fluid.bufI(FDENSE_BUF_LENGTHS_CHANGES);                                            // and only m_Fluid.bufI(FDENSE_LIST_LENGTHS); copied to host.
-        uint * denselist_len = m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES);                                           // For each change_list allocate intial buffer, 
-        if (m_FParams.debug>1)printf("\nCountingSortChangesCUDA1: change_list=%u,  densebuff_len[change_list]=%u, denselist_len[change_list]=%u ,",change_list, densebuff_len[change_list], denselist_len[change_list] );
-    }
-    *//////////
-    int blockSize = SCAN_BLOCKSIZE/2 << 1; 
-    int numElem1 = m_GridTotal;  
-    int numElem2 = 2* int( numElem1 / blockSize ) + 1;  
-    int threads = SCAN_BLOCKSIZE/2;
-    void* args[1] = { &mActivePoints };
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_COUNTING_SORT_CHANGES], numElem2, 1, 1, threads , 1, 1, 0, NULL, args, NULL),
-              "CountingSortChangesCUDA", "cuLaunch", "FUNC_COUNTING_SORT_CHANGES", mbDebug );   
-     /////////
-    cuCheck(cuCtxSynchronize(), "CountingSortChangesCUDA()", "cuCtxSynchronize", "After FUNC_COUNTING_SORT_CHANGES", mbDebug);
-    
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES), m_Fluid.gpu(FDENSE_LIST_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS_CHANGES", mbDebug);
-                                                                                                                    // If active particles for change_list > existing buff, then enlarge buff.
-    for(int change_list=0;change_list<NUM_CHANGES;change_list++){                                                   // Note this calculation could be done by a kernel, 
-        uint * densebuff_len = m_Fluid.bufI(FDENSE_BUF_LENGTHS_CHANGES);                                            // and only m_Fluid.bufI(FDENSE_LIST_LENGTHS); copied to host.
-        uint * denselist_len = m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES);                                           // For each change_list allocate intial buffer, 
-        //if (m_FParams.debug>1)printf("\nCountingSortChangesCUDA2: change_list=%u,  densebuff_len[change_list]=%u, denselist_len[change_list]=%u ,\t\t threads=%u, numElem2=%u,  m_GridTotal=%u \t",
-        //       change_list, densebuff_len[change_list], denselist_len[change_list], threads, numElem2,  m_GridTotal );
-        cuCtxSynchronize ();
-        if(m_debug>2){
-            uint fDenseList2[1000000] = {UINT_MAX};// NB 10* num particles.
-            CUdeviceptr*  _list2pointer = (CUdeviceptr*) &m_Fluid.bufC(FDENSE_LISTS_CHANGES)[change_list*sizeof(CUdeviceptr)]; // Get device pointer to FDENSE_LISTS_CHANGES[change_list].
-            cuCheck( cuMemcpyDtoH ( fDenseList2, *_list2pointer,	2*sizeof(uint[densebuff_len[change_list]]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-            char filename[256];
-            sprintf(filename, "CountingSortChangesCUDA__m_Fluid.bufII(FDENSE_LISTS_CHANGES)[%u].csv", change_list);
-            SaveUintArray_2Columns( fDenseList2, denselist_len[change_list], densebuff_len[change_list], filename );
-            ///
-            //printf("\n\n*_list2pointer=%llu",*_list2pointer);
-            
-        }
-    }
-}
-
-void FluidSystem::InitializeBondsCUDA (){
-    cout << "\n\nInitializeBondsCUDA ()\n"<<std::flush;
-    uint gene           = 1;                                                            // solid  (has springs)
-    uint list_length    = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
-    void* args[3]       = { &m_FParams.pnumActive, &list_length, &gene};                //initialize_bonds (int ActivePoints, uint list_length, uint gene)
-    int numBlocks, numThreads;
-    computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
-    cout << "\nInitializeBondsCUDA (): list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<" \t args{m_FParams.pnumActive="<<m_FParams.pnumActive<<", list_length="<<list_length<<", gene="<<gene<<"}"<<std::flush;
-    
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_INITIALIZE_BONDS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputePressureCUDA", "cuLaunch", "FUNC_COMPUTE_PRESS", mbDebug);
-}
-
-void FluidSystem::ComputePressureCUDA (){
-    void* args[1] = { &mActivePoints };
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_PRESS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputePressureCUDA", "cuLaunch", "FUNC_COMPUTE_PRESS", mbDebug);
-}
-
-void FluidSystem::ComputeDiffusionCUDA(){
-    //if (m_FParams.debug>1) std::cout << "\n\nRunning ComputeDiffusionCUDA()" << std::endl;
-    void* args[1] = { &mActivePoints };
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_DIFFUSION],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputeDiffusionCUDA", "cuLaunch", "FUNC_COMPUTE_DIFFUSION", mbDebug);
-}
-
-void FluidSystem::ComputeForceCUDA (){
-    //if (m_FParams.debug>1)printf("\n\nFluidSystem::ComputeForceCUDA (),  m_FParams.freeze=%s",(m_FParams.freeze==true) ? "true" : "false");
-    void* args[3] = { &m_FParams.pnumActive ,  &m_FParams.freeze, &m_FParams.frame};
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_FORCE],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputeForceCUDA", "cuLaunch", "FUNC_COMPUTE_FORCE", mbDebug);
-}
-
-void FluidSystem::ComputeGenesCUDA (){  // for each gene, call a kernel wih the dese list for that gene
-    // NB Must zero ftemp.bufI(FEPIGEN) and ftemp.bufI(FCONC) before calling kernel. ftemp is used to collect changes before FUNC_TALLY_GENE_ACTION.
-    cuCheck ( cuMemsetD8 ( m_FluidTemp.gpu(FCONC),   0,	m_FParams.szPnts *sizeof(float[NUM_TF])   ), "ComputeGenesCUDA", "cuMemsetD8", "m_FluidTemp.gpu(FCONC)",   mbDebug );
-    cuCheck ( cuMemsetD8 ( m_FluidTemp.gpu(FEPIGEN), 0,	m_FParams.szPnts *sizeof(uint[NUM_GENES]) ), "ComputeGenesCUDA", "cuMemsetD8", "m_FluidTemp.gpu(FEPIGEN)", mbDebug );
-    for (int gene=0;gene<NUM_GENES;gene++) {
-        uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
-        void* args[3] = { &m_FParams.pnumActive, &gene, &list_length };
-        int numBlocks, numThreads;
-        computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
-        
-        if (m_FParams.debug>1) std::cout<<"\nComputeGenesCUDA (): gene ="<<gene<<", list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". args={mNumPoints="<<mNumPoints<<", list_length="<<list_length<<", gene ="<<gene<<"}"<<std::flush;
-        
-        if( numBlocks>0 && numThreads>0){
-            //std::cout<<"\nCalling m_Func[FUNC_COMPUTE_GENE_ACTION], list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<"\n"<<std::flush;
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_GENE_ACTION],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_COMPUTE_GENE_ACTION", mbDebug);
-        }
-    }
-    cuCheck(cuCtxSynchronize(), "ComputeGenesCUDA", "cuCtxSynchronize", "After FUNC_COMPUTE_GENE_ACTION & before FUNC_TALLY_GENE_ACTION", mbDebug);
-    for (int gene=0;gene<NUM_GENES;gene++) {
-        uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
-        void* args[3] = { &m_FParams.pnumActive, &gene, &list_length };
-        int numBlocks, numThreads;
-        computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
-        
-        if( numBlocks>0 && numThreads>0){
-            if (m_FParams.debug>1) std::cout<<"\nCalling m_Func[FUNC_TALLY_GENE_ACTION], gene="<<gene<<", list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<"\n"<<std::flush;
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLY_GENE_ACTION],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_TALLY_GENE_ACTION", mbDebug);
-        }
-    }
-}
-
-void FluidSystem::AssembleFibresCUDA (){  //kernel: void assembleMuscleFibres ( int pnum, uint list, uint list_length )
-    cout << "\n\nAssembleFibresCUDA ()\n"<<std::flush;
-    uint gene = 7; // muscle
-    uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
-    void* args[3] = { &m_FParams.pnumActive, &gene, &list_length };
-    int numBlocks, numThreads;
-    computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
-    
-    /*
-    if( numBlocks>0 && numThreads>0){
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_ASSEMBLE_MUSCLE_FIBRES_OUTGOING],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_COMPUTE_GENE_ACTION", mbDebug);
-    }
-    */
-    
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "In AssembleFibresCUDA, after OUTGOING", mbDebug); 
-    
-    /*
-    if( numBlocks>0 && numThreads>0){
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_ASSEMBLE_MUSCLE_FIBRES_INCOMING],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "ComputeGenesCUDA", "cuLaunch", "FUNC_COMPUTE_GENE_ACTION", mbDebug);
-    }
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "In AssembleFibresCUDA, after OUTGOING", mbDebug); 
-    */
-    
-
-    
-    
-    // Kernels:  call by tissue type using dense lists by gene.
-    //assembleMuscleFibres()
-    //assembleFasciaFibres ()
-    cout << "\nFinished AssembleFibresCUDA ()\n\n"<<std::flush;
-}
-
-void FluidSystem::ComputeBondChangesCUDA (){// Given the action of the genes, compute the changes to particle properties & splitting/combining  NB also "inserts changes" 
-//  if (m_FParams.debug>1)printf("\n m_Fluid.gpu(FGRIDOFF_CHANGES)=%llu   ,\t m_Fluid.gpu(FGRIDCNT_CHANGES)=%llu   \n",m_Fluid.gpu(FGRIDOFF_CHANGES) , m_Fluid.gpu(FGRIDCNT_CHANGES)   );
-  
-    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "ComputeBondChangesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
-                                            //NB list for all living cells. (non senescent) = FEPIGEN[2]
-    cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT_CHANGES), 0,	m_GridTotal *sizeof(uint[NUM_CHANGES]) ), "ComputeBondChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-    
-    uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2];    // call for dense list of living cells (gene'2'living/telomere (has genes))
-    void* args[2] = { &mActivePoints, &list_length};
-    int numBlocks, numThreads;
-    computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
-    
-    //std::cout<<"\n\nComputeBondChangesCUDA (): m_FParams.debug = "<<m_FParams.debug<<", (m_FParams.debug>1)="<<(m_FParams.debug>1)<<"\n"<<std::flush;
-    
-    if (m_FParams.debug>1) std::cout<<"\n\nComputeBondChangesCUDA (): list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<",  numThreads="<<numThreads<<". \t\t args={mActivePoints="<<mActivePoints<<", list_length="<<list_length<<"}\n\n"<<std::flush;
-    
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_BOND_CHANGES],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "computeBondChanges", "cuLaunch", "FUNC_COMPUTE_BOND_CHANGES", mbDebug);
-}
-
-void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to execute particle changes. NB Must run concurrently without interfering => no cuCtxSynchronize()
-    uint startNewPoints = mActivePoints + 1;
-    for (int change_list = 0; change_list<NUM_CHANGES;change_list++){
-    //int change_list = 0; // TODO debug, chk one kernel at a time
-        uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list];  // num blocks and threads by list length
-        //if (change_list!=0 && change_list!=1)continue; // only test heal() and lengthenTissue() for now.
-    
-        if ((change_list >0)&&(startNewPoints + list_length > mMaxPoints)){         // NB heal() does not create new bonds.
-            printf("\n\n### Run out of spare particles. startNewPoints=%u, change_list=%u, list_length=%u, mMaxPoints=%u ###\n", 
-            startNewPoints, change_list, list_length, mMaxPoints); 
-            list_length = mMaxPoints - startNewPoints;
-            //Exit();
-        }//
-    
-        void* args[5] = {&mActivePoints, &list_length, &change_list, &startNewPoints, &mMaxPoints};
-        int numThreads, numBlocks;
-        
-        //int numThreads = 1;//m_FParams.threadsPerBlock;
-        //int numBlocks  = 1;//iDivUp ( list_length, numThreads );
-        
-        computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
-        
-        if (m_FParams.debug>0) std::cout
-            <<"\n\nComputeParticleChangesCUDA ():"
-            <<" frame ="                    <<m_FParams.frame
-            <<", mActivePoints="            <<mActivePoints
-            <<", change_list ="             <<change_list
-            <<", list_length="              <<list_length
-            <<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock
-            <<", numBlocks="                <<numBlocks
-            <<", numThreads="               <<numThreads
-            <<". args={mActivePoints="      <<mActivePoints
-            <<", list_length="              <<list_length
-            <<", change_list="              <<change_list
-            <<", startNewPoints="           <<startNewPoints
-            <<"\t\n"<<std::flush;
-        
-        if( (list_length>0) && (numBlocks>0) && (numThreads>0)){
-            if (m_FParams.debug>1) std::cout
-                <<"\n\nCalling m_Func[FUNC_HEAL+"           <<change_list
-                <<"], list_length="                         <<list_length
-                <<", numBlocks="                            <<numBlocks
-                <<", numThreads="                           <<numThreads
-                <<",\t m_FParams.threadsPerBlock="          <<m_FParams.threadsPerBlock
-                <<", numBlocks*m_FParams.threadsPerBlock="  <<numBlocks*m_FParams.threadsPerBlock
-                <<"\t"<<std::flush;
-            
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_HEAL+change_list], numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), 
-                  "ComputeParticleChangesCUDA", "cuLaunch", "FUNC_HEAL+change_list", mbDebug);
-        }
-        cuCheck(cuCtxSynchronize(), "ComputeParticleChangesCUDA", "cuCtxSynchronize", "In ComputeParticleChangesCUDA", mbDebug);
-                                                                                // Each thread will pick different new particles from surplus particles.
-        if (change_list==2 || change_list==6) startNewPoints+=  list_length;    // Increment by num new particles used by previous kernels. 
-        //if (change_list==1 || change_list==5) startNewPoints+=  list_length*3;  // Increment by 3 particles for muscle.    
-        /*
-    0   #define FUNC_HEAL                       23 //heal
-    1   #define FUNC_LENGTHEN_MUSCLE            24 //lengthen_muscle
-    2   #define FUNC_LENGTHEN_TISSUE            25 //lengthen_tissue
-    3   #define FUNC_SHORTEN_MUSCLE             26 //shorten_muscle
-    4   #define FUNC_SHORTEN_TISSUE             27 //shorten_tissue
-    
-    5   #define FUNC_STRENGTHEN_MUSCLE          28 //strengthen_muscle
-    6   #define FUNC_STRENGTHEN_TISSUE          29 //strengthen_tissue
-    7   #define FUNC_WEAKEN_MUSCLE              30 //weaken_muscle
-    8   #define FUNC_WEAKEN_TISSUE              31 //weaken_tissue
-         */
-    }
-    if (m_FParams.debug>1) std::cout<<"\nFinished ComputeParticleChangesCUDA ()\n"<<std::flush;
-}
-
-void FluidSystem::CleanBondsCUDA (){
-    void* args[3] = { &m_FParams.pnumActive};
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_CLEAN_BONDS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "CleanBondsCUDA", "cuLaunch", "FUNC_CLEAN_BONDS", mbDebug);
-}
-
-void FluidSystem::TransferPosVelVeval (){
-    TransferToTempCUDA ( FPOS,		mMaxPoints *sizeof(Vector3DF) );    // NB if some points have been removed, then the existing list is no longer dense,  
-    TransferToTempCUDA ( FVEL,		mMaxPoints *sizeof(Vector3DF) );    // hence must use mMaxPoints, not mNumPoints
-    TransferToTempCUDA ( FVEVAL,	mMaxPoints *sizeof(Vector3DF) );
-}
-
-void FluidSystem::AdvanceCUDA ( float tm, float dt, float ss ){
-    void* args[4] = { &tm, &dt, &ss, &m_FParams.pnumActive };
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_ADVANCE],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "AdvanceCUDA", "cuLaunch", "FUNC_ADVANCE", mbDebug);
-}
-
-void FluidSystem::SpecialParticlesCUDA (float tm, float dt, float ss){                                  // For interaction.Using dense lists for gene 1 & 0.
-    int gene = 12;                                                           // 'externally actuated' particles
-    uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
-    void* args[5] = {&list_length, &tm, &dt, &ss, &m_FParams.pnumActive};         // void externalActuation (uint list_len,  float time, float dt, float ss, int numPnts )
-    int numBlocks, numThreads;
-    computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
-    
-    if (m_FParams.debug>1) std::cout<<"\nSpecialParticlesCUDA:EXTERNAL_ACTUATION: list_length="<<list_length<<" , m_FParams.threadsPerBlock="<< m_FParams.threadsPerBlock <<", numBlocks="<< numBlocks <<", numThreads="<< numThreads <<", args{m_FParams.pnum="<< m_FParams.pnum <<",  gene="<< gene <<", list_length="<< list_length <<"  }  \n"<<std::flush;
-    
-    if( numBlocks>0 && numThreads>0){
-        if (m_FParams.debug>1) std::cout<<"\nCalling m_Func[FUNC_EXTERNAL_ACTUATION], list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<"\n"<<std::flush;
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_EXTERNAL_ACTUATION],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "SpecialParticlesCUDA", "cuLaunch", "FUNC_EXTERNAL_ACTUATION", mbDebug);
-    }
-    gene =11;                                                                // 'fixed' particles
-    list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
-    args[0] = &list_length;                                                 // void fixedParticles (uint list_len, int numPnts )
-    args[1] = &m_FParams.pnum;
-    computeNumBlocks ( list_length , m_FParams.threadsPerBlock, numBlocks, numThreads);
-    
-    if (m_FParams.debug>1) std::cout<<"\nSpecialParticlesCUDA:FIXED: list_length="<<list_length<<" , m_FParams.threadsPerBlock="<< m_FParams.threadsPerBlock <<", numBlocks="<< numBlocks <<", numThreads="<< numThreads <<", args{m_FParams.pnum="<< m_FParams.pnum <<",  gene="<< gene <<", list_length="<< list_length <<"  }  \n"<<std::flush;
-    
-    if( numBlocks>0 && numThreads>0){
-        if (m_FParams.debug>1) std::cout<<"\nCalling m_Func[FUNC_FIXED], list_length="<<list_length<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<"\n"<<std::flush;
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FIXED],  numBlocks, 1, 1, numThreads, 1, 1, 0, NULL, args, NULL), "SpecialParticlesCUDA", "cuLaunch", "FUNC_FIXED", mbDebug);
-    }
-}
-
-
-void FluidSystem::EmitParticlesCUDA ( float tm, int cnt ){
-    void* args[3] = { &tm, &cnt, &m_FParams.pnum };
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_EMIT],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "EmitParticlesCUDA", "cuLaunch", "FUNC_EMIT", mbDebug);
+    launchParams.file_num++;
+    WriteSimParams ( launchParams.outPath ); 
+    WriteGenome( launchParams.outPath );
 }
 
