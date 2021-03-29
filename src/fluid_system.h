@@ -169,7 +169,6 @@
 		// Particle Utilities
 		void AllocateBuffer(int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode);		
         void AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt, int lists );
-		void TransferToTempCUDA ( int buf_id, int sz );
         void AllocateParticles ( int cnt, int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES );
         void AddNullPoints ();
         int  AddParticleMorphogenesis2(Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint *_ElastIdxU, float *_ElastIdxF, uint *_Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen );
@@ -205,6 +204,13 @@
 		void Run ();	
         void Run( const char * relativePath, int frame, bool debug, bool gene_activity, bool remodelling );
         void RunSimulation ();
+        
+        void Run2PhysicalSort();
+        void Run2InnerPhysicalLoop();
+        void Run2GeneAction();
+        void Run2Remodelling();
+        void Run2Simulation();
+        
         void setFreeze(bool freeze);
         void Freeze ();
         void Freeze (const char * relativePath, int frame, bool debug, bool gene_activity, bool remodelling);
@@ -244,7 +250,11 @@
         void ComputeParticleChangesCUDA ();
         void CleanBondsCUDA ();                                         // Should this functionality be rolled into countingSortFull() ? OR should it be kept separate? 
         
+        void TransferToTempCUDA ( int buf_id, int sz );
+        void TransferFromTempCUDA ( int buf_id, int sz );
 		void TransferPosVelVeval ();                                    // Called B4 1st timestep, & B4 AdvanceCuda thereafter. 
+        void TransferPosVelVevalFromTemp ();
+        
         void AdvanceCUDA ( float time, float dt, float ss );            // Writes to ftemp 
         void SpecialParticlesCUDA (float tm, float dt, float ss);       // Reads fbuf, writes to ftemp, corects AdvanceCUDA().
 		void EmitParticlesCUDA ( float time, int cnt );
@@ -286,17 +296,19 @@
         struct {
             const char * relativePath;
             uint num_particles;
-            float spacing;
+            //float spacing;
             float x_dim, y_dim, z_dim, pos_x, pos_y, pos_z;
             uint demoType, simSpace;
             char paramsPath[256];
             char pointsPath[256];
             char genomePath[256];
             char outPath[256];
-            uint num_files=0, steps_per_file=0, freeze_steps=0, debug=0;
-            int file_num=0;
+            uint num_files=1, steps_per_file=1, freeze_steps=0, debug=0, steps_per_InnerPhysicalLoop=3;
+            int file_num=0, file_increment=0;
             char save_ply='n', save_csv='n', save_vtp='n',  gene_activity='n', remodelling='n';
             
+            float m_Time, m_DT, gridsize, spacing, simscale, smoothradius, visc, surface_tension, mass, radius, /*dist,*/ intstiff, extstiff, extdamp, accel_limit, vel_limit, grav, ground_slope, force_min, force_max, force_freq;
+            Vector3DF volmin, volmax, initmin, initmax;
         }launchParams ;
 	
 	private:

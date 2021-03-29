@@ -775,7 +775,7 @@ std::cout << "\n\n Chk13 \n"<<std::flush;
 
 void FluidSystem::Run (const char * relativePath, int frame, bool debug, bool gene_activity, bool remodelling ){       // version to save data after each kernel
     m_FParams.frame = frame;                 // used by computeForceCuda( .. Args)
-if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame = "<<frame<<" #########################################################"<<std::flush;
+    if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame = "<<frame<<" #########################################################"<<std::flush;
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "begin Run", mbDebug); 
     if(debug){
         TransferFromCUDA ();
@@ -941,6 +941,75 @@ if (m_FParams.debug>1)std::cout << "\n\n###### FluidSystem::Run (.......) frame 
 //     }
 */
 }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
+
+void FluidSystem::Run2PhysicalSort(){
+    InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug);
+    
+    PrefixSumCellsCUDA ( 1 );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumCellsCUDA", mbDebug);
+    
+    CountingSortFullCUDA ( 0x0 );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortFullCUDA", mbDebug);
+}
+
+void FluidSystem::Run2InnerPhysicalLoop(){
+    if(m_FParams.freeze==true){
+        InitializeBondsCUDA ();
+        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InitializeBondsCUDA ", mbDebug);
+    }
+    
+    ComputePressureCUDA();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug);
+    
+    ComputeForceCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug);
+    
+    if(launchParams.debug>4){
+        TransferFromCUDA ();
+        launchParams.file_increment++;
+        SavePointsCSV2 (  launchParams.outPath, launchParams.file_num+launchParams.file_increment );
+        std::cout << "\n\nRun(relativePath,frame) Chk4, saved "<< launchParams.file_num+3 <<".csv  After CountingSortFullCUDA\n"<<std::flush;
+    }
+    
+    TransferPosVelVeval ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval ", mbDebug);
+    
+    AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);
+    
+    SpecialParticlesCUDA ( m_Time, m_DT, m_Param[PSIMSCALE]);
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After SpecialParticlesCUDA", mbDebug);
+    
+    TransferPosVelVevalFromTemp ();
+    AdvanceTime ();
+}
+
+void FluidSystem::Run2GeneAction(){//NB gene sorting occurs within Run2PhysicalSort()
+    ComputeDiffusionCUDA();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
+    
+    ComputeGenesCUDA(); // NB (i)Epigenetic countdown, (ii) GRN gene regulatory network sensitivity to TransciptionFactors (FCONC)
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeGenesCUDA", mbDebug);
+}
+
+void FluidSystem::Run2Remodelling(){
+    AssembleFibresCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AssembleFibresCUDA", mbDebug); 
+    
+    ComputeBondChangesCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeBondChangesCUDA", mbDebug); 
+    
+    PrefixSumChangesCUDA ( 1 );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumChangesCUDA", mbDebug);
+    
+    CountingSortChangesCUDA (  );
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortChangesCUDA", mbDebug);
+    
+    ComputeParticleChangesCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeParticleChangesCUDA", mbDebug);
+}
+
 
 
 void FluidSystem::setFreeze(bool freeze){
@@ -1162,6 +1231,34 @@ void FluidSystem::SetupExampleParams (uint spacing){
         m_Vec [ PPLANE_GRAV_DIR ].Set ( 0, -1, 0 );
         m_Param [ PGROUND_SLOPE ] = 0.1f;
         break;
+    case 7:     // From SpecificationFile.txt
+        m_Time = launchParams.m_Time;
+        m_DT = launchParams.m_DT;
+        m_Param [ PGRIDSIZE ] = launchParams.gridsize;
+        m_Param [ PSPACING ] = launchParams.spacing;
+        m_Param [ PSIMSCALE ] = launchParams.simscale;
+        m_Param [ PSMOOTHRADIUS ] = launchParams.smoothradius;
+        m_Param [ PVISC ] = launchParams.visc;
+        m_Param [ PSURFACE_TENSION ] = launchParams.surface_tension;
+        m_Param [ PMASS ] = launchParams.mass;
+        m_Param [ PRADIUS ] = launchParams.radius;
+        /*m_Param [ PDIST ] = launchParams.dist;*/
+        m_Param [ PINTSTIFF ] = launchParams.intstiff;
+        m_Param [ PEXTSTIFF ] = launchParams.extstiff;
+        m_Param [ PEXTDAMP ] = launchParams.extdamp;
+        m_Param [ PACCEL_LIMIT ] = launchParams.accel_limit;
+        m_Param [ PVEL_LIMIT ] = launchParams.vel_limit;
+        m_Param [ PGRAV ] = launchParams.grav;
+        m_Param [ PGROUND_SLOPE ] = launchParams.ground_slope;
+        m_Param [ PFORCE_MIN ] = launchParams.force_min;
+        m_Param [ PFORCE_MAX ] = launchParams.force_max;
+        m_Param [ PFORCE_FREQ ] = launchParams.force_freq;
+        
+        m_Vec [ PVOLMIN ] = launchParams.volmin;
+        m_Vec [ PVOLMAX ] = launchParams.volmax;
+        m_Vec [ PINITMIN ] = launchParams.initmin;
+        m_Vec [ PINITMAX ] = launchParams.initmax;
+        break;
     }
 }
 
@@ -1251,7 +1348,7 @@ void FluidSystem::SetupSpacing (){
         m_Param [PDIST] = m_Param[PSPACING] * m_Param[PSIMSCALE] / 0.87f;
         m_Param [PRESTDENSITY] = m_Param[PMASS] / pow ( (float) m_Param[PDIST], 3.0f );
     }
-    //if (m_FParams.debug>1)nvprintf ( "Add Particles. Density: %f, Spacing: %f, PDist: %f\n", m_Param[PRESTDENSITY], m_Param [ PSPACING ], m_Param[ PDIST ] );
+    if (m_FParams.debug>0)printf ( "\nSetupSpacing: Density=,%f, Spacing=,%f, PDist=,%f\n", m_Param[PRESTDENSITY], m_Param[PSPACING], m_Param[PDIST] );
 
     // Particle Boundaries
     m_Vec[PBOUNDMIN] = m_Vec[PVOLMIN];
@@ -1344,4 +1441,52 @@ void FluidSystem::RunSimulation (){
     WriteSimParams ( launchParams.outPath ); 
     WriteGenome( launchParams.outPath );
 }
+
+void FluidSystem::Run2Simulation(){
+    Init_FCURAND_STATE_CUDA ();
+    auto old_begin = std::chrono::steady_clock::now();
+    TransferPosVelVeval ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval, before 1st timestep", 1/*mbDebug*/);
+    setFreeze(true);
+    for (int k=0; k<launchParams.freeze_steps; k++){
+      std::cout<<"\n\nFreeze()"<<k<<"\n"<<std::flush;
+      Run (launchParams.outPath, launchParams.file_num, (launchParams.debug>4), (launchParams.gene_activity=='y'), (launchParams.remodelling=='y') );
+      TransferPosVelVeval ();
+      if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+      if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
+      if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
+      launchParams.file_num+=100;
+    }
+    setFreeze(false);
+    printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
+    
+    for ( ; launchParams.file_num<launchParams.num_files; launchParams.file_num+=100 ) {
+        launchParams.file_increment=0;
+        for ( int j=0; j<launchParams.steps_per_file; j++ ) {
+            Run2PhysicalSort();
+            for (int k=0; k<launchParams.steps_per_InnerPhysicalLoop; k++) Run2InnerPhysicalLoop();
+            if(launchParams.gene_activity=='y') Run2GeneAction();
+            if(launchParams.remodelling=='y') Run2Remodelling();
+        }
+        auto begin = std::chrono::steady_clock::now();
+        if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+        if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
+        if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
+        cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+        
+        auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> time = end - begin;
+        std::chrono::duration<double> begin_dbl = begin - old_begin;
+        if(launchParams.debug>0) std::cout << "\nLoop duration : "
+                    << begin_dbl.count() <<" seconds. Time taken to write files for "
+                    << NumPoints() <<" particles : " 
+                    << time.count() << " seconds\n" << std::endl;
+        old_begin = begin;
+    }
+    launchParams.file_num++;
+    WriteSimParams ( launchParams.outPath ); 
+    WriteGenome( launchParams.outPath );
+    WriteExampleSpecificationFile ( launchParams.outPath );
+}
+
 

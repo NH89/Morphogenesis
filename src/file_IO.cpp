@@ -207,9 +207,9 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
         ElastIdx = getElastIdx(i);
         //ElastIdxPtr = (float*)ElastIdx;
         for(int j=0; j<(BONDS_PER_PARTICLE ); j++) { 
-            int secondParticle = ElastIdx[j * DATA_PER_BOND];
-            int bond = ElastIdx[j * DATA_PER_BOND +2];          // NB [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
-            if (bond==0 || bond==UINT_MAX) secondParticle = i;                    // i.e. if [2]restlength, then bond is broken, therefore bond to self.
+            uint secondParticle = ElastIdx[j * DATA_PER_BOND];
+            uint bond = ElastIdx[j * DATA_PER_BOND +2];          // NB [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
+            if (bond==0 || bond==UINT_MAX || secondParticle==UINT_MAX) secondParticle = i;                    // i.e. if [2]restlength, then bond is broken, therefore bond to self.
             vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
             line->GetPointIds()->SetId(0,i);
             line->GetPointIds()->SetId(1,secondParticle);
@@ -260,7 +260,8 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
         ElastIdxPtr = (float*)ElastIdx;                // FELASTIDX[BONDS_PER_PARTICLE]  [1]elastic limit float, [2]restlength float, [3]modulus float, [4]damping coeff float,
         for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
             BondsUIntData->InsertNextTuple3(ElastIdx[j], ElastIdx[j+5], ElastIdx[j+6]);
-            BondsFloatData->InsertNextTuple6(ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdxPtr[j+7], 0);
+            //BondsFloatData->InsertNextTuple6(ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdxPtr[j+7], 0);
+            BondsFloatData->InsertNextTuple6(ElastIdx[j+1], ElastIdx[j+2], ElastIdx[j+3], ElastIdx[j+4], ElastIdx[j+7], 0);
         }
     }
     for(int corner=0; corner<8; corner++){
@@ -569,7 +570,7 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
             
            /*
             // if ((j%DATA_PER_BOND==0)||((j+1)%DATA_PER_BOND==0))  fprintf(fp, "%u, ",  ElastIdx[j] );  // print as int   [0]current index, [5]particle ID, [6]bond index 
-           // else  fprintf(fp, "%f, ",  ElastIdxPtr[j] );                                              // print as float [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, 
+           // else  fprintf(fp, "%f, ",  ElastIdxPtr[j] );                                               // print as float [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, 
            //  if((j+1)%DATA_PER_BOND==0)  
             */
             fprintf(fp, "\t\t");
@@ -982,43 +983,43 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     ret += std::fscanf ( SpecFile, "simSpace = %u\n ", &launchParams.simSpace );
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "m_Time = %f\n ", &m_Time );
-    ret += std::fscanf ( SpecFile, "m_DT = %f\n ", &m_DT );
+    ret += std::fscanf ( SpecFile, "m_Time = %f\n ", &launchParams.m_Time );
+    ret += std::fscanf ( SpecFile, "m_DT = %f\n ", &launchParams.m_DT );
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "gridsize = %f\n ", &m_Param [ PGRIDSIZE ]);
-    ret += std::fscanf ( SpecFile, "spacing = %f\n ", &m_Param [ PSPACING ]);
+    ret += std::fscanf ( SpecFile, "gridsize = %f\n ", &launchParams.gridsize);
+    ret += std::fscanf ( SpecFile, "spacing = %f\n ", &launchParams.spacing);
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "simscale = %f\n ", &m_Param [ PSIMSCALE ]);
-    ret += std::fscanf ( SpecFile, "smooth_radius = %f\n ", &m_Param [ PSMOOTHRADIUS ]);
+    ret += std::fscanf ( SpecFile, "simscale = %f\n ", &launchParams.simscale);
+    ret += std::fscanf ( SpecFile, "smooth_radius = %f\n ", &launchParams.smoothradius);
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "visc = %f\n ", &m_Param [ PVISC ]);
-    ret += std::fscanf ( SpecFile, "surface_t = %f\n ", &m_Param [ PSURFACE_TENSION ]);
+    ret += std::fscanf ( SpecFile, "visc = %f\n ", &launchParams.visc);
+    ret += std::fscanf ( SpecFile, "surface_t = %f\n ", &launchParams.surface_tension);
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "mass = %f\n ", &m_Param [ PMASS ]);
-    ret += std::fscanf ( SpecFile, "radius = %f\n ", &m_Param [ PRADIUS ]);
-    ret += std::fscanf ( SpecFile, "dist = %f\n ", &m_Param [ PDIST ]);
+    ret += std::fscanf ( SpecFile, "mass = %f\n ", &launchParams.mass);
+    ret += std::fscanf ( SpecFile, "radius = %f\n ", &launchParams.radius);
+    /*ret += std::fscanf ( SpecFile, "dist = %f\n ", &launchParams.dist);*/
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "int_stiff = %f\n ", &m_Param [ PINTSTIFF ]);
-    ret += std::fscanf ( SpecFile, "ext_stiff = %f\n ", &m_Param [ PEXTSTIFF ]);
-    ret += std::fscanf ( SpecFile, "ext_damp = %f\n ", &m_Param [ PEXTDAMP ]);
+    ret += std::fscanf ( SpecFile, "int_stiff = %f\n ", &launchParams.intstiff);
+    ret += std::fscanf ( SpecFile, "ext_stiff = %f\n ", &launchParams.extstiff);
+    ret += std::fscanf ( SpecFile, "ext_damp = %f\n ", &launchParams.extdamp);
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "accel_limit = %f\n ", &m_Param [ PACCEL_LIMIT ]);
-    ret += std::fscanf ( SpecFile, "vel_limit = %f\n ", &m_Param [ PVEL_LIMIT ]);
+    ret += std::fscanf ( SpecFile, "accel_limit = %f\n ", &launchParams.accel_limit);
+    ret += std::fscanf ( SpecFile, "vel_limit = %f\n ", &launchParams.vel_limit);
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "grav = %f\n ", &m_Param [ PGRAV ]);
-    ret += std::fscanf ( SpecFile, "slope = %f\n ", &m_Param [ PGROUND_SLOPE ]);
+    ret += std::fscanf ( SpecFile, "grav = %f\n ", &launchParams.grav);
+    ret += std::fscanf ( SpecFile, "slope = %f\n ", &launchParams.ground_slope);
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "force_min = %f\n ", &m_Param [ PFORCE_MIN ]);
-    ret += std::fscanf ( SpecFile, "force_max = %f\n ", &m_Param [ PFORCE_MAX ]);
-    ret += std::fscanf ( SpecFile, "force_freq = %f\n ", &m_Param [ PFORCE_FREQ ]);
+    ret += std::fscanf ( SpecFile, "force_min = %f\n ", &launchParams.force_min);
+    ret += std::fscanf ( SpecFile, "force_max = %f\n ", &launchParams.force_max);
+    ret += std::fscanf ( SpecFile, "force_freq = %f\n ", &launchParams.force_freq);
     ret += std::fscanf ( SpecFile, "\n");
     
     ret += std::fscanf ( SpecFile, "x_dim = %f\n ", &launchParams.x_dim );
@@ -1031,24 +1032,24 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     ret += std::fscanf ( SpecFile, "pos_z = %f\n ", &launchParams.pos_z );
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "volmin_x = %f\n ", &m_Vec [ PVOLMIN ].x);
-    ret += std::fscanf ( SpecFile, "volmin_y = %f\n ", &m_Vec [ PVOLMIN ].y );
-    ret += std::fscanf ( SpecFile, "volmin_z = %f\n ", &m_Vec [ PVOLMIN ].z );
+    ret += std::fscanf ( SpecFile, "volmin_x = %f\n ", &launchParams.volmin.x );
+    ret += std::fscanf ( SpecFile, "volmin_y = %f\n ", &launchParams.volmin.y );
+    ret += std::fscanf ( SpecFile, "volmin_z = %f\n ", &launchParams.volmin.z );
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "volmax_x = %f\n ", &m_Vec [ PVOLMAX ].x );
-    ret += std::fscanf ( SpecFile, "volmax_y = %f\n ", &m_Vec [ PVOLMAX ].y );
-    ret += std::fscanf ( SpecFile, "volmax_z = %f\n ", &m_Vec [ PVOLMAX ].z );
+    ret += std::fscanf ( SpecFile, "volmax_x = %f\n ", &launchParams.volmax.x );
+    ret += std::fscanf ( SpecFile, "volmax_y = %f\n ", &launchParams.volmax.y );
+    ret += std::fscanf ( SpecFile, "volmax_z = %f\n ", &launchParams.volmax.z );
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "initmin_x = %f\n ", &m_Vec [ PINITMIN ].x );
-    ret += std::fscanf ( SpecFile, "initmin_y = %f\n ", &m_Vec [ PINITMIN ].y );
-    ret += std::fscanf ( SpecFile, "initmin_z = %f\n ", &m_Vec [ PINITMIN ].z );
+    ret += std::fscanf ( SpecFile, "initmin_x = %f\n ", &launchParams.initmin.x );
+    ret += std::fscanf ( SpecFile, "initmin_y = %f\n ", &launchParams.initmin.y );
+    ret += std::fscanf ( SpecFile, "initmin_z = %f\n ", &launchParams.initmin.z );
     ret += std::fscanf ( SpecFile, "\n");
     
-    ret += std::fscanf ( SpecFile, "initmax_x = %f\n ", &m_Vec [ PINITMAX ].x );
-    ret += std::fscanf ( SpecFile, "initmax_y = %f\n ", &m_Vec [ PINITMAX ].y );
-    ret += std::fscanf ( SpecFile, "initmax_z = %f\n ", &m_Vec [ PINITMAX ].z );
+    ret += std::fscanf ( SpecFile, "initmax_x = %f\n ", &launchParams.initmax.x );
+    ret += std::fscanf ( SpecFile, "initmax_y = %f\n ", &launchParams.initmax.y );
+    ret += std::fscanf ( SpecFile, "initmax_z = %f\n ", &launchParams.initmax.z );
     ret += std::fscanf ( SpecFile, "\n");
     
     ret += std::fscanf ( SpecFile, "paramsPath = %s\n ", launchParams.paramsPath );
@@ -1058,6 +1059,7 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     ret += std::fscanf ( SpecFile, "\n");
     
     ret += std::fscanf ( SpecFile, "num_files = %u\n ", &launchParams.num_files );
+    ret += std::fscanf ( SpecFile, "steps_per_InnerPhysicalLoop = %u\n ", &launchParams.steps_per_InnerPhysicalLoop );
     ret += std::fscanf ( SpecFile, "steps_per_file = %u\n ", &launchParams.steps_per_file );
     ret += std::fscanf ( SpecFile, "freeze_steps = %u\n ", &launchParams.freeze_steps );
     ret += std::fscanf ( SpecFile, "\n");
@@ -1113,7 +1115,7 @@ void FluidSystem::WriteExampleSpecificationFile ( const char * relativePath ){ /
     
     ret += std::fprintf ( SpecFile, "mass = %f\n ", m_Param [ PMASS ]);
     ret += std::fprintf ( SpecFile, "radius = %f\n ", m_Param [ PRADIUS ]);
-    ret += std::fprintf ( SpecFile, "dist = %f\n ", m_Param [ PDIST ]);
+    /*ret += std::fprintf ( SpecFile, "dist = %f\n ", m_Param [ PDIST ]);*/
     ret += std::fprintf ( SpecFile, "\n");
     
     ret += std::fprintf ( SpecFile, "int_stiff = %f\n ", m_Param [ PINTSTIFF ]);
@@ -1171,6 +1173,7 @@ void FluidSystem::WriteExampleSpecificationFile ( const char * relativePath ){ /
     ret += std::fprintf ( SpecFile, "\n");
     
     ret += std::fprintf ( SpecFile, "num_files = %u\n ", launchParams.num_files );
+    ret += std::fprintf ( SpecFile, "steps_per_InnerPhysicalLoop = %u\n ", launchParams.steps_per_InnerPhysicalLoop );
     ret += std::fprintf ( SpecFile, "steps_per_file = %u\n ", launchParams.steps_per_file );
     ret += std::fprintf ( SpecFile, "freeze_steps = %u\n ", launchParams.freeze_steps );
     ret += std::fprintf ( SpecFile, "\n");

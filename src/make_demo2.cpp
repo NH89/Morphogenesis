@@ -45,7 +45,9 @@ int main ( int argc, const char** argv )
     ); /*const char * relativePath*/ 
     std::cout<<"\n\nmake_demo2 chk2 "<<std::flush;
     fluid.TransferToCUDA (); 
-    fluid.RunSimulation ();
+    fluid.Run2Simulation ();
+    
+    
     std::cout<<"\n\nmake_demo2 chk3 "<<std::flush;
     
     // clean up and exit

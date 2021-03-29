@@ -94,7 +94,7 @@ if(fparam.debug>2 && i==pnum-1) printf("\ninsertParticles()1: gridTot=%i,  i=%u:
 	} else {
 		fbuf.bufI(FGCELL)[i] = GRID_UNDEF;  // gridTot;//    // m_GridTotal  
 		//if(i>pnum-10)fbuf.bufI(FGNDX)[i] = atomicAdd ( &fbuf.bufI(FGRIDCNT)[ gridTot-1 ], 1 );  // NB limit on the number of atomic operations on one variable.
-        //if(fparam.debug>2)printf("\ninsertParticles()4: i=%i GRID_UNDEF, gc.x=%i, gc.y=%i, gc.z=%i,  ",i, gc.x, gc.y, gc.z);
+        if(fparam.debug>2)printf("\n insertParticles()4: i=%i GRID_UNDEF, gc.x=%i, gc.y=%i, gc.z=%i, \t gridScan=(,%i,%i,%i,) pos=(,%f,%f,%f,), pboundmax=(,%f,%f,%f,)",i, gc.x, gc.y, gc.z, gridScan.x, gridScan.y, gridScan.z, fbuf.bufF3(FPOS)[i].x, fbuf.bufF3(FPOS)[i].y,fbuf.bufF3(FPOS)[i].z, fparam.pboundmax.x, fparam.pboundmax.y, fparam.pboundmax.z);
 	}
 }
 
@@ -166,6 +166,7 @@ extern "C" __global__ void countingSortFull ( int pnum )                        
 	// into sorted memory location on device (mpos/mvel)
 	uint icell = ftemp.bufI(FGCELL) [ i ];                                              // icell is bin into which i is sorted in fbuf.*
 
+	//if (i==1) printf("\n countingSortFull(): pos=(%f,%f,%f)", fbuf.bufF3(FPOS)[i].x , fbuf.bufF3(FPOS)[i].y, fbuf.bufF3(FPOS)[i].z);
 	//if ( icell == GRID_UNDEF ) printf("\nicell == GRID_UNDEF, i=,%u,",i);   
 	
 	if ( icell != GRID_UNDEF ) {	                                                    // This line would eliminate out of range particles from the model, inc. NULL particles.
@@ -215,6 +216,11 @@ extern "C" __global__ void countingSortFull ( int pnum )                        
             for (int b=1;b<5/*DATA_PER_BOND*/;b++){                                     // copy [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, etc // no longer (iff unbroken)
                 fbuf.bufF (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +b] = ftemp.bufF (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + b]; // uints
             }                                                                           // old: copy the modulus & length
+            //if(j>pnum){
+            //    fbuf.bufF (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +1] = 0.0;  // if(particle j not in use), set elastic_lim & rest_length to zero.
+            //    fbuf.bufF (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +2] = 0.0;   // Not strictly required because computeForce checks if(j<pnum).
+            //}                             // NB it would be beter to have separate float and uint buffers, and use memset at the beginig of the timestep
+            
             fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +5] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 5];   //[5]partID, uint
             fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +6] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 6];   //[6]bond index, uint
             fbuf.bufF (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +7] = ftemp.bufF (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 7];   //[7]stress integrator, float
@@ -588,8 +594,10 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell, floa
     register float sr = fparam.psmoothradius;
 	
 	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];      // off set of this cell in the list of particles,  PLUS  the count of particles in this cell.
-
+    
+    uint k=0;
 	for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {    // For particles in this cell.
+        k++;
 		int pndx = fbuf.bufI(FGRID) [cndx];                                 // index of this particle
 		dist = p - fbuf.bufF3(FPOS) [pndx];                                 // float3 distance between this particle, and the particle for which the loop has been called.
 		dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);              // scalar distance squared
@@ -613,8 +621,8 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell, floa
             b*=b;
             sum  += b*(2*q +1);//(H+4*r);                                   // Wendland C^2 quintic kernel for 3 dimensions.
             /*
-            if (i<10)printf("\n contribPressure()1: i=,%u, ,j=,%u,\t ,r=sqrt(dsq)=,%f, ,H=sr/ss=,%f, q=r/H=,%f, ,b=(1-q/2.0)^3,%f,\t ,pressure= 1-q/2.0)^3*(2*q +1)=,%f  ",i, pndx, r, H, q, b, b*(2*q +1) );
-
+            if (i<5 && k<6)printf("\n contribPressure()1: i=,%u, ,j=,%u,\t ,r=sqrt(dsq)=,%f, ,H=sr/ss=,%f, q=r/H=,%f, ,b=(1-q/2.0)^3,%f,\t ,pressure= 1-q/2.0)^3*(2*q +1)=,%f  ",i, pndx, r, H, q, b, b*(2*q +1) );
+            
 			c = (r2 - dsq)*d2;
 			sum_p6k += c * c * c;
             if (i<10)printf("\ncontribPressure()2: i=,%u, ,j=,%u, r2=sr^2/ss^2=,%f, dsq=,%f, d2=ss^2=,%f,\t\t,c=(r2-dsq)*d2=,%f, ,,,,pressure_p6k=c^3=,%f, ", i, pndx,  r2, dsq, d2, c,  c*c*c );
@@ -645,16 +653,16 @@ extern "C" __global__ void computePressure ( int pnum )
     
 	// Compute Density & Pressure
     float old_sum=sum,  old_sum_p6k=sum_p6k;
-    float rest_dens = 0.0015;/*fparam.prest_dens*/
+    //float rest_dens = fparam.prest_dens; //  0.0015;
 	sum = sum * fparam.pmass * fparam.wendlandC2kern;
 	//sum_p6k = sum_p6k * fparam.pmass * fparam.poly6kern;
     
 	if ( sum == 0.0 ) sum = 1.0;
-	fbuf.bufF(FPRESS)  [ i ] = ( sum - rest_dens ) * fparam.pintstiff;   // pressure = (diff from rest density) * stiffness
+	fbuf.bufF(FPRESS)  [ i ] = ( sum - fparam.prest_dens ) * fparam.pintstiff;   // pressure = (diff from rest density) * stiffness
 	fbuf.bufF(FDENSITY)[ i ] = 1.0f / sum;
     /*
     if (i<10)printf("\n computePressure()2: i=,%u, ,old_sum=,%f, ,old_sum_p6k=,%-20.20f, ,sum*=pmass*wendlandC2kern=,%.32f, ,sum_p6k*=pmass*poly6kern=,%f,\t ,wendlandC2kern=,%f, poly6kern=,%f, ,pmass=,%f, ,prest_dens=,%f, ,pintstiff=,%f,\t ,Pressure=(sum-prest_dens)*pintstiff=,%f  ", 
-        i, old_sum, old_sum_p6k, sum, sum_p6k, fparam.wendlandC2kern, fparam.poly6kern, fparam.pmass, rest_dens, fparam.pintstiff, fbuf.bufF(FPRESS)[i]  );
+        i, old_sum, old_sum_p6k, sum, sum_p6k, fparam.wendlandC2kern, fparam.poly6kern, fparam.pmass, fparam.prest_dens, fparam.pintstiff, fbuf.bufF(FPRESS)[i]  );
     */
 }
 
@@ -736,7 +744,7 @@ extern "C" __global__ void assembleMuscleFibresOutGoing ( int pnum, uint list, u
     uint i = fbuf.bufII(FDENSE_LISTS)[list][particle_index];
     if (i > fparam.maxPoints) return;
     
-    printf("\nassembleMuscleFibresOutGoing() chk1: i=%u   ",i  );
+    if (fparam.debug>2)printf("\nassembleMuscleFibresOutGoing() chk1: i=%u   ",i  );
     
     ///////////// Swap outgoing bond indicies 
     // Find highest stress incoming bond
@@ -755,9 +763,9 @@ extern "C" __global__ void assembleMuscleFibresOutGoing ( int pnum, uint list, u
             maxStressBondIdx = bond;        // TODO chk vs null bonds or particles
         }
     }
-    printf("\nassembleMuscleFibresOutGoing() chk2: i=%u   ",i  );
+    if (fparam.debug>2)printf("\nassembleMuscleFibresOutGoing() chk2: i=%u   ",i  );
     if (maxStressBondIdx!=0){
-        printf("\nassembleMuscleFibresOutGoing()  called for :  i=%u   ",i );
+        if (fparam.debug>2)printf("\nassembleMuscleFibresOutGoing()  called for :  i=%u   ",i );
         // store high stress bond
         uint bytes = sizeof(uint)*DATA_PER_BOND;
         char temp[sizeof(uint)*DATA_PER_BOND /* DATA_PER_BOND*4 */] = {0};                       // NB sensitive to size of uint and float
@@ -772,7 +780,7 @@ extern "C" __global__ void assembleMuscleFibresOutGoing ( int pnum, uint list, u
         uint  bondIndex         = bond_uint_ptr[6 + bondStep]; 
         float stressIntegrator  = bond_flt_ptr [7 + bondStep];
         uint  changeIndicator   = bond_uint_ptr[8 + bondStep];
-        printf("\nassembleMuscleFibresOutGoing() chk1 called for :  i=%u   ",i );
+        if (fparam.debug>2)printf("\nassembleMuscleFibresOutGoing() chk1 called for :  i=%u   ",i );
         
         // move low stress bond
         //memcpy(bond_char_ptr, &bond_char_ptr[bondStep*sizeof(uint)], bytes);
@@ -790,12 +798,13 @@ extern "C" __global__ void assembleMuscleFibresOutGoing ( int pnum, uint list, u
             bond_uint_ptr[8 + bondStep] = bond_uint_ptr[8];
 
             // update reciprocal record
-            printf("\nassembleMuscleFibresOutGoing() chk2 called for :  i=%u  otherParticle=%u  otherParticleBondIDx=%u ", i, otherParticle, otherParticleBondIDx );
-            printf(".\n");//flush hopefully...
+            if (fparam.debug>2){
+                printf("\nassembleMuscleFibresOutGoing() chk2 called for :  i=%u  otherParticle=%u  otherParticleBondIDx=%u .\n", i, otherParticle, otherParticleBondIDx );
+            }
     
             fbuf.bufI(FELASTIDX)[otherParticle*BOND_DATA + otherParticleBondIDx*DATA_PER_BOND + 6]  = 0;  
         }
-        printf("\nassembleMuscleFibresOutGoing() chk3 called for :  i=%u   ",i );    
+        if (fparam.debug>2)printf("\nassembleMuscleFibresOutGoing() chk3 called for :  i=%u   ",i );    
         
         // write high stress bond
         //memcpy(temp, bond_char_ptr, bytes);
@@ -808,7 +817,7 @@ extern "C" __global__ void assembleMuscleFibresOutGoing ( int pnum, uint list, u
         bond_uint_ptr[6] = bondIndex; 
         bond_flt_ptr [7] = stressIntegrator;
         bond_uint_ptr[8] = changeIndicator;
-        printf("\nassembleMuscleFibresOutGoing() chk4 called for :  i=%u   ",i );
+        if (fparam.debug>2)printf("\nassembleMuscleFibresOutGoing() chk4 called for :  i=%u   ",i );
         
         // update reciprocal record
         otherParticle          = bond_uint_ptr [0];
@@ -816,9 +825,9 @@ extern "C" __global__ void assembleMuscleFibresOutGoing ( int pnum, uint list, u
         if(otherParticle < fparam.maxPoints && otherParticleBondIDx < BONDS_PER_PARTICLE)
             fbuf.bufI(FELASTIDX)[otherParticle*BOND_DATA + otherParticleBondIDx*DATA_PER_BOND + 6]  = maxStressBondIdx;  
         
-    printf("\nassembleMuscleFibresOutGoing() chk5 called for :  i=%u   ",i );
+    if (fparam.debug>2)printf("\nassembleMuscleFibresOutGoing() chk5 called for :  i=%u   ",i );
     }
-    printf("\nassembleMuscleFibresOutGoing() chk3: i=%u   ",i  );
+    if (fparam.debug>2)printf("\nassembleMuscleFibresOutGoing() chk3: i=%u   ",i  );
     
 }
 
@@ -830,7 +839,7 @@ extern "C" __global__ void assembleMuscleFibresInComing ( int pnum, uint list, u
     uint i = fbuf.bufII(FDENSE_LISTS)[list][particle_index];
     if (i > fparam.maxPoints) return;
     
-    printf("\nassembleMuscleFibresInComing() chk1: i=%u   ",i  );
+    if (fparam.debug>2)printf("\nassembleMuscleFibresInComing() chk1: i=%u   ",i  );
     
     ///////////// Swap outgoing bond indicies 
     
@@ -859,18 +868,18 @@ extern "C" __global__ void assembleMuscleFibresInComing ( int pnum, uint list, u
     }
     
     
-    printf("\nassembleMuscleFibresInComing() chk4: i=%u  maxStressBondIdx=%u ",i ,maxStressBondIdx );
+    if (fparam.debug>2)printf("\nassembleMuscleFibresInComing() chk4: i=%u  maxStressBondIdx=%u ",i ,maxStressBondIdx );
     if (maxStressBondIdx!=0 ){
         // store high stress bond
         incomingParticleIdx        = fbuf.bufI(FPARTICLEIDX)[i*2*BONDS_PER_PARTICLE + maxStressBondIdx*2];
         incomingParticleBondIDx    = fbuf.bufI(FPARTICLEIDX)[i*2*BONDS_PER_PARTICLE + maxStressBondIdx*2 +1];
         
-        printf("\nassembleMuscleFibresInComing() chk4.1: i=%u  incomingParticleIdx=%u,  incomingParticleBondIDx=%u ",i ,incomingParticleIdx, incomingParticleBondIDx );
+        if (fparam.debug>2)printf("\nassembleMuscleFibresInComing() chk4.1: i=%u  incomingParticleIdx=%u,  incomingParticleBondIDx=%u ",i ,incomingParticleIdx, incomingParticleBondIDx );
         
         uint lowStressIncomingParticleIdx          = fbuf.bufI(FPARTICLEIDX)[i*2*BONDS_PER_PARTICLE ];
         uint lowStressIncomingParticleBondIDx      = fbuf.bufI(FPARTICLEIDX)[i*2*BONDS_PER_PARTICLE +1];
         
-        printf("\nassembleMuscleFibresInComing() chk4.2: i=%u  lowStressIncomingParticleIdx=%u,  lowStressIncomingParticleBondIDx=%u ",i ,lowStressIncomingParticleIdx, lowStressIncomingParticleBondIDx );
+        if (fparam.debug>2)printf("\nassembleMuscleFibresInComing() chk4.2: i=%u  lowStressIncomingParticleIdx=%u,  lowStressIncomingParticleBondIDx=%u ",i ,lowStressIncomingParticleIdx, lowStressIncomingParticleBondIDx );
         
         // move low stress bond
         fbuf.bufI(FPARTICLEIDX)[i*2*BONDS_PER_PARTICLE + maxStressBondIdx*2]       =  lowStressIncomingParticleIdx;
@@ -896,7 +905,7 @@ extern "C" __global__ void assembleMuscleFibresInComing ( int pnum, uint list, u
             fbuf.bufF(FELASTIDX)[incomingParticleIdx*BOND_DATA +  incomingParticleBondIDx*DATA_PER_BOND + 6] =  0;
         }
     }
-    printf("\nassembleMuscleFibresInComing() chk5: i=%u   ",i  );
+   if (fparam.debug>2) printf("\nassembleMuscleFibresInComing() chk5: i=%u   ",i  );
     
     /////////// connect contractile fibres (bond[1])  // replace bond[1], and leave other particles to heal.
     // if (tendon) return;
@@ -1016,8 +1025,8 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length )// G
     uint i = fbuf.bufII(FDENSE_LISTS)[2][particle_index];                                           // call for dense list of living cells (gene'2'living/telomere (has genes))
     //if ( i >= pnum || i==0 ) {printf("\tcomputeBondChanges:i %u>=%u pnum\t",i,pnum);   return;} 
     
-    if ( i >= pnum ) {printf("\tcomputeBondChanges:i %u>=%u pnum\t",i,pnum);   return;} 
-    if ( i==0 ) {printf("\tcomputeBondChanges:i=%u,  pnum=%u, fparam.maxPoints=%u \t",i, pnum, fparam.maxPoints);}
+    if (i >= pnum ) {printf("\tcomputeBondChanges:i %u>=%u pnum\t",i,pnum);   return;} 
+    if (fparam.debug>2 && i==0 ) {printf("\tcomputeBondChanges:i=%u,  pnum=%u, fparam.maxPoints=%u \t",i, pnum, fparam.maxPoints);}
 
     float * fbufFCONC = &fbuf.bufF(FCONC)[i*NUM_TF];
     //float * ftempFCONC = &ftemp.bufF(FCONC)[i*NUM_TF];
@@ -1568,7 +1577,7 @@ extern "C" __device__ void makeBondIndxMap( uint parentParticleIndx, int bondInx
         bondInxMap[2] = axis0 -1;
         bondInxMap[5] = axis0 +2;
     }
-    printf("\nmakeBondIndxMap: parentParticleIndx=%u, bondInxMap=(%i,%i,%i,%i,%i,%i) ", parentParticleIndx, bondInxMap[0], bondInxMap[1], bondInxMap[2], bondInxMap[3], bondInxMap[4], bondInxMap[5]   );
+    if (fparam.debug>2)printf("\nmakeBondIndxMap: parentParticleIndx=%u, bondInxMap=(%i,%i,%i,%i,%i,%i) ", parentParticleIndx, bondInxMap[0], bondInxMap[1], bondInxMap[2], bondInxMap[3], bondInxMap[4], bondInxMap[5]   );
 }
 
 
@@ -1581,7 +1590,7 @@ extern "C" __device__ void redistribute_bonds(uint new_particle_Idx, float3 newP
 
 
 extern "C" __device__ int insertNewParticle(uint new_particle_Idx, float3 newParticlePos, uint parentParticleIndx, uint bondIdx, uint secondParticleIdx, uint otherParticleBondIndex, uint bond_type[BONDS_PER_PARTICLE]){
-    printf ("\ninsertNewParticle1: new_particle_Idx=%u,", new_particle_Idx);                                    // Inserts particle at newParticlePos AND redistributes bonds with neighbours.
+    if (fparam.debug>2)printf ("\ninsertNewParticle1: new_particle_Idx=%u,", new_particle_Idx);                                    // Inserts particle at newParticlePos AND redistributes bonds with neighbours.
   //  addParticle(parentParticleIndx, new_particle_Idx);                                                         // Used by lengthen_tissue(), also for strengthen_tissue(), & muscle...
     
     // cut the old bond here 
@@ -1616,7 +1625,7 @@ extern "C" __device__ int insertNewParticle(uint new_particle_Idx, float3 newPar
     bondInxMap[InheritedBondAxis] = 0; // NB inherited bond is on bondIndex 0.
     
     
-    printf("\ninsertNewParticle1.1: new_particle_Idx=%u, \tneighbours[]=(%u,%u,%u,%u,%u,%u), \tneighboursBondIdx[]=(%u,%u,%u,%u,%u,%u), \tneighbours2[]=(%u,%u,%u,%u,%u,%u), \tbondInxMap[]=(%u,%u,%u,%u,%u,%u) ",
+    if (fparam.debug>2)printf("\ninsertNewParticle1.1: new_particle_Idx=%u, \tneighbours[]=(%u,%u,%u,%u,%u,%u), \tneighboursBondIdx[]=(%u,%u,%u,%u,%u,%u), \tneighbours2[]=(%u,%u,%u,%u,%u,%u), \tbondInxMap[]=(%u,%u,%u,%u,%u,%u) ",
        new_particle_Idx,
        neighbours[0],neighbours[1],neighbours[2],neighbours[3],neighbours[4],neighbours[5],  neighboursBondIdx[1],neighboursBondIdx[2],neighboursBondIdx[2],neighboursBondIdx[3],neighboursBondIdx[4],neighboursBondIdx[5],
        neighbours2[0],neighbours2[1],neighbours2[2],neighbours2[3],neighbours2[4],neighbours2[5],
@@ -1654,7 +1663,7 @@ extern "C" __device__ int insertNewParticle(uint new_particle_Idx, float3 newPar
     }
     */
     
-    printf ("\ninsertNewParticle3: new_particle_Idx=%u, ,ret3=%i", new_particle_Idx, ret3);
+    if (fparam.debug>2)printf ("\ninsertNewParticle3: new_particle_Idx=%u, ,ret3=%i", new_particle_Idx, ret3);
     return ret3;                                                                                                //NB causes incoming bonds to fluid particles -> non-adherent surface.
 }
 
@@ -1903,7 +1912,7 @@ return;  // suspend use of this kernel for now.
     float3 newParticlePos =  fbuf.bufF3(FPOS)[i] - 0.5*(fbuf.bufF3(FPOS)[i] - fbuf.bufF3(FPOS)[secondParticleIdx]); // placed near second particle to ensure selection of this bond
     fbuf.bufF3(FPOS)[new_particle_Idx] = newParticlePos;
     
-    printf("\nlengthen_muscle:  bondIdx_reciprocal=%u, newParticlePos=(%f,%f,%f)  ",bondIdx_reciprocal, newParticlePos.x, newParticlePos.y, newParticlePos.z );
+    if (fparam.debug>2)printf("\nlengthen_muscle:  bondIdx_reciprocal=%u, newParticlePos=(%f,%f,%f)  ",bondIdx_reciprocal, newParticlePos.x, newParticlePos.y, newParticlePos.z );
     
     addParticle(i, new_particle_Idx);   
     uint bond_type[BONDS_PER_PARTICLE] = {0};  bond_type[0] = 1;        //  0=elastin, 1=collagen, 2=apatite
@@ -2006,18 +2015,18 @@ extern "C" __global__ void lengthen_tissue ( int ActivePoints, int list_length, 
     addParticle(i, new_particle_Idx);
     if (new_particle_Idx>fparam.maxPoints)return; // i.e. if addParticle() failed.
     
-    printf("\nlengthen_tissue chk0:  i=%u,  next_particle_Idx=%u, fbuf.bufF3(FPOS)[i]=(%f,%f,%f) ",
+    if (fparam.debug>2)printf("\nlengthen_tissue chk0:  i=%u,  next_particle_Idx=%u, fbuf.bufF3(FPOS)[i]=(%f,%f,%f) ",
             i ,next_particle_Idx, fbuf.bufF3(FPOS)[i].x, fbuf.bufF3(FPOS)[i].y, fbuf.bufF3(FPOS)[i].z );
     __syncthreads;
     
-    printf("\nlengthen_tissue chk0.1:  i=%u, fbuf.bufF3(FPOS)[next_particle_Idx]=(%f,%f,%f) ",
+    if (fparam.debug>2)printf("\nlengthen_tissue chk0.1:  i=%u, fbuf.bufF3(FPOS)[next_particle_Idx]=(%f,%f,%f) ",
             i, fbuf.bufF3(FPOS)[next_particle_Idx].x, fbuf.bufF3(FPOS)[next_particle_Idx].y, fbuf.bufF3(FPOS)[next_particle_Idx].z );
     __syncthreads;
     
     //fbuf.bufF3(FPOS)[new_particle_Idx]          = fbuf.bufF3(FPOS)[i] + (fbuf.bufF3(FPOS)[i] - fbuf.bufF3(FPOS)[next_particle_Idx])/2;
     float3 newParticlePos  = fbuf.bufF3(FPOS)[i] + (fbuf.bufF3(FPOS)[next_particle_Idx]  -  fbuf.bufF3(FPOS)[i])/2;
     
-    printf("\nlengthen_tissue chk0.2:  i=%u, next_particle_Idx=%u, newParticlePos=(%f,%f,%f) ",
+    if (fparam.debug>2)printf("\nlengthen_tissue chk0.2:  i=%u, next_particle_Idx=%u, newParticlePos=(%f,%f,%f) ",
             i, next_particle_Idx, newParticlePos.x, newParticlePos.y, newParticlePos.z );
     __syncthreads;
     
@@ -2879,13 +2888,14 @@ Tensor derivative                   := del circle_cross v
 extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell)
 {			
 	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return make_float3(0,0,0);                                        // If the cell is empty, skip it.
-	float  dsq, sdist, c, r, sr=1.0;//fparam.psmoothradius;
+	float  dsq, sdist, c, r, sr=fparam.psmoothradius;//1.0;//
     float3 pterm= make_float3(0,0,0), sterm= make_float3(0,0,0), vterm= make_float3(0,0,0), forcej= make_float3(0,0,0), delta_v= make_float3(0,0,0);                                                              // pressure, surface tension and viscosity terms.
 	float3 dist     = make_float3(0,0,0),      eterm = make_float3(0,0,0),    force = make_float3(0,0,0);
 	uint   j;
 	int    clast    = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];                                // index of last particle in this cell
-    
+    uint k =0 ;
     for (int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {                                     // For particles in this cell.
+        k++;
 		j           = fbuf.bufI(FGRID)[ cndx ];
 		dist        = ( ipos - fbuf.bufF3(FPOS)[ j ] );                                                     // dist in cm (Rama's comment)
 		dsq         = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);                                      // scalar distance squared
@@ -2914,10 +2924,13 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
         
         if ( dsq < 1 /*fparam.rd2*/ && dsq > 0) {                                                                 // IF in-range && not the same particle
             float kern = pow((sr - r),3);
-            pterm = 1000.0* (dist/r) *(kern - (0.4)*pow((sr - r),2));       // 1000 = hydroststic stiffness      
+            sdist   = sqrt(dsq * fparam.d2);                                                                // smoothing distance
+            float press = 100*(ipress+fbuf.bufF(FPRESS)[j]);///sdist
+            
+            pterm = idens * fbuf.bufF(FDENSITY)[j] *  100.0* (dist/r) *(press*kern - (fparam.psurface_t/*0.4*/)*pow((sr - r),2));       // 1000 = hydroststic stiffness      
             delta_v = fbuf.bufF3(FVEVAL)[j] - iveleval;
             vterm =  100000.0* delta_v * kern;// (1/2)*pow((sr - r),3) ; // 10000.0 gives fluid, 100000.0 gives visco-elastic behaviour.
-            
+            //if (i==1) printf("\n contributeForce : fparam.psurface_t=%f,  fparam.sterm=%f, fparam.pvisc=%f, fparam.vterm=%f ", fparam.psurface_t, fparam.sterm, fparam.pvisc, fparam.vterm );
             /*
              sdist   = sqrt(dsq * fparam.d2);                                                                // smoothing distance = sqrt(dist^2 * sim_scale^2))
              c       = ( fparam.psmoothradius - sdist );
@@ -2928,10 +2941,12 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
 			forcej  += ( pterm + sterm + vterm) * c * idens * (fbuf.bufF(FDENSITY)[ j ] );  // fluid force
             */
             force   +=  pterm + vterm  ;
-            if(fparam.debug>0 && i<10)  printf("\ncontribForce : debug=%u. i=%u, r=,%f, sr=,%f, (sr-r)^3=,%f, delta_v=,(%f,%f,%f), vterm=(%f,%f,%f), pterm(%f,%f,%f)  ",fparam.debug, i, r, sr, kern, delta_v.x,delta_v.y,delta_v.z, vterm.x,vterm.y,vterm.z, pterm.x,pterm.y,pterm.z);
             /*
-            if(i<10) printf("\ncontribForce() : i=,%u, ,cell=,%u,  ,cndx=,%u, ,r=,%f, ,sqrt(fparam.rd2)=r_basis=,%f, ,fparam.psmoothradius=,%f,,sdist=,%f, ,(fparam.psmoothradius-sdist)= c =,%f, \t,ipress=,%f, ,jpress=,%f, ,idens=,%f, ,jdens=,%f,       \t ,pterm=(,%f,%f,%f,),  ,sterm=(,%f,%f,%f,), ,vterm=(,%f,%f,%f,), ,forcej=(,%f,%f,%f,) ,  ,fparam.vterm=,%f, ,fbuf.bufF3(FVEVAL)[ j ]=(,%f,%f,%f,), ,iveleval=(,%f,%f,%f,) ", 
-                i, cell, cndx, r, sqrt(fparam.rd2), fparam.psmoothradius, sdist, c,  ipress, fbuf.bufF(FPRESS)[j], idens, fbuf.bufF(FDENSITY)[j],    pterm.x,pterm.y,pterm.z, sterm.x,sterm.y,sterm.z, vterm.x,vterm.y,vterm.z, forcej.x,forcej.y,forcej.z, 
+            if(fparam.debug>0 && i<5 && k<2)  printf("\ncontribForce : debug=%u. i=%u, r=,%f, sr=,%f, (sr-r)^3=,%f, delta_v=,(%f,%f,%f), vterm=(%f,%f,%f), pterm(%f,%f,%f), \t\t press=,%f, sdist=,%f, dsq=,%f, fparam.d2=,%f  kern=,%f, \t\t idens=%f,, fbuf.bufF(FDENSITY)[j]=,%f, ",fparam.debug, i, r, sr, kern, delta_v.x,delta_v.y,delta_v.z, vterm.x,vterm.y,vterm.z, pterm.x,pterm.y,pterm.z, press, sdist, dsq, fparam.d2, kern, idens, fbuf.bufF(FDENSITY)[j]);
+            */ 
+            /*
+            if(i<10) printf("\ncontribForce() : i=,%u, ,cell=,%u,  ,cndx=,%u, ,r=,%f, ,sqrt(fparam.rd2)=r_basis=,%f, ,fparam.psmoothradius=,%f,,sdist=,%f, ,(fparam.psmoothradius-sdist)= c =,%f, \t,ipress=,%f, ,jpress=,%f, ,idens=,%f, ,jdens=,%f,  press=,%f,     \t ,pterm=(,%f,%f,%f,),  ,sterm=(,%f,%f,%f,), ,vterm=(,%f,%f,%f,), ,forcej=(,%f,%f,%f,) ,  ,fparam.vterm=,%f, ,fbuf.bufF3(FVEVAL)[ j ]=(,%f,%f,%f,), ,iveleval=(,%f,%f,%f,) ", 
+                i, cell, cndx, r, sqrt(fparam.rd2), fparam.psmoothradius, sdist, c,  ipress, fbuf.bufF(FPRESS)[j], idens, fbuf.bufF(FDENSITY)[j], press,   pterm.x,pterm.y,pterm.z, sterm.x,sterm.y,sterm.z, vterm.x,vterm.y,vterm.z, forcej.x,forcej.y,forcej.z, 
                 fparam.vterm, fbuf.bufF3(FVEVAL)[j].x, fbuf.bufF3(FVEVAL)[j].y, fbuf.bufF3(FVEVAL)[j].z, iveleval.x, iveleval.y, iveleval.z
             );
             */
@@ -3236,7 +3251,7 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
     
 	// Accel Limit
 	speed = accel.x*accel.x + accel.y*accel.y + accel.z*accel.z;
-    if(fparam.debug>0 && i<10)printf("\nadvanceParticles()1: i=,%u,  mass=,%f,  accel=(,%f,%f,%f,),\t  accel^2=,%f,\t fparam.AL2=,%f,\t  fparam.pgravity=,(,%f,%f,%f,) ",
+    if(fparam.debug>2 && i<10)printf("\nadvanceParticles()1: i=,%u,  mass=,%f,  accel=(,%f,%f,%f,),\t  accel^2=,%f,\t fparam.AL2=,%f,\t  fparam.pgravity=,(,%f,%f,%f,) ",
         i, fparam.pmass, accel.x,accel.y,accel.z, speed, fparam.AL2, fparam.pgravity.x, fparam.pgravity.y, fparam.pgravity.z
     );
 	if ( speed > fparam.AL2 ) {
@@ -3247,33 +3262,36 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	float3 vel = fbuf.bufF3(FVEL)[i];
     
 	speed = vel.x*vel.x + vel.y*vel.y + vel.z*vel.z;
-    if(fparam.debug>0 && i<10)printf("\nadvanceParticles()2: i=,%u, accel=(,%f,%f,%f,),  vel=(,%f,%f,%f,),  vel^2=,%f,  fparam.VL2=,%f, ",
+    if(fparam.debug>2 && i<10)printf("\nadvanceParticles()2: i=,%u, accel=(,%f,%f,%f,),  vel=(,%f,%f,%f,),  vel^2=,%f,  fparam.VL2=,%f, ",
         i, accel.x,accel.y,accel.z, vel.x,vel.y,vel.z,  speed, fparam.VL2
     );
 	if ( speed > fparam.VL2 ) {
 		speed = fparam.VL2;
 		vel *= fparam.VL / sqrt(speed);       // reduces vel to fparam.VL , while preerving direction.
 	}
+	
+	/*
 	// Brownian motion : helps to prevent partice collapse in the heavily damped corners of the simulation space.
     uint rnd_nmbr = curand(&fbuf.bufCuRNDST(FCURAND_STATE)[i]);                                                 // NB bitshift and mask to get rand bool to choose bond
     float3 bmotion;
     bmotion.x = 0.04/float(4+(rnd_nmbr&7))     *(-1*float(1&(rnd_nmbr>>3))  );                                 // shift tpos by a random step < max_len, randomises bond.
     bmotion.y = 0.04/float(4+((rnd_nmbr>>4)&7))*(-1*float(1&(rnd_nmbr>>7))  );
     bmotion.z = 0.04/float(4+((rnd_nmbr>>8)&7))*(-1*float(1&(rnd_nmbr>>11)) );
-	
+	*/
     
 	// Leap-frog Integration                                                    // Write to ftemp.buf*(FEVEL/FVEL/FPOS)
                                                                                 // Allows specialParticles() to read old values.
 	float3 vnext = accel*dt + vel;                                              // v(t+1/2) = v(t-1/2) + a(t) dt		
 	ftemp.bufF3(FVEVAL)[i] = (vel + vnext) * 0.5;                               // v(t+1) = [v(t-1/2) + v(t+1/2)] * 0.5			
 	ftemp.bufF3(FVEL)[i] = vnext;
-	ftemp.bufF3(FPOS)[i] += (vnext * (dt/ss)) + bmotion;                          // p(t+1) = p(t) + v(t+1/2) dt		
+	ftemp.bufF3(FPOS)[i] += (vnext * (dt/ss)) /* + bmotion*/;                          // p(t+1) = p(t) + v(t+1/2) dt		
     
     
-    if (fparam.debug>0 && i<10 ){  // fparam.debug>2 && i==0
-        printf("\nadvanceParticles()3: i=,%u, rnd_nmbr=%u, bmotion=(,%f,%f,%f,),  accel.x==(,%f,%f,%f,),  vel=(,%f,%f,%f,),  dt==%f, vnext.x==(,%f,%f,%f,), ss==%f",
-              i, rnd_nmbr, bmotion.x,bmotion.y,bmotion.z,  accel.x,accel.y,accel.z,  vel.x,vel.y,vel.z,    dt,   vnext.x,vnext.y,vnext.z,   ss
+    if (fparam.debug>2 && i<10 ){  // fparam.debug>2 && i==0
+        printf("\nadvanceParticles()3: i=,%u,   accel.x==(,%f,%f,%f,),  vel=(,%f,%f,%f,),  dt==%f, vnext.x==(,%f,%f,%f,), ss==%f", //rnd_nmbr=%u, bmotion=(,%f,%f,%f,),
+              i, /*rnd_nmbr, bmotion.x,bmotion.y,bmotion.z,*/  accel.x,accel.y,accel.z,  vel.x,vel.y,vel.z,    dt,   vnext.x,vnext.y,vnext.z,   ss
               );
+        
 /*
         printf("\naccel.x==%f",accel.x);
         printf("\ndt==%f",dt);

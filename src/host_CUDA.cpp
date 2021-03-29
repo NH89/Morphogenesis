@@ -18,6 +18,10 @@ void FluidSystem::TransferToTempCUDA ( int buf_id, int sz ){
     cuCheck ( cuMemcpyDtoD ( m_FluidTemp.gpu(buf_id), m_Fluid.gpu(buf_id), sz ), "TransferToTempCUDA", "cuMemcpyDtoD", "m_FluidTemp", mbDebug);
 }
 
+void FluidSystem::TransferFromTempCUDA ( int buf_id, int sz ){
+    cuCheck ( cuMemcpyDtoD ( m_Fluid.gpu(buf_id), m_FluidTemp.gpu(buf_id), sz ), "TransferFromTempCUDA", "cuMemcpyDtoD", "m_Fluid", mbDebug);
+}
+
 void FluidSystem::FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, float3 delta, float3 gmin, float3 gmax, int total, int chk ){
     m_FParams.pnum = num;
     m_FParams.maxPoints = num;
@@ -63,7 +67,7 @@ void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, flo
     m_FParams.pextstiff = estiff;
     m_FParams.pintstiff = istiff;
     m_FParams.pvisc = visc;
-    m_FParams.sterm = surface_tension;
+    m_FParams.psurface_t = surface_tension;
     m_FParams.pdamp = damp;
     m_FParams.pforce_min = fmin;
     m_FParams.pforce_max = fmax;
@@ -444,12 +448,12 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     
     cuCheck( cuMemcpyDtoH ( &mNumPoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax+1)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA1", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
     
-    cuCheck( cuMemcpyDtoH ( &mActivePoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA2", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
-    
+    cuCheck( cuMemcpyDtoH ( &mActivePoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax-1)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA2", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
+    /*
     int totalPoints = 0;
-    cuCheck( cuMemcpyDtoH ( &totalPoints,  m_Fluid.gpu(FGRIDOFF)+(m_GridTotal)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA2", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
+    cuCheck( cuMemcpyDtoH ( &totalPoints,  m_Fluid.gpu(FGRIDOFF)+(m_GridTotal)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA3", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
     std::cout<<"\nCountingSortFullCUDA(): totalPoints="<<totalPoints<<std::flush;
-    
+    */
     m_FParams.pnumActive = mActivePoints;                                     // TODO eliminate duplication of information & variables between fluid.h and fluid_system.h                               
     cuCheck ( cuMemcpyHtoD ( cuFParams,	&m_FParams, sizeof(FParams) ), "CountingSortFullCUDA3", "cuMemcpyHtoD", "cuFParams", mbDebug); // seems the safest way to update fparam.pnumActive on device.
     
@@ -484,6 +488,14 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     // reset bonds and forces in fbuf FELASTIDX, FPARTICLEIDX and FFORCE, required to prevent interference between time steps, 
     // because these are not necessarily overwritten by the FUNC_COUNTING_SORT kernel.
     cuCtxSynchronize ();    // needed to prevent colision with previous operations
+    
+    float max_pos = max(max(m_Vec[PVOLMAX].x, m_Vec[PVOLMAX].y), m_Vec[PVOLMAX].z);
+    uint * uint_max_pos = (uint*)&max_pos;
+    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPOS), *uint_max_pos, mMaxPoints * 3 ),  "CountingSortFullCUDA", "cuMemsetD32", "FELASTIDX",   mbDebug);
+    
+    //cout<<"\nCountingSortFullCUDA: m_Vec[PVOLMAX]=("<<m_Vec[PVOLMAX].x<<", "<<m_Vec[PVOLMAX].y<<", "<<m_Vec[PVOLMAX].z<<"),  max_pos = "<< max_pos <<std::flush;
+    // NB resetting  m_Fluid.gpu(FPOS)  ensures no zombie particles. ?hopefully?
+    
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FELASTIDX),    UINT_MAX,  mMaxPoints * BOND_DATA              ),  "CountingSortFullCUDA", "cuMemsetD32", "FELASTIDX",    mbDebug);
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPARTICLEIDX), UINT_MAX,  mMaxPoints * BONDS_PER_PARTICLE *2  ),  "CountingSortFullCUDA", "cuMemsetD32", "FPARTICLEIDX", mbDebug);
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FFORCE),      (uint)0.0,  mMaxPoints * 3 /* ie num elements */),  "CountingSortFullCUDA", "cuMemsetD32", "FFORCE",       mbDebug);
@@ -589,7 +601,7 @@ void FluidSystem::InitializeBondsCUDA (){
 
 void FluidSystem::ComputePressureCUDA (){
     void* args[1] = { &mActivePoints };
-    cout<<"\nComputePressureCUDA: mActivePoints="<<mActivePoints<<std::flush;
+    //cout<<"\nComputePressureCUDA: mActivePoints="<<mActivePoints<<std::flush;
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_PRESS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputePressureCUDA", "cuLaunch", "FUNC_COMPUTE_PRESS", mbDebug);
 }
 
@@ -768,9 +780,16 @@ void FluidSystem::TransferPosVelVeval (){
     TransferToTempCUDA ( FVEVAL,	mMaxPoints *sizeof(Vector3DF) );
 }
 
+void FluidSystem::TransferPosVelVevalFromTemp (){
+    TransferFromTempCUDA ( FPOS,	mMaxPoints *sizeof(Vector3DF) );    // NB if some points have been removed, then the existing list is no longer dense,  
+    TransferFromTempCUDA ( FVEL,	mMaxPoints *sizeof(Vector3DF) );    // hence must use mMaxPoints, not mNumPoints
+    TransferFromTempCUDA ( FVEVAL,	mMaxPoints *sizeof(Vector3DF) );
+}
+
 void FluidSystem::AdvanceCUDA ( float tm, float dt, float ss ){
     void* args[4] = { &tm, &dt, &ss, &m_FParams.pnumActive };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_ADVANCE],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "AdvanceCUDA", "cuLaunch", "FUNC_ADVANCE", mbDebug);
+    //cout<<"\nAdvanceCUDA: m_FParams.pnumActive="<<m_FParams.pnumActive<<std::flush;
 }
 
 void FluidSystem::SpecialParticlesCUDA (float tm, float dt, float ss){   // For interaction.Using dense lists for gene 1 & 0.
