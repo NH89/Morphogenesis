@@ -28,7 +28,8 @@
     #include <string.h>
     #include "vector.h"
     #include "masks.h"
-#include <../cuda-11.2/targets/x86_64-linux/include/curand_kernel.h>
+//#include <../cuda-11.2/targets/x86_64-linux/include/curand_kernel.h>
+    #include <curand_kernel.h>
 
 	typedef	unsigned int		uint;	
 	typedef	unsigned short int	ushort;	

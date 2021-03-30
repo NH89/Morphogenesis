@@ -28,12 +28,12 @@
 
 #ifndef DEF_KERN_CUDA
 	#define DEF_KERN_CUDA
-
+    #include <cuda_runtime.h>
 	#include <curand.h>
 	#include <curand_kernel.h>
 	#include <stdio.h>
 	#include <math.h>
-    #include "/usr/local/cuda/include/math_constants.h"  // need better <path> . In CMakeLists.txt "include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})"
+    //#include "/usr/local/cuda/include/math_constants.h"  // need better <path> . In CMakeLists.txt "include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})"
 
 	#define CUDA_KERNEL
 	#include "fluid.h"
