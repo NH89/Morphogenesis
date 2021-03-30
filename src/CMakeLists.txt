@@ -5,7 +5,9 @@ cmake_policy(SET CMP0054 NEW)
 project(Morphogenesis LANGUAGES C CXX CUDA)
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CPP_STANDARD 11) # set(CMAKE_CPP_STANDARD 17)  NB need (<=11 for VTP)  &&  (>+11 for C++ threads)
+#set(CMAKE_CPP_STANDARD 11) # set(CMAKE_CPP_STANDARD 17)  NB need (<=11 for VTP)  &&  (>+11 for C++ threads)
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 find_package(CUDA REQUIRED)
 
