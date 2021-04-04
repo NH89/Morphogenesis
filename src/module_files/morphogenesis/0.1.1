@@ -1,0 +1,20 @@
+#%Module0.1.1#####################################################################
+
+source /apps/modules/modulefiles/module_common.tcl
+override_base_dir "$HOME/apps"
+
+# OPTIONAL:
+# * to enable debug mode (output debug messages)
+#   - enable_debug
+# * to specify depending modules
+#   - require_module "<module name>"
+
+require_module vtk/9.0.1
+
+conflict 	intel-cc
+require_module 	gcc/8.3.0
+require_module  cuda/10.2.89
+require_module  cmake/3.15.5   
+
+run
+

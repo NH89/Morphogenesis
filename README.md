@@ -45,6 +45,93 @@ In the build subdirectory
     make
     make install
 
+### Build and installation on the Bracewell GPU cluster 
+    
+    cd $HOME
+
+    mkdir modules/
+
+    mkdir modules/morphogenesis/
+
+    mkdir apps
+
+    mkdir apps/morphogenesis
+
+    cp  Morphogenesis/src/module_files/morphogenesis/*  /home/hoc041/modules/morphogenesis/
+
+    module use $HOME/modules
+
+    module load morphogenesis 
+
+    cd <Morphogenesis/buiild>
+
+    ccmake <Morphogenesis/src>
+
+set the install directory to $HOME/apps/morphogenesis
+
+set VTK_DIR to  .....lib/cmake/vtk-9.0 for you vtk installation.
+
+NB you may need to build vtk-9.0 from source. (see below)
+
+"configure" and "generate" Makefile for Morphogenesis
+
+    make
+
+    make install 
+
+    
+### Building vtk-9.0 on the Bracewell GPU cluster
+
+Morphogenesis depends on vtk-9.0 or later (due to API changes). On Ubuntu 20.04 or later vtk-9 is available from the Ununtu repository.
+
+If building from source it is important to ensure that the exact same c++ library and compiler versions are used for both vtk-9.0 and Morphogenesis. 
+NB Mismatched builds of vtk and Morphogenesis may have incomptible C++11 ABI binaries.
+
+   cd $HOME
+
+   mkdir apps/vtk
+
+   mkdir apps/vtk/9.0.1
+
+   cd <vtk_dir/src>
+
+   git@gitlab.kitware.com:vtk/vtk.git
+
+   cd vtk
+
+   git checkout v9.0.1
+
+   cd <vtk_dir/build>
+
+   module load gcc/8.3.0
+
+   module unload intel-cc
+
+   module unload intel-fc
+
+   module load cmake/3.15.5
+
+   ccmake <vtk_dir/src/vtk>
+
+Set install directory to $HOME/apps/vtk/9.0.1
+
+"configure" and "generate" Makefile for vtk-9.0.1
+
+   make
+
+   make install
+
+   cp  Morphogenesis/src/module_files/vtk/*  $HOME/modules/vtk/
+
+Check that environment variables in $HOME/modules/vtk/9.0.1  and  $HOME/modules/vtk/common.tcl  are correct for $HOME/apps/vtk/9.0.1 .
+
+   module use $HOME/modules
+
+   module load vtk 
+
+
+
+
 
 ### Within Morphogenesis branch executables (so far) include:
 
