@@ -1,11 +1,11 @@
 # BEGIN CONFIGURATION #########################################################
 # Environment Settings
-prepend-path	LD_RUN_PATH	$HOME/apps/vtk/9.0.1/lib64 #$m_root_dir/lib
-prepend-path	LD_LIBRARY_PATH	$HOME/apps/vtk/9.0.1/install/lib64 #$m_root_dir/lib
-prepend-path	LIBRARY_PATH	$HOME/apps/vtk/9.0.1/lib64 #$m_root_dir/lib
-prepend-path	CPATH		$HOME/apps/vtk/9.0.1/include/vtk-9.0 #$m_root_dir/include
-prepend-path	PATH		$HOME/apps/vtk/9.0.1/bin #$m_root_dir/bin
-setenv 		VTK_HOME 	$HOME/apps/vtk/9.0.1
+prepend-path	LD_RUN_PATH	/home/hoc041/apps/vtk/9.0.1/lib64
+prepend-path	LD_LIBRARY_PATH	/home/hoc041/apps/vtk/9.0.1/lib64
+prepend-path	LIBRARY_PATH	/home/hoc041/apps/vtk/9.0.1/lib64
+prepend-path	CPATH		/home/hoc041/apps/vtk/9.0.1/include
+prepend-path	PATH		/home/hoc041/apps/vtk/9.0.1/bin
+setenv 		VTK_HOME 	/home/hoc041/apps/vtk/9.0.1
 
 # END #########################################################################
 

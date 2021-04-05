@@ -130,6 +130,11 @@ Check that environment variables in $HOME/modules/vtk/9.0.1  and  $HOME/modules/
    module load vtk 
 
 
+### Bracewell SLURM useage
+
+NB SLURM writes stdout and stderr to file : <working_dir>/slurm-<job_no>.out .
+
+
 
 
 

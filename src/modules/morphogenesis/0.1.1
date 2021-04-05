@@ -1,13 +1,15 @@
-#%Module9.0.1#####################################################################
+#%Module0.1.1#####################################################################
 
 source /apps/modules/modulefiles/module_common.tcl
-override_base_dir "$HOME/apps"
+override_base_dir "/home/hoc041/apps"
 
 # OPTIONAL:
 # * to enable debug mode (output debug messages)
 #   - enable_debug
 # * to specify depending modules
 #   - require_module "<module name>"
+
+require_module vtk/9.0.1
 
 conflict 	intel-cc
 require_module 	gcc/8.3.0
