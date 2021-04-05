@@ -1085,10 +1085,10 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
 }
 
 void FluidSystem::WriteExampleSpecificationFile ( const char * relativePath ){ // writes a default version 
-    char SimParams_file_path[256];
-    sprintf ( SimParams_file_path, "%s/SpecificationFile.txt", relativePath );
+    char Specification_file_path[256];
+    sprintf ( Specification_file_path, "%s/SpecificationFile.txt", relativePath );
     //const char * SimParams_file_path = relativePath;
-    FILE * SpecFile = fopen ( SimParams_file_path, "w" );
+    FILE * SpecFile = fopen ( Specification_file_path, "w" );
     int ret =0;
     
     

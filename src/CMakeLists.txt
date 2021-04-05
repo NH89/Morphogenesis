@@ -138,12 +138,34 @@ add_executable(make_demo2
         vector.h
         vector_inline.h
         ${output_file}
-)  
+)
+
+add_executable(SpecfileBatchGenerator
+        SpecfileBatchGenerator.cpp
+        allocator.cu
+        allocator.cuh
+        fluid.cpp
+        fluid.h
+        matrix.cpp 
+        matrix.h
+        matrix_inline.h
+        fluid_system.cpp    
+        file_IO.cpp
+        host_CUDA.cpp
+        fluid_system.h
+        vector.cpp
+        vector.h
+        vector_inline.h
+        ${output_file}
+)
+
+#file:///home/nick/Programming/Cuda/Morphogenesis/src/SpecfileBatchGenerator.cpp
         
 add_dependencies(load_sim fluid_systemPTX)
 add_dependencies(check_demo fluid_systemPTX)
 add_dependencies(make_demo fluid_systemPTX)
 add_dependencies(make_demo2 fluid_systemPTX)
+add_dependencies(SpecfileBatchGenerator fluid_systemPTX)
 
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
@@ -152,21 +174,24 @@ target_include_directories(check_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(make_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(make_demo2 PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 target_include_directories(thread_demo PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
+target_include_directories(SpecfileBatchGenerator PRIVATE  ${CMAKE_CURRENT_BINARY_DIR} )
 
 target_compile_features(load_sim PUBLIC cxx_std_11)
 target_compile_features(check_demo PUBLIC cxx_std_11)
 target_compile_features(make_demo PUBLIC cxx_std_11)
 target_compile_features(make_demo2 PUBLIC cxx_std_11)
 target_compile_features(thread_demo PUBLIC cxx_std_11)
+target_compile_features(SpecfileBatchGenerator PUBLIC cxx_std_11)
 
 target_link_libraries(load_sim PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport )
 target_link_libraries(check_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport )
 target_link_libraries(make_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport )
 target_link_libraries(make_demo2 PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport )
+target_link_libraries(SpecfileBatchGenerator PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport )
 target_link_libraries(thread_demo PRIVATE -lpthread )
 
 #nb edit code so that installed binary looks for ptx in correct location             
-install(TARGETS fluid_systemPTX make_demo make_demo2 check_demo load_sim thread_demo
+install(TARGETS fluid_systemPTX make_demo make_demo2 check_demo load_sim thread_demo SpecfileBatchGenerator
    EXPORT fluid_systemPTX
    RUNTIME DESTINATION bin
    LIBRARY DESTINATION lib
