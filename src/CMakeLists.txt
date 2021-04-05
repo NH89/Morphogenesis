@@ -199,4 +199,6 @@ install(TARGETS fluid_systemPTX make_demo make_demo2 check_demo load_sim thread_
    )
 install(EXPORT fluid_systemPTX DESTINATION lib/fluid_systemPTX)
 
+set(ENV{$MORPHOGENESIS_HOME} DESTINATION)
+
 #How to set default CMAKE_INSTALL_PREFIX ?

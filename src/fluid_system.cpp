@@ -119,7 +119,10 @@ void FluidSystem::Initialize (){             // used for CPU only for "check_dem
 // /home/nick/Programming/Cuda/Morphogenesis/build/install/ptx/objects/fluid_systemPTX/fluid_system_cuda.ptx
 void FluidSystem::InitializeCuda (){         // used for load_sim  /home/nick/Programming/Cuda/Morphogenesis/build/install/ptx/objects-Debug/fluid_systemPTX/fluid_system_cuda.ptx
     if (m_FParams.debug>1)std::cout << "FluidSystem::InitializeCuda () \n";
-    cuCheck ( cuModuleLoad ( &m_Module, /*"fluid_system_cuda.ptx"*/ "fluid_system_cuda.ptx" ), "LoadKernel", "cuModuleLoad", "fluid_system_cuda.ptx", mbDebug);  
+ 
+    char morphogenesis_ptx[256] = std::getenv("MORPHOGENESIS_HOME");
+    sprintf( morphogenesis_ptx, "%s/ptx/objects-Release/fluid_systemPTX/fluid_system_cuda.ptx", morphogenesis_ptx);    
+    cuCheck ( cuModuleLoad ( &m_Module, /*"fluid_system_cuda.ptx"*/ morphogenesis_ptx  /*"$MORPHOGENESIS_HOME/ptx/objects-Release/fluid_systemPTX/fluid_system_cuda.ptx"*/ ), "LoadKernel", "cuModuleLoad", morphogenesis_ptx /*"fluid_system_cuda.ptx"*/, mbDebug);  
     // loads the file "fluid_system_cuda.ptx" as a module with pointer  m_Module.
 
     if (m_FParams.debug>1)std::cout << "Chk1.1 \n";
