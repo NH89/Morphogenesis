@@ -7,4 +7,4 @@
 
 #Application specific commands:
 echo "running Morphogenesis_test1" 
-
+make_demo2 $HOME/Programming/Cuda/Morphogenesis/data/demo

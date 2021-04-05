@@ -132,7 +132,17 @@ Check that environment variables in $HOME/modules/vtk/9.0.1  and  $HOME/modules/
 
 ### Bracewell SLURM useage
 
-NB SLURM writes stdout and stderr to file : <working_dir>/slurm-<job_no>.out .
+To launch a job using a Slurm script : 
+
+    sbatch <path_to_script/scriptname.slurm>
+
+NB SLURM writes stdout and stderr to file : 
+
+    <working_dir>/slurm-<job_no>.out .
+
+To check the queue : 
+
+    squeue -u <userID>
 
 
 
