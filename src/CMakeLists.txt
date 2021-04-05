@@ -59,8 +59,8 @@ add_custom_command(
 
 add_executable(load_sim
         load_sim.cpp
-        allocator.cu
-        allocator.cuh
+        #allocator.cu
+        #allocator.cuh
         fluid.cpp
         fluid.h
         matrix.cpp 
@@ -85,8 +85,8 @@ add_executable(thread_demo
 
 add_executable(check_demo
         check_demo.cpp
-        allocator.cu
-        allocator.cuh
+        #allocator.cu
+        #allocator.cuh
         fluid.cpp
         fluid.h
         matrix.cpp 
@@ -104,8 +104,8 @@ add_executable(check_demo
 
 add_executable(make_demo
         make_demo.cpp
-        allocator.cu
-        allocator.cuh
+        #allocator.cu
+        #allocator.cuh
         fluid.cpp
         fluid.h
         matrix.cpp 
@@ -123,8 +123,8 @@ add_executable(make_demo
 
 add_executable(make_demo2
         make_demo2.cpp
-        allocator.cu
-        allocator.cuh
+        #allocator.cu
+        #allocator.cuh
         fluid.cpp
         fluid.h
         matrix.cpp 
@@ -142,8 +142,8 @@ add_executable(make_demo2
 
 add_executable(SpecfileBatchGenerator
         SpecfileBatchGenerator.cpp
-        allocator.cu
-        allocator.cuh
+        #allocator.cu
+        #allocator.cuh
         fluid.cpp
         fluid.h
         matrix.cpp 
