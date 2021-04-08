@@ -34,11 +34,14 @@
 #ifndef DEF_FLUID_SYS
 	#define DEF_FLUID_SYS
 
+    #include <dirent.h> 
 	#include <iostream>
 	#include <vector>
 	#include <stdio.h>
 	#include <stdlib.h>
-	#include <math.h>	
+	#include <math.h>
+    #include <sys/types.h> 
+	
 	#include <vtk-9.0/vtkCellArray.h>
     #include <vtk-9.0/vtkPoints.h>
     #include <vtk-9.0/vtkXMLPolyDataWriter.h>

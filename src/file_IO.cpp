@@ -966,7 +966,9 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     sprintf ( SimParams_file_path, "%s/SpecificationFile.txt", relativePath );
     
     FILE * SpecFile = fopen(SimParams_file_path, "rb");
-    if(SpecFile == NULL)    { std::cout<<"\nCould not read file: "<<relativePath<<".\n"<<std::flush; }
+    
+    const char* env_pwd = std::getenv("PWD");
+    if(SpecFile == NULL)    { std::cout<<"\nCould not read file: "<<relativePath<<", working directory: "<< env_pwd <<" . \n"<<std::flush; }
     
     // find number of lines
     int ch, number_of_lines = 0;

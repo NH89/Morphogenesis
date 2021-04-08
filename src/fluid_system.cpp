@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <curand_kernel.h>
 #include <chrono>
+#include <cstring>
 #include "cutil_math.h"
 #include "fluid_system.h"
 
@@ -119,66 +120,70 @@ void FluidSystem::Initialize (){             // used for CPU only for "check_dem
 // /home/nick/Programming/Cuda/Morphogenesis/build/install/ptx/objects/fluid_systemPTX/fluid_system_cuda.ptx
 void FluidSystem::InitializeCuda (){         // used for load_sim  /home/nick/Programming/Cuda/Morphogenesis/build/install/ptx/objects-Debug/fluid_systemPTX/fluid_system_cuda.ptx
     if (m_FParams.debug>1)std::cout << "FluidSystem::InitializeCuda () \n";
- 
     char* morphogenesis_ptx = std::getenv("MORPHOGENESIS_HOME");
-    sprintf( morphogenesis_ptx, "%s/ptx/objects-Release/fluid_systemPTX/fluid_system_cuda.ptx", morphogenesis_ptx);    
-    cuCheck ( cuModuleLoad ( &m_Module, /*"fluid_system_cuda.ptx"*/ morphogenesis_ptx  /*"$MORPHOGENESIS_HOME/ptx/objects-Release/fluid_systemPTX/fluid_system_cuda.ptx"*/ ), "LoadKernel", "cuModuleLoad", morphogenesis_ptx /*"fluid_system_cuda.ptx"*/, mbDebug);  
+    
+    //Find release-type & path to ptx file
+    sprintf( morphogenesis_ptx, "%s/ptx", morphogenesis_ptx);
+    DIR *dir = opendir(morphogenesis_ptx);
+    const char *name;
+    const char* names[5]= { "objects", "objects-Debug", "objects-Release", "objects-RelWithDebInfo", "objects-MinSizeRel" };
+    struct dirent *ent;
+    int entry_num = 0;
+    while((ent = readdir(dir)) != NULL) {
+        if (m_FParams.debug>1)std::cout << "\nInitializeCuda: chk 6, ent->d_name="<<ent->d_name<<", entry_num="<< entry_num <<" \n";
+        for (int i=0; i<5; i++){
+            if (m_FParams.debug>1)std::cout << "i="<<i<<", std::strcmp("<< ent->d_name <<", "<< names[i] <<") == " << std::strcmp(ent->d_name, names[i]) << "\n";
+            if (std::strcmp(ent->d_name, names[i]) == 0 ){
+                if (m_FParams.debug>1)std::cout << "Match ent->d_name = names["<<i<<"]\n";
+                name = names[i];
+                break;
+            }
+        }
+        if (name != NULL) break;
+        entry_num++;
+    }
+    sprintf( morphogenesis_ptx, "%s/%s/fluid_systemPTX/fluid_system_cuda.ptx", morphogenesis_ptx, name);  
+    if (m_FParams.debug>1)std::cout<<"\n release type = "<<name<<"\t ptx path = "<<morphogenesis_ptx<<std::flush;
+    cuCheck ( cuModuleLoad ( &m_Module, morphogenesis_ptx), "LoadKernel", "cuModuleLoad", morphogenesis_ptx, mbDebug);  
     // loads the file "fluid_system_cuda.ptx" as a module with pointer  m_Module.
 
     if (m_FParams.debug>1)std::cout << "Chk1.1 \n";
-    LoadKernel ( FUNC_INSERT,			"insertParticles" );
-    LoadKernel ( FUNC_COUNTING_SORT,	"countingSortFull" );
-//    LoadKernel ( FUNC_COUNTING_SORT_EPIGEN, "countingSortEPIGEN" );
-    
-//    LoadKernel ( FUNC_SORT_BONDIDX,	    "countingSortBondIDX" );
-    LoadKernel ( FUNC_QUERY,			"computeQuery" );
-    LoadKernel ( FUNC_COMPUTE_PRESS,	"computePressure" );
-    LoadKernel ( FUNC_COMPUTE_FORCE,	"computeForce" );
-    LoadKernel ( FUNC_ADVANCE,			"advanceParticles" );
-    LoadKernel ( FUNC_EMIT,				"emitParticles" );
-    LoadKernel ( FUNC_RANDOMIZE,		"randomInit" );
-    LoadKernel ( FUNC_SAMPLE,			"sampleParticles" );
-    LoadKernel ( FUNC_FPREFIXSUM,		"prefixSum" );
-    LoadKernel ( FUNC_FPREFIXFIXUP,		"prefixFixup" );
-    LoadKernel ( FUNC_TALLYLISTS,       "tally_denselist_lengths");
-//    LoadKernel ( FUNC_FREEZE,		    "freeze" );
-    LoadKernel ( FUNC_COMPUTE_DIFFUSION,"computeDiffusion");
-    LoadKernel ( FUNC_COUNT_SORT_LISTS, "countingSortDenseLists");
-    LoadKernel ( FUNC_COMPUTE_GENE_ACTION, "computeGeneAction");
-    LoadKernel ( FUNC_TALLY_GENE_ACTION, "tallyGeneAction");
-    LoadKernel ( FUNC_COMPUTE_BOND_CHANGES, "computeBondChanges");
-    
-    //LoadKernel ( FUNC_INSERT_CHANGES, "insertChanges");
-    //LoadKernel ( FUNC_PREFIXUP_CHANGES, "prefixFixupChanges");
-    //LoadKernel ( FUNC_PREFIXSUM_CHANGES, "prefixSumChanges");
-    //LoadKernel ( FUNC_TALLYLISTS_CHANGES, "tally_changelist_lengths");
-    LoadKernel ( FUNC_COUNTING_SORT_CHANGES, "countingSortChanges");
-    LoadKernel ( FUNC_COMPUTE_NERVE_ACTION, "computeNerveActivation");
-    LoadKernel ( FUNC_COMPUTE_MUSCLE_CONTRACTION, "computeMuscleContraction");
-    
-    LoadKernel ( FUNC_CLEAN_BONDS, "cleanBonds");
-    LoadKernel ( FUNC_HEAL, "heal");
-    LoadKernel ( FUNC_LENGTHEN_MUSCLE, "lengthen_muscle");
-    LoadKernel ( FUNC_LENGTHEN_TISSUE, "lengthen_tissue");
-    LoadKernel ( FUNC_SHORTEN_MUSCLE, "shorten_muscle");
-    LoadKernel ( FUNC_SHORTEN_TISSUE, "shorten_tissue");
-    
-    LoadKernel ( FUNC_STRENGTHEN_MUSCLE, "strengthen_muscle");
-    LoadKernel ( FUNC_STRENGTHEN_TISSUE, "strengthen_tissue");
-    LoadKernel ( FUNC_WEAKEN_MUSCLE, "weaken_muscle");
-    LoadKernel ( FUNC_WEAKEN_TISSUE, "weaken_tissue");
-    
-    LoadKernel ( FUNC_EXTERNAL_ACTUATION, "externalActuation");
-    LoadKernel ( FUNC_FIXED, "fixedParticles");
-    
-    LoadKernel ( FUNC_INIT_FCURAND_STATE, "initialize_FCURAND_STATE");
-    
-    LoadKernel ( FUNC_ASSEMBLE_MUSCLE_FIBRES_OUTGOING, "assembleMuscleFibresOutGoing");
-    LoadKernel ( FUNC_ASSEMBLE_MUSCLE_FIBRES_INCOMING, "assembleMuscleFibresInComing");
-    
-    LoadKernel ( FUNC_INITIALIZE_BONDS, "initialize_bonds");
-    
-    
+    LoadKernel ( FUNC_INSERT,                           "insertParticles" );
+    LoadKernel ( FUNC_COUNTING_SORT,                    "countingSortFull" );
+    LoadKernel ( FUNC_QUERY,                            "computeQuery" );
+    LoadKernel ( FUNC_COMPUTE_PRESS,                    "computePressure" );
+    LoadKernel ( FUNC_COMPUTE_FORCE,                    "computeForce" );
+    LoadKernel ( FUNC_ADVANCE,                          "advanceParticles" );
+    LoadKernel ( FUNC_EMIT,                             "emitParticles" );
+    LoadKernel ( FUNC_RANDOMIZE,                        "randomInit" );
+    LoadKernel ( FUNC_SAMPLE,                           "sampleParticles" );
+    LoadKernel ( FUNC_FPREFIXSUM,                       "prefixSum" );
+    LoadKernel ( FUNC_FPREFIXFIXUP,                     "prefixFixup" );
+    LoadKernel ( FUNC_TALLYLISTS,                       "tally_denselist_lengths");
+    LoadKernel ( FUNC_COMPUTE_DIFFUSION,                "computeDiffusion");
+    LoadKernel ( FUNC_COUNT_SORT_LISTS,                 "countingSortDenseLists");
+    LoadKernel ( FUNC_COMPUTE_GENE_ACTION,              "computeGeneAction");
+    LoadKernel ( FUNC_TALLY_GENE_ACTION,                "tallyGeneAction");
+    LoadKernel ( FUNC_COMPUTE_BOND_CHANGES,             "computeBondChanges");
+    LoadKernel ( FUNC_COUNTING_SORT_CHANGES,            "countingSortChanges");
+    LoadKernel ( FUNC_COMPUTE_NERVE_ACTION,             "computeNerveActivation");
+    LoadKernel ( FUNC_COMPUTE_MUSCLE_CONTRACTION,       "computeMuscleContraction");
+    LoadKernel ( FUNC_CLEAN_BONDS,                      "cleanBonds");
+    LoadKernel ( FUNC_HEAL,                             "heal");
+    LoadKernel ( FUNC_LENGTHEN_MUSCLE,                  "lengthen_muscle");
+    LoadKernel ( FUNC_LENGTHEN_TISSUE,                  "lengthen_tissue");
+    LoadKernel ( FUNC_SHORTEN_MUSCLE,                   "shorten_muscle");
+    LoadKernel ( FUNC_SHORTEN_TISSUE,                   "shorten_tissue");
+    LoadKernel ( FUNC_STRENGTHEN_MUSCLE,                "strengthen_muscle");
+    LoadKernel ( FUNC_STRENGTHEN_TISSUE,                "strengthen_tissue");
+    LoadKernel ( FUNC_WEAKEN_MUSCLE,                    "weaken_muscle");
+    LoadKernel ( FUNC_WEAKEN_TISSUE,                    "weaken_tissue");
+    LoadKernel ( FUNC_EXTERNAL_ACTUATION,               "externalActuation");
+    LoadKernel ( FUNC_FIXED,                            "fixedParticles");
+    LoadKernel ( FUNC_INIT_FCURAND_STATE,               "initialize_FCURAND_STATE");
+    LoadKernel ( FUNC_ASSEMBLE_MUSCLE_FIBRES_OUTGOING,  "assembleMuscleFibresOutGoing");
+    LoadKernel ( FUNC_ASSEMBLE_MUSCLE_FIBRES_INCOMING,  "assembleMuscleFibresInComing");
+    LoadKernel ( FUNC_INITIALIZE_BONDS,                 "initialize_bonds");
 
     if (m_FParams.debug>1)std::cout << "Chk1.2 \n";
     size_t len = 0;
@@ -188,24 +193,15 @@ void FluidSystem::InitializeCuda (){         // used for load_sim  /home/nick/Pr
     cuCheck ( cuModuleGetGlobal ( &cuFGenome, &len,	m_Module, "fgenome" ),	"LoadKernel", "cuModuleGetGlobal", "cuFGenome", mbDebug);   // NB defined differently in kernel vs cpu code.
     // An FBufs struct holds an array of pointers.
     if (m_FParams.debug>1)std::cout << "Chk1.3 \n";
-    /*
-    uint debug = m_FParams.debug;
-    // Clear all buffers                            // now done by FluidSystem constructor.
-    memset ( &m_Fluid,     0,	sizeof(FBufs)   );
-    memset ( &m_FluidTemp, 0,	sizeof(FBufs)   );
-    memset ( &m_FParams,   0,	sizeof(FParams) );
-    memset ( &m_FGenome,   0,	sizeof(FGenome) );
-    SetDebug ( debug );                                                                                                                 // Carry over debug setting
-    */
 
-    if (m_FParams.debug>1)std::cout << "Chk1.4 \n";
     // Allocate the sim parameters
-    AllocateBuffer ( FPARAMS,		sizeof(FParams),	0,	1,	 GPU_SINGLE,     CPU_OFF );//AllocateBuffer ( int buf_id, int stride,     int cpucnt, int gpucnt,    int gpumode,    int cpumode )
-    if (m_FParams.debug>1)std::cout << "Chk1.5 \n";
+    AllocateBuffer ( FPARAMS,		sizeof(FParams),	0,	1,	 GPU_SINGLE,     CPU_OFF );
+    //AllocateBuffer ( int buf_id, int stride,     int cpucnt, int gpucnt,    int gpumode,    int cpumode )
+    if (m_FParams.debug>1)std::cout << "Chk1.4 \n";
     m_Time = 0;
     //ClearNeighborTable ();
     mNumPoints = 0;			// reset count
-    if (m_FParams.debug>1)std::cout << "Chk1.6 \n";
+    if (m_FParams.debug>1)std::cout << "Chk1.5 \n";
 }
 
 /////////////////////////////////////////////////////////////////
@@ -1226,7 +1222,7 @@ void FluidSystem::SetupExampleParams (uint spacing){
         m_Param [ PSMOOTHRADIUS ] = 1.0f;
         
         m_Vec [ PVOLMIN ].Set ( 0, 0, 0 );
-        m_Vec [ PVOLMAX ].Set ( 80, 50, 80 );
+        m_Vec [ PVOLMAX ].Set ( 10, 20, 20 ); //( 80, 50, 80 );
         m_Vec [ PINITMIN ].Set ( m_Vec [ PVOLMIN ].x,  m_Vec [ PVOLMIN ].y, m_Vec [ PVOLMIN ].z );// will be reset to m_Vec[PBOUNDMIN].
         m_Vec [ PINITMAX ].Set ( 60, 80, 60 );
         

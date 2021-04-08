@@ -4,10 +4,24 @@ cmake_policy(SET CMP0054 NEW)
 
 project(Morphogenesis LANGUAGES C CXX CUDA)
 
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "~/apps/morphogenesis/0.1.1" CACHE PATH "..." FORCE)
+endif()
+message ( "CMAKE_INSTALL_PREFIX is ${CMAKE_INSTALL_PREFIX}")
+
+
 set(CMAKE_C_STANDARD 11)
 #set(CMAKE_CPP_STANDARD 11) # set(CMAKE_CPP_STANDARD 17)  NB need (<=11 for VTP)  &&  (>+11 for C++ threads)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING
+      "Choose the type of build, options are: Debug Release
+RelWithDebInfo MinSizeRel."
+      FORCE)
+endif(NOT CMAKE_BUILD_TYPE)
+
 
 find_package(CUDA REQUIRED)
 
@@ -26,10 +40,6 @@ endif()
 message (STATUS "VTK_VERSION: ${VTK_VERSION}")
 
 include_directories(${CUDA_INCLUDE_DIRS} $(VTK_INCLUDE_DIRS) )#"/home/hoc041/Programming/Cuda/fluids_v4/"
-
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(CMAKE_INSTALL_PREFIX "./install" CACHE PATH "..." FORCE)
-endif()
 
 add_library(fluid_systemPTX OBJECT  fluid_system_cuda.cu  fluid_system_cuda.cuh)
 set_property(TARGET fluid_systemPTX PROPERTY CUDA_PTX_COMPILATION ON)
@@ -199,6 +209,9 @@ install(TARGETS fluid_systemPTX make_demo make_demo2 check_demo load_sim thread_
    )
 install(EXPORT fluid_systemPTX DESTINATION lib/fluid_systemPTX)
 
-set(ENV{$MORPHOGENESIS_HOME} DESTINATION)
-
-#How to set default CMAKE_INSTALL_PREFIX ?
+#set(ENV{MORPHOGENESIS_HOME} ${CMAKE_INSTALL_PREFIX})
+#set(ENV_CMD "export MORPHOGENESIS_HOME=\"${CMAKE_INSTALL_PREFIX}\"")
+#execute_process(COMMAND export MORPHOGENESIS_HOME=/home/nick/apps/morphogenesis/0.1.1) 
+#${CMAKE_INSTALL_PREFIX}
+#execute_process(COMMAND echo $MORPHOGENESIS_HOME)
+#message("Environment variable MORPHOGENESIS_HOME: $ENV{MORPHOGENESIS_HOME}")
