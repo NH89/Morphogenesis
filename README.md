@@ -205,9 +205,24 @@ usage:
     check_demo  simulation_data_folder  output_folder
     
 e.g.
-    ../build/install/bin/check_demo  demo  check 
+    check_demo  demo  check 
     
 CPU-only test program to verify the ability to read and re-output models.
+
+#### "SpecfileBatchGenerator"
+
+Generates a batch of /demo_intstiff* folders containing variations on the original SpecificationFile.txt file.
+These can then be used with a Slurm script to launch a batch of simulations.
+
+usage: 
+
+    SpecfileBatchGenerator <path_to_folder_containg_example SpecificationFile.txt file>
+
+e.g.
+
+    cd data
+    SpecfileBatchGenerator demo
+
 
 #### "load_sim"
 New launch program to load data from files, and run simulation on GPU.

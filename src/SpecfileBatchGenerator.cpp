@@ -37,7 +37,7 @@ int main ( int argc, const char** argv )
     
     FluidSystem fluid;
     fluid.InitializeCuda ();
-    std::cout<<"\n\nSpecfileBatchGenerator chk0,"<<std::flush;
+    std::cout<<"\n\nSpecfileBatchGenerator chk0, spec_file = "<< spec_file << std::flush;
     
     fluid.ReadSpecificationFile ( spec_file );
     std::cout<<"\n\nSpecfileBatchGenerator chk1, fluid.launchParams.debug="<<fluid.launchParams.debug<<", fluid.launchParams.paramsPath=" <<fluid.launchParams.paramsPath <<std::flush;
