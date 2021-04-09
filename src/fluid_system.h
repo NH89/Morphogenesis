@@ -35,11 +35,13 @@
 	#define DEF_FLUID_SYS
 
     #include <dirent.h> 
+    #include <filesystem>
 	#include <iostream>
 	#include <vector>
 	#include <stdio.h>
 	#include <stdlib.h>
 	#include <math.h>
+	#include <sys/stat.h>
     #include <sys/types.h> 
 	
 	#include <vtk-9.0/vtkCellArray.h>
