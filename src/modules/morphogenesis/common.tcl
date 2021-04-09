@@ -1,9 +1,10 @@
 # BEGIN CONFIGURATION #########################################################
 # Environment Settings
-setenv          MORPHOGENESIS_HOME /home/hoc041/apps/morphogenesis/0.1.1
-prepend-path	LD_RUN_PATH        $MORPHOGENESIS_HOME/lib64
-prepend-path	LD_LIBRARY_PATH    $MORPHOGENESIS_HOME/lib64
-prepend-path	PATH               $MORPHOGENESIS_HOME/bin
+set             morphogenesis_home $::env(HOME)/apps/morphogenesis/0.1.1
+setenv          MORPHOGENESIS_HOME $morphogenesis_home 
+prepend-path	LD_RUN_PATH        $morphogenesis_home/lib64
+prepend-path	LD_LIBRARY_PATH    $morphogenesis_home/lib64
+prepend-path	PATH               $morphogenesis_home/bin
 
 
 # END #########################################################################

@@ -49,7 +49,7 @@ If Environment Modules are installed (e.g. on a GPU cluster), then the script in
 #### vtk-9
 
     cd Morphogenesis/src
-    bash ./install_scripts/install_vtk.sh
+    bash ./install_scripts/install_vtk-9.0.1.sh
     
     
 

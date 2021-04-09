@@ -166,6 +166,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     
     // points, vertices & lines
     // points & vertices = FPOS 3df
+cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     vtkSmartPointer<vtkPoints> points3D = vtkSmartPointer<vtkPoints>::New();                           // Points3D
 	vtkSmartPointer<vtkCellArray> Vertices = vtkSmartPointer<vtkCellArray>::New();                     // Vertices
     uint num_active_points = 0;
@@ -197,7 +198,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
             Vertices->InsertNextCell(1,pid);
         }
     }
-	
+cout<<"\nSavePointsVTP2: chk 2"<<std::flush;
     // edges = FELASTIDX [0]current index uint                                                         // Lines
     vtkSmartPointer<vtkCellArray> Lines = vtkSmartPointer<vtkCellArray>::New();
     uint *ElastIdx;
@@ -467,7 +468,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
         ftissue->InsertNextValue(0);
     }
     
-    
+cout<<"\nSavePointsVTP2: chk 3"<<std::flush;    
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // POLYDATA
 	vtkSmartPointer<vtkPolyData> polydata = vtkPolyData::New();                                        // polydata
@@ -475,7 +476,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
 	//polydata->SetVerts(Vertices);
     polydata->SetLines(Lines);
     
-    
+cout<<"\nSavePointsVTP2: chk 4"<<std::flush;    
     //if (m_FParams.debug>1)cout << "\nStarting writing bond data to polydata\n" << std::flush;
     polydata->GetCellData()->AddArray(BondsUIntData);
     polydata->GetCellData()->AddArray(BondsFloatData);
@@ -493,7 +494,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     polydata->GetPointData()->AddArray(ftissue);
     
     //if (m_FParams.debug>1)cout << "\nFinished writing bond data to polydata\n" << std::flush;
-    
+cout<<"\nSavePointsVTP2: chk 5"<<std::flush;    
     // WRITER  
 	vtkSmartPointer<vtkXMLPolyDataWriter> writer = vtkSmartPointer<vtkXMLPolyDataWriter>::New();       // writer
     char buf[256];
@@ -504,8 +505,10 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     writer->SetDataModeToAscii();   
     //writer->SetDataModeToAppended();    // prefered, produces a human readable header followed by a binary blob.
     //writer->SetDataModeToBinary();
+cout<<"\nSavePointsVTP2: chk 6"<<std::flush;
 	writer->Write();
-    
+cout << "\nFinished writing vtp file " << buf << "." << endl;
+cout << "\tnum_active_points: " << num_active_points << endl;    
 	//if (m_FParams.debug>1)cout << "\nFinished writing vtp file " << buf << "." << endl;
 	//if (m_FParams.debug>1)cout << "\tnum_active_points: " << num_active_points << endl;
 }

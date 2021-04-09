@@ -70,6 +70,10 @@ mkdir -p ~/modules/morphogenesis
 cp modules/morphogenesis/* ~/modules/morphogenesis
 module use ~/modules
 module load morphogenesis
+module avail morphogenesis
+module list
+env | grep morphogenesis
+echo $PATH
 else
 export  MORPHOGENESIS_HOME=~/apps/morphogenesis/$MORPHOGENESIS_VERSION
 export  LD_RUN_PATH=$MORPHOGENESIS_HOME/lib64:$LD_RUN_PATH
@@ -103,6 +107,10 @@ echo 'Building & installing Morphogenesis'
 ccmake ../src
 make install
 
+module list 
+module avail morphogenesis
+env | grep morphogenesis
+echo $PATH
 
 echo 'Generating Morphogenesis Demo model'
 cd ../data
