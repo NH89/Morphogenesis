@@ -12,13 +12,8 @@ m=3
 #SBATCH --cpus-per-task=k
 #SBATCH --gres=gpu:m
 
-for FOLDER in HOME/Programming/Cuda/Morphogenesis/data/demo_intstiff*; 
+for FOLDER in HOME/Programming/Cuda/Morphogenesis/data; #demo_intstiff* 
 do
-make_demo2 FOLDER
+#make_demo2 $FOLDER $FOLDER
+echo $FOLDER
 done
-
-# sbatch --export IN=$FILE myjob.q; 
-#for FILE in *.in; do sbatch --export IN=$FILE myjob.q; done
-#file:///home/nick/Programming/Cuda/Morphogenesis/data/demo_intstiff1.000000
-
-#$HOME/Programming/Cuda/Morphogenesis/data/demo
