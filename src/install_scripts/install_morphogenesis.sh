@@ -114,7 +114,8 @@ echo $PATH
 
 echo 'Generating Morphogenesis Demo model'
 cd ../data
-make_demo 400 1  10 10 3  1 5
+make_demo   #use default
+
 
 echo 'Checking read-write of model'
 check_demo  demo  check

@@ -87,6 +87,8 @@ int main ( int argc, const char** argv )
     }
     //visc
     float default_visc = fluid.launchParams.visc;
+    fluid.ReadSpecificationFile ( spec_file );
+    fluid.SetDebug(2);// NB sets m_FParams.debug for this code, separate from fluid.launchParams.debug for specfile.txt .
     for (int i=1; i<=32; i*=2){
         float visc = default_visc * 0.125 * (float)i;                                                               // set parameter
         std::string txt_flt=std::to_string(visc);
@@ -97,6 +99,8 @@ int main ( int argc, const char** argv )
     }
     //surface_tension
     float default_s_t = fluid.launchParams.surface_tension;
+    fluid.ReadSpecificationFile ( spec_file );
+    fluid.SetDebug(2);// NB sets m_FParams.debug for this code, separate from fluid.launchParams.debug for specfile.txt .
     for (int i=1; i<=32; i*=2){
         float surface_tension = default_s_t * 0.125 * (float)i;                                    // set parameter
         fluid.launchParams.surface_tension=surface_tension;
@@ -106,6 +110,8 @@ int main ( int argc, const char** argv )
     }
     //mass
     float default_mass = fluid.launchParams.mass;
+    fluid.ReadSpecificationFile ( spec_file );
+    fluid.SetDebug(2);// NB sets m_FParams.debug for this code, separate from fluid.launchParams.debug for specfile.txt .
     for (int i=1; i<=32; i*=2){
         float mass = default_mass * 0.125 * (float)i;                                              // set parameter
         fluid.launchParams.mass=mass;
@@ -122,7 +128,8 @@ int main ( int argc, const char** argv )
     int d_mod = tempGenome.default_modulus;
     int elastin = tempGenome.elastin;
     float default_modulus = tempGenome.param[elastin][d_mod];
-    
+    fluid.ReadSpecificationFile ( spec_file );
+    fluid.SetDebug(2);// NB sets m_FParams.debug for this code, separate from fluid.launchParams.debug for specfile.txt .
     for (int i=-4; i<=4; i++){
         float modulus = default_modulus * pow(10,i);                    // set parameter
         tempGenome.param[elastin][d_mod]=modulus;
@@ -147,7 +154,8 @@ int main ( int argc, const char** argv )
     int d_mod = tempGenome.default_damping;
     int elastin = tempGenome.elastin;
     float default_damping = tempGenome.param[elastin][d_mod] ;
-    
+    fluid.ReadSpecificationFile ( spec_file );
+    fluid.SetDebug(2);// NB sets m_FParams.debug for this code, separate from fluid.launchParams.debug for specfile.txt .
     for (int i=-4; i<=4; i++){
         float damping = default_damping * pow(10,i);                      // set parameter
         tempGenome.param[elastin][d_mod]=damping;
@@ -167,10 +175,11 @@ int main ( int argc, const char** argv )
     {
     fluid.ReadGenome(sourceGenomePath.c_str());          //spec_file                          // NB must reset genome to template
     FGenome tempGenome = fluid.GetGenome();
-        int d_mod = tempGenome.elastLim;
-        int elastin = tempGenome.elastin;
-        float default_elastLim = tempGenome.param[elastin][d_mod];
-        
+    int d_mod = tempGenome.elastLim;
+    int elastin = tempGenome.elastin;
+    float default_elastLim = tempGenome.param[elastin][d_mod];
+    fluid.ReadSpecificationFile ( spec_file );
+    fluid.SetDebug(2);// NB sets m_FParams.debug for this code, separate from fluid.launchParams.debug for specfile.txt .
     for (int i=1; i<=32; i*=2){
         float elastLim = default_elastLim * 0.125 * (float)i;                            // set parameter
         tempGenome.param[elastin][d_mod]=elastLim;
@@ -193,7 +202,8 @@ int main ( int argc, const char** argv )
     int d_mod = tempGenome.default_rest_length;
     int elastin = tempGenome.elastin;
     float default_rest_length = tempGenome.param[elastin][d_mod];
-    
+    fluid.ReadSpecificationFile ( spec_file );
+    fluid.SetDebug(2);// NB sets m_FParams.debug for this code, separate from fluid.launchParams.debug for specfile.txt .
     for (int i=1; i<=32; i*=2){
         float rest_length = default_rest_length * 0.125 * (float)i;                  // set parameter
         tempGenome.param[elastin][d_mod]=rest_length;

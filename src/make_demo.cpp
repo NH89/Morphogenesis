@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "fluid_system.h"
+
 typedef	unsigned int		uint;	
 
 int main ( int argc, const char** argv ) 
