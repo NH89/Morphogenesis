@@ -45,7 +45,7 @@ bool cuCheck (CUresult launch_stat, const char* method, const char* apicall, con
 }
 //////////////////////////////////////////////////
 FluidSystem::FluidSystem (){
-    cout<<"\n\nFluidSystem ()"<<std::flush;
+    if (m_FParams.debug>1)cout<<"\n\nFluidSystem ()"<<std::flush;
     memset ( &m_Fluid, 0,		sizeof(FBufs) );
     memset ( &m_FluidTemp, 0,	sizeof(FBufs) );
     memset ( &m_FParams, 0,		sizeof(FParams) );
@@ -209,68 +209,22 @@ void FluidSystem::UpdateGenome (){              // Update Genome on GPU
     cuCheck ( cuMemcpyHtoD ( cuFGenome,	&m_FGenome,		sizeof(FGenome) ), "FluidGenomeCUDA", "cuMemcpyHtoD", "cuFGenome", mbDebug);
 }
 
-void FluidSystem::SetGenome (FGenome newGenome ){   // not currently used.
-    for(int i=0; i< NUM_GENES; i++) m_FGenome.mutability[i] = newGenome.mutability[i];
-    for(int i=0; i< NUM_GENES; i++) m_FGenome.delay[i] = newGenome.delay[i];
-    for(int i=0; i< NUM_GENES; i++) for(int j=0; j< NUM_GENES; j++) {
-            m_FGenome.sensitivity[i][j] = newGenome.sensitivity[i][j];
+FGenome	FluidSystem::GetGenome(){
+            FGenome tempGenome = m_FGenome;
+            for (int i=0; i<NUM_GENES; i++)tempGenome.mutability[i]=m_FGenome.mutability[i];
+            for (int i=0; i<NUM_GENES; i++)tempGenome.delay[i]=m_FGenome.delay[i];
+            for (int i=0; i<NUM_GENES; i++)for (int j=0; j<NUM_GENES; j++)tempGenome.sensitivity[i][j]=m_FGenome.sensitivity[i][j];
+            
+            for (int i=0; i<NUM_TF; i++)tempGenome.tf_diffusability[i]=m_FGenome.tf_diffusability[i];
+            for (int i=0; i<NUM_TF; i++)tempGenome.tf_breakdown_rate[i]=m_FGenome.tf_breakdown_rate[i];
+            
+            for (int i=0; i<NUM_GENES; i++)for (int j=0; j<2*NUM_TF+1; j++)tempGenome.secrete[i][j]=m_FGenome.secrete[i][j];
+            for (int i=0; i<NUM_GENES; i++)for (int j=0; j<2*NUM_GENES+1; j++)tempGenome.activate[i][j]=m_FGenome.activate[i][j];
+            
+            for (int i=0; i<3;i++)for(int j=0; j<12; j++)tempGenome.param[i][j]=m_FGenome.param[i][j];
+            std::cout<<"\nGetGenome(): m_FGenome.delay[0]="<<m_FGenome.delay[0]<<"\ttempGenome.delay[0]="<<tempGenome.delay[0]<<std::flush;
+            return tempGenome;
         }
-    for(int i=0; i< NUM_GENES; i++) {
-        m_FGenome.tf_diffusability[i] = newGenome.tf_diffusability[i];
-        m_FGenome.tf_breakdown_rate[i] = newGenome.tf_breakdown_rate[i];
-    }
-    for(int i=0; i< NUM_GENES; i++) for(int j=0; j< 2*NUM_TF+1; j++) m_FGenome.secrete[i][j] =newGenome.secrete[i][j];     // 1st zero arrays.
-    for(int i=0; i< NUM_GENES; i++) for(int j=0; j< 2*NUM_TF+1; j++) m_FGenome.activate[i][j]=newGenome.activate[i][j]; 
-    /*
-    //0=elastin
-    m_FGenome.fbondparams[0].elongation_threshold   = 0.1  ;
-    m_FGenome.fbondparams[0].elongation_factor      = 0.1  ;
-    m_FGenome.fbondparams[0].strength_threshold     = 0.1  ;
-    m_FGenome.fbondparams[0].strengthening_factor   = 0.1  ;
-    
-    m_FGenome.fbondparams[0].max_rest_length        = 0.8  ;
-    m_FGenome.fbondparams[0].min_rest_length        = 0.3  ;
-    m_FGenome.fbondparams[0].max_modulus            = 0.8  ;
-    m_FGenome.fbondparams[0].min_modulus            = 0.3  ;
-    
-    m_FGenome.fbondparams[0].elastLim               = 2  ;
-    m_FGenome.fbondparams[0].default_rest_length    = 0.5  ;
-    m_FGenome.fbondparams[0].default_modulus        = 100000  ;
-    m_FGenome.fbondparams[0].default_damping        = 10  ;
-    
-    //1=collagen
-    m_FGenome.fbondparams[1].elongation_threshold   = 0.1  ;
-    m_FGenome.fbondparams[1].elongation_factor      = 0.1  ;
-    m_FGenome.fbondparams[1].strength_threshold     = 0.1  ;
-    m_FGenome.fbondparams[1].strengthening_factor   = 0.1  ;
-    
-    m_FGenome.fbondparams[1].max_rest_length        = 0.8  ;
-    m_FGenome.fbondparams[1].min_rest_length        = 0.3  ;
-    m_FGenome.fbondparams[1].max_modulus            = 0.8  ;
-    m_FGenome.fbondparams[1].min_modulus            = 0.3  ;
-    
-    m_FGenome.fbondparams[1].elastLim               = 0.55  ;
-    m_FGenome.fbondparams[1].default_rest_length    = 0.5  ;
-    m_FGenome.fbondparams[1].default_modulus        = 10000000  ;
-    m_FGenome.fbondparams[1].default_damping        = 100  ;
-    
-    //2=apatite
-    m_FGenome.fbondparams[2].elongation_threshold   = 0.1  ;
-    m_FGenome.fbondparams[2].elongation_factor      = 0.1  ;
-    m_FGenome.fbondparams[2].strength_threshold     = 0.1  ;
-    m_FGenome.fbondparams[2].strengthening_factor   = 0.1  ;
-    
-    m_FGenome.fbondparams[2].max_rest_length        = 0.8  ;
-    m_FGenome.fbondparams[2].min_rest_length        = 0.3  ;
-    m_FGenome.fbondparams[2].max_modulus            = 0.8  ;
-    m_FGenome.fbondparams[2].min_modulus            = 0.3  ;
-    
-    m_FGenome.fbondparams[2].elastLim               = 0.05  ;
-    m_FGenome.fbondparams[2].default_rest_length    = 0.5  ;
-    m_FGenome.fbondparams[2].default_modulus        = 10000000  ;
-    m_FGenome.fbondparams[2].default_damping        = 1000  ;
-    */
-}
 
 void FluidSystem::UpdateParams (){
     // Update Params on GPU
@@ -430,7 +384,7 @@ void FluidSystem::AllocateGrid(int gpu_mode, int cpu_mode){ // NB void FluidSyst
     // Allocate grid
     int cnt = m_GridTotal;
     m_FParams.szGrid = (m_FParams.gridBlocks * m_FParams.gridThreads);
-    cout<<"\nAllocateGrid: m_FParams.szGrid = ("<<m_FParams.gridBlocks<<" * "<<m_FParams.gridThreads<<")"<<std::flush;
+    if (m_FParams.debug>1)cout<<"\nAllocateGrid: m_FParams.szGrid = ("<<m_FParams.gridBlocks<<" * "<<m_FParams.gridThreads<<")"<<std::flush;
     AllocateBuffer ( FGRID,		sizeof(uint),		mMaxPoints,	m_FParams.szPnts,	gpu_mode, cpu_mode );    // # grid elements = number of points
     AllocateBuffer ( FGRIDCNT,	sizeof(uint),		cnt,	    m_FParams.szGrid,	gpu_mode, cpu_mode );
     AllocateBuffer ( FGRIDOFF,	sizeof(uint),		cnt,	    m_FParams.szGrid,	gpu_mode, cpu_mode );
@@ -599,7 +553,7 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
     Vector3DF volV3DF = max-min;    
     int num_particles_to_make = 8 * 27 * int(volV3DF.x*volV3DF.y*volV3DF.z);//int(volV3DF.x*volV3DF.y*volV3DF.z / spacing*spacing*spacing);
     srand((unsigned int)time(NULL));
-    cout<<"\nSetupAddVolumeMorphogenesis2: min=("<<min.x<<","<<min.y<<","<<min.z<<"), max=("<<max.x<<","<<max.y<<","<<max.z<<") "<<std::flush;
+    if (m_FParams.debug>1)cout<<"\nSetupAddVolumeMorphogenesis2: min=("<<min.x<<","<<min.y<<","<<min.z<<"), max=("<<max.x<<","<<max.y<<","<<max.z<<") "<<std::flush;
     for (int i=0; i<num_particles_to_make; i++){
         Pos.x =  min.x + (float(rand())/float((RAND_MAX)) * dx) ;
         Pos.y =  min.y + (float(rand())/float((RAND_MAX)) * dy) ;
@@ -682,27 +636,27 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
 
 /////////////////////////////////////////////////////////////////// 
 void FluidSystem::Run (){   // deprecated, rather use: Run(const char * relativePath, int frame, bool debug) 
-std::cout << "\tFluidSystem::Run (),  "<<std::flush;  
+if (m_FParams.debug>1)std::cout << "\tFluidSystem::Run (),  "<<std::flush;  
     //case RUN_GPU_FULL:					// Full CUDA pathway, GRID-accelerted GPU, /w deep copy sort
 //TransferFromCUDA ();
 //std::cout << "\n\n Chk1 \n"<<std::flush;
     InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug);
 //TransferFromCUDA ();
-std::cout << "\n\n Chk2 \n"<<std::flush;
+if (m_FParams.debug>1)std::cout << "\n\n Chk2 \n"<<std::flush;
     PrefixSumCellsCUDA ( 1 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumCellsCUDA", mbDebug);
 //TransferFromCUDA ();
-std::cout << "\n\n Chk3 \n"<<std::flush;
+if (m_FParams.debug>1)std::cout << "\n\n Chk3 \n"<<std::flush;
     CountingSortFullCUDA ( 0x0 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortFullCUDA", mbDebug);
 //TransferFromCUDA ();
-std::cout << "\n\n Chk4 \n"<<std::flush;
+if (m_FParams.debug>1)std::cout << "\n\n Chk4 \n"<<std::flush;
     
     ComputePressureCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug); 
 //TransferFromCUDA ();
-std::cout << "\n\n Chk5 \n"<<std::flush;
+if (m_FParams.debug>1)std::cout << "\n\n Chk5 \n"<<std::flush;
     // FreezeCUDA ();                                   // makes the system plastic, ie the bonds keep reforming
 //std::cout << "\n\n Chk6 \n"<<std::flush;
     ComputeForceCUDA ();                                // now includes the function of freeze 
@@ -721,7 +675,7 @@ std::cout << "\n\n Chk5 \n"<<std::flush;
     ComputeGenesCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeGenesCUDA", mbDebug);
     
-std::cout << "\n\n Chk8 \n"<<std::flush;
+if (m_FParams.debug>1)std::cout << "\n\n Chk8 \n"<<std::flush;
     ComputeBondChangesCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeBondChangesCUDA", mbDebug);
     
@@ -732,26 +686,26 @@ std::cout << "\n\n Chk8 \n"<<std::flush;
     //InsertChangesCUDA ( ); // done by ComputeBondChanges() above
     //cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertChangesCUDA", mbDebug);
 
-std::cout << "\n\n Chk9 \n"<<std::flush;
+if (m_FParams.debug>1)std::cout << "\n\n Chk9 \n"<<std::flush;
     PrefixSumChangesCUDA ( 1 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumChangesCUDA", mbDebug);
     
-std::cout << "\n\n Chk10 \n"<<std::flush;
+if (m_FParams.debug>1)std::cout << "\n\n Chk10 \n"<<std::flush;
     CountingSortChangesCUDA (  );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortChangesCUDA", mbDebug);
     
     
     //  execute particle changes // _should_ be able to run concurrently => no cuCtxSynchronize()
     // => single fn ComputeParticleChangesCUDA ()
-std::cout << "\n\n Chk11 \n"<<std::flush;
+if (m_FParams.debug>1)std::cout << "\n\n Chk11 \n"<<std::flush;
     ComputeParticleChangesCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeParticleChangesCUDA", mbDebug);
 
-std::cout << "\n\n Chk12 \n"<<std::flush;
+if (m_FParams.debug>1)std::cout << "\n\n Chk12 \n"<<std::flush;
     CleanBondsCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CleanBondsCUDA ", mbDebug);
     
-std::cout << "\n\n Chk13 \n"<<std::flush;
+if (m_FParams.debug>1)std::cout << "\n\n Chk13 \n"<<std::flush;
     TransferPosVelVeval ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval ", mbDebug);
     
@@ -1152,9 +1106,12 @@ void FluidSystem::SetupExampleParams (uint spacing){
     Vector3DF pos;
     Vector3DF min, max;
     m_Param [ PSPACING ] = spacing;
-
+    
+    //std::cout<<"\nSetupExampleParams()1: m_Param[PEXAMPLE] = "<<m_Param[PEXAMPLE]<<"\n"<<std::flush;
+    //std::cout<<"\nSetupExampleParams()2: launchParams.genomePath = "<<launchParams.genomePath<<"\n"<<std::flush;
+    
     switch ( (int) m_Param[PEXAMPLE] ) {
-
+    
     case 0:	{	// Regression test. N x N x N static grid
 
         int k = (int) ceil ( pow ( (float) m_Param[PNUM], (float) 1.0f/3.0f ) );
@@ -1258,7 +1215,71 @@ void FluidSystem::SetupExampleParams (uint spacing){
         m_Vec [ PINITMIN ] = launchParams.initmin;
         m_Vec [ PINITMAX ] = launchParams.initmax;
         break;
+    case 8:  // default demo for parameter sweeps
+        launchParams.num_particles = 4000;
+        launchParams.demoType = 0;
+        launchParams.simSpace = 7;
+        
+        m_Time = 0.000000;
+        m_DT = 0.003000;
+        
+        m_Param [ PGRIDSIZE ] = 1.0;
+        m_Param [ PSPACING ] = 1.000000;
+        
+        m_Param [ PSIMSCALE ] = 1.0;
+        m_Param [ PSMOOTHRADIUS ] = 1.0;
+        
+        m_Param [ PVISC ] = 0.500000;
+        m_Param [ PSURFACE_TENSION ] = 1.000000;
+        
+        m_Param [ PMASS ] = 0.00205;
+        m_Param [ PRADIUS ] = 1.0000;
+        
+        m_Param [ PINTSTIFF ] = 2.000000;
+        m_Param [ PEXTSTIFF ] = 50000.000000;
+        m_Param [ PEXTDAMP ] = 100.000000;
+        
+        m_Param [ PACCEL_LIMIT ] = 150.000000;
+        m_Param [ PVEL_LIMIT ] = 3.000000;
+        
+        m_Param [ PGRAV ] = 10.000000;
+        m_Param [ PGROUND_SLOPE ] = 0.100000;
+        
+        m_Param [ PFORCE_MIN ] = 0.000000;
+        m_Param [ PFORCE_MAX ] = 0.000000;
+        m_Param [ PFORCE_FREQ ] = 16.000000;
+        
+        launchParams.x_dim = 10.000000;
+        launchParams.y_dim = 10.000000;
+        launchParams.z_dim = 3.000000;
+        
+        launchParams.pos_x = 0.000000;
+        launchParams.pos_y = 0.000000;
+        launchParams.pos_z = 0.000000;
+        
+        m_Vec [ PVOLMIN ].Set ( 0.0, 0.0, 0.0 );
+        m_Vec [ PVOLMAX ].Set ( 10.0, 20.0, 20.0 );
+        m_Vec [ PINITMIN ].Set ( 2.0, 2.0, 2.0 );
+        m_Vec [ PINITMAX ].Set ( 10.0, 20.0, 10.0 );
+    
+        launchParams.num_files = 4000;
+        launchParams.steps_per_InnerPhysicalLoop = 3;
+        launchParams.steps_per_file = 6;
+        launchParams.freeze_steps = 1;
+        
+        launchParams.debug = 0;
+        launchParams.file_num = 0;
+        
+        launchParams.save_ply = 'n';
+        launchParams.save_csv = 'n';
+        launchParams.save_vtp = 'n';
+        
+        launchParams.gene_activity = 'n';
+        launchParams.remodelling = 'n';
+        launchParams.read_genome = 'n'; 
+        break;
     }
+    //std::cout<<"\nSetupExampleParams()3: launchParams.genomePath = "<<launchParams.genomePath<<"\n"<<std::flush;
 }
 
 void FluidSystem::SetupExampleGenome()  {   // need to set up a demo genome
@@ -1374,13 +1395,13 @@ void FluidSystem::SetupSimulation(int gpu_mode, int cpu_mode){ // const char * r
         UpdateParams();            //  sends simulation params to device.
         UpdateGenome();            //  sends genome to device.              // NB need to initialize genome from file, or something.
     }
-    std::cout<<"\nSetupSimulation chk4, mMaxPoints="<<mMaxPoints<<", gpu_mode="<<gpu_mode<<", cpu_mode="<<cpu_mode<<", m_FParams.debug="<<m_FParams.debug<<std::flush;
+    if (m_FParams.debug>1)std::cout<<"\nSetupSimulation chk4, mMaxPoints="<<mMaxPoints<<", gpu_mode="<<gpu_mode<<", cpu_mode="<<cpu_mode<<", m_FParams.debug="<<m_FParams.debug<<std::flush;
     
     AllocateParticles ( mMaxPoints, gpu_mode, cpu_mode );  // allocates only cpu buffer for particles
-    std::cout<<"\nSetupSimulation chk5 "<<std::flush;
+    if (m_FParams.debug>1)std::cout<<"\nSetupSimulation chk5 "<<std::flush;
     
     AllocateGrid(gpu_mode, cpu_mode);
-    std::cout<<"\nSetupSimulation chk6 "<<std::flush;
+    if (m_FParams.debug>1)std::cout<<"\nSetupSimulation chk6 "<<std::flush;
     
 }
 
@@ -1396,7 +1417,7 @@ void FluidSystem::RunSimulation (){
     //std::cout<<"\nRunSimulation chk5 "<<std::flush;
     
     setFreeze(true);
-    std::cout<<"\nRunSimulation chk6,  launchParams.freeze_steps="<<launchParams.freeze_steps
+    if (m_FParams.debug>0)std::cout<<"\nRunSimulation chk6,  launchParams.freeze_steps="<<launchParams.freeze_steps
     <<",  launchParams.file_num="<<launchParams.file_num
     <<",  launchParams.num_files="<<launchParams.num_files
     <<",  launchParams.freeze_steps="<<launchParams.freeze_steps
@@ -1412,7 +1433,7 @@ void FluidSystem::RunSimulation (){
       launchParams.file_num+=100;
     }
     setFreeze(false);
-    printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
+    if (m_FParams.debug>0)printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
     
     for ( ; launchParams.file_num<launchParams.num_files; launchParams.file_num+=100 ) {
         for ( int j=0; j<launchParams.steps_per_file; j++ ) {//, bool gene_activity, bool remodelling 
@@ -1425,7 +1446,7 @@ void FluidSystem::RunSimulation (){
         if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
         if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
         if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
-        cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+        if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
         
         auto end = std::chrono::steady_clock::now();
         std::chrono::duration<double> time = end - begin;
@@ -1448,7 +1469,7 @@ void FluidSystem::Run2Simulation(){
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval, before 1st timestep", 1/*mbDebug*/);
     setFreeze(true);
     for (int k=0; k<launchParams.freeze_steps; k++){
-      std::cout<<"\n\nFreeze()"<<k<<"\n"<<std::flush;
+      if (m_FParams.debug>0)std::cout<<"\n\nFreeze()"<<k<<"\n"<<std::flush;
       Run (launchParams.outPath, launchParams.file_num, (launchParams.debug>4), (launchParams.gene_activity=='y'), (launchParams.remodelling=='y') );
       TransferPosVelVeval ();
       if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
@@ -1458,6 +1479,10 @@ void FluidSystem::Run2Simulation(){
     }
     setFreeze(false);
     printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
+    
+    TransferFromCUDA ();
+    SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+99);   // save "start condition" after bond formation, even if not saving the series.
+    SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+99);
     
     for ( ; launchParams.file_num<launchParams.num_files; launchParams.file_num+=100 ) {
         launchParams.file_increment=0;
@@ -1471,7 +1496,7 @@ void FluidSystem::Run2Simulation(){
         if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
         if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
         if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
-        cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+        if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
         
         auto end = std::chrono::steady_clock::now();
         std::chrono::duration<double> time = end - begin;
@@ -1482,10 +1507,15 @@ void FluidSystem::Run2Simulation(){
                     << time.count() << " seconds\n" << std::endl;
         old_begin = begin;
     }
-    launchParams.file_num++;
+    //launchParams.file_num++;
+    
+    TransferFromCUDA ();
+    SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+99);   // save "end condition", even if not saving the series.
+    SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+99);
+    
     WriteSimParams ( launchParams.outPath ); 
     WriteGenome( launchParams.outPath );
-    WriteExampleSpecificationFile ( launchParams.outPath );
+    WriteSpecificationFile_fromLaunchParams( launchParams.outPath );
 }
 
 

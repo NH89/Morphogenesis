@@ -1,11 +1,9 @@
-
-
 #include "fluid_system.h"
 
 void FluidSystem::ReadGenome( const char * relativePath){
     // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
     const char * genes_file_path = relativePath;
-    if (m_FParams.debug>1)printf("\n## opening file %s \n", genes_file_path);
+    /*if (m_FParams.debug>1)*/printf("\nReadGenome: opening file %s \n", genes_file_path);
     FILE * genes_file = fopen(genes_file_path, "rb");
     if (genes_file == NULL) {
         if (m_FParams.debug>1)std::cout << "\nvoid FluidSystem::ReadGenome( const char * relativePath, int gpu_mode, int cpu_mode)  Could not read file "<< genes_file_path <<"\n"<< std::flush;
@@ -77,7 +75,7 @@ void FluidSystem::ReadGenome( const char * relativePath){
 }
 
 void FluidSystem::WriteGenome( const char * relativePath){
-    if (m_FParams.debug>1)std::cout << "\n  FluidSystem::WriteGenome( const char * relativePath)  started \n" << std::flush;
+    if (m_FParams.debug>1)std::cout << "\n  FluidSystem::WriteGenome( const char * "<<relativePath<<")  started \n" << std::flush;
     char buf[256];
     sprintf ( buf, "%s/genome.csv", relativePath );
     FILE* fp = fopen ( buf, "w" );
@@ -166,7 +164,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     
     // points, vertices & lines
     // points & vertices = FPOS 3df
-cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
+if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     vtkSmartPointer<vtkPoints> points3D = vtkSmartPointer<vtkPoints>::New();                           // Points3D
 	vtkSmartPointer<vtkCellArray> Vertices = vtkSmartPointer<vtkCellArray>::New();                     // Vertices
     uint num_active_points = 0;
@@ -198,7 +196,7 @@ cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
             Vertices->InsertNextCell(1,pid);
         }
     }
-cout<<"\nSavePointsVTP2: chk 2"<<std::flush;
+
     // edges = FELASTIDX [0]current index uint                                                         // Lines
     vtkSmartPointer<vtkCellArray> Lines = vtkSmartPointer<vtkCellArray>::New();
     uint *ElastIdx;
@@ -468,7 +466,7 @@ cout<<"\nSavePointsVTP2: chk 2"<<std::flush;
         ftissue->InsertNextValue(0);
     }
     
-cout<<"\nSavePointsVTP2: chk 3"<<std::flush;    
+  
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // POLYDATA
 	vtkSmartPointer<vtkPolyData> polydata = vtkPolyData::New();                                        // polydata
@@ -476,7 +474,7 @@ cout<<"\nSavePointsVTP2: chk 3"<<std::flush;
 	//polydata->SetVerts(Vertices);
     polydata->SetLines(Lines);
     
-cout<<"\nSavePointsVTP2: chk 4"<<std::flush;    
+   
     //if (m_FParams.debug>1)cout << "\nStarting writing bond data to polydata\n" << std::flush;
     polydata->GetCellData()->AddArray(BondsUIntData);
     polydata->GetCellData()->AddArray(BondsFloatData);
@@ -494,7 +492,7 @@ cout<<"\nSavePointsVTP2: chk 4"<<std::flush;
     polydata->GetPointData()->AddArray(ftissue);
     
     //if (m_FParams.debug>1)cout << "\nFinished writing bond data to polydata\n" << std::flush;
-cout<<"\nSavePointsVTP2: chk 5"<<std::flush;    
+   
     // WRITER  
 	vtkSmartPointer<vtkXMLPolyDataWriter> writer = vtkSmartPointer<vtkXMLPolyDataWriter>::New();       // writer
     char buf[256];
@@ -505,10 +503,10 @@ cout<<"\nSavePointsVTP2: chk 5"<<std::flush;
     writer->SetDataModeToAscii();   
     //writer->SetDataModeToAppended();    // prefered, produces a human readable header followed by a binary blob.
     //writer->SetDataModeToBinary();
-cout<<"\nSavePointsVTP2: chk 6"<<std::flush;
+
 	writer->Write();
-cout << "\nFinished writing vtp file " << buf << "." << endl;
-cout << "\tnum_active_points: " << num_active_points << endl;    
+if (m_FParams.debug>1)cout << "\nFinished writing vtp file " << buf << "." << endl;
+if (m_FParams.debug>1)cout << "\tnum_active_points: " << num_active_points << endl;    
 	//if (m_FParams.debug>1)cout << "\nFinished writing vtp file " << buf << "." << endl;
 	//if (m_FParams.debug>1)cout << "\tnum_active_points: " << num_active_points << endl;
 }
@@ -813,7 +811,7 @@ void FluidSystem::WriteSimParams ( const char * relativePath ){
     pdrain_barrier = m_Toggle [ PDRAIN_BARRIER ];
     prun = m_Toggle [ PRUN ];
 */
-    std::cout<<"\nWriteSimParams chk1 "<<std::flush;
+    if (m_FParams.debug>1)std::cout<<"\nWriteSimParams chk1 "<<std::flush;
     
     // open file to write SimParams to
     char SimParams_file_path[256];
@@ -824,7 +822,7 @@ void FluidSystem::WriteSimParams ( const char * relativePath ){
         if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::WriteSimParams (const char * relativePath )  Could not open file "<< SimParams_file_path <<"\n"<< std::flush;
         assert(0);
     }
-    std::cout<<"\nWriteSimParams chk2,  SimParams_file_path="<<SimParams_file_path<<"\n"<<std::flush;
+    if (m_FParams.debug>1)std::cout<<"\nWriteSimParams chk2,  SimParams_file_path="<<SimParams_file_path<<"\n"<<std::flush;
     /*m_Toggle [ PWRAP_X ] = %i\n m_Toggle [ PWALL_BARRIER ] = %i\n m_Toggle [ PLEVY_BARRIER ] = %i\n m_Toggle [ PDRAIN_BARRIER ] = %i\n */
     /*
                            pwrapx, pwall_barrier, plevy_barrier, pdrain_barrier,*/
@@ -880,7 +878,6 @@ void FluidSystem::WriteSimParams ( const char * relativePath ){
                            m_Param [ PFORCE_FREQ ],
                            m_Param [ PGROUND_SLOPE ]
                           );
-    std::cout<<"\nWriteSimParams chk3 "<<std::flush;
     
     if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::WriteSimParams (const char * relativePath ) wrote file "<< SimParams_file_path <<"\t"<<
               "ret = " << ret << "\n" << std::flush;
@@ -891,7 +888,7 @@ void FluidSystem::WriteSimParams ( const char * relativePath ){
 void FluidSystem::WriteDemoSimParams ( const char * relativePath, int gpu_mode, int cpu_mode, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim, uint demoType, uint simSpace, uint debug){
     m_FParams.debug=debug;
     
-    std::cout<<"\nWriteDemoSimParams chk1, num_particles="<<num_particles<<", m_FParams.debug="<<m_FParams.debug<<std::flush;
+    if (m_FParams.debug>1)std::cout<<"\nWriteDemoSimParams chk1, num_particles="<<num_particles<<", m_FParams.debug="<<m_FParams.debug <<", launchParams.genomePath="<< launchParams.genomePath  <<std::flush;
     
     m_Param[PEXAMPLE] = simSpace;          // simSpace==2 : wave pool example.
     m_Param[PGRID_DENSITY] = 2.0;
@@ -899,9 +896,22 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath, int gpu_mode, 
     AllocateBuffer ( FPARAMS, sizeof(FParams), 1,0, GPU_OFF, CPU_YES ); 
     m_Time = 0;
     mNumPoints = 0;			        // reset count
+    
+    if (m_FParams.debug>1)std::cout<<"\nWriteDemoSimParams chk2, launchParams.genomePath="<< launchParams.genomePath  <<std::flush;
+    
     SetupDefaultParams();           // set up the standard demo
+    
     SetupExampleParams(spacing);
-    SetupExampleGenome();
+    
+    if (launchParams.read_genome !='y'){
+        std::cout<<"\nWriteDemoSimParams(): calling SetupExampleGenome();"<<std::flush;
+        SetupExampleGenome();
+    }// NB default initialization is launchParams.read_genome='n', => used by make_demo.cpp.
+    else {
+        std::cout<<"\nWriteDemoSimParams(): Reading genome file: "<<launchParams.genomePath<<"\n"<<std::flush;
+        ReadGenome(launchParams.genomePath);
+    }               // make_demo2.cpp reads Specification_File.txt, which may give launchParams.read_genome='y', to use an edited genome.
+    
     SetupSimulation(gpu_mode, cpu_mode);
     /*
     mMaxPoints = m_Param[PNUM];    
@@ -948,19 +958,15 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath, int gpu_mode, 
         <<"), spacing="<<spacing<<", 0.1f, demoType="<<demoType
         <<")\n"<<std::flush;
     }
-    std::cout<<"\nWriteDemoSimParams chk3 "<<std::flush;
     
     SetupAddVolumeMorphogenesis2(m_Vec[PINITMIN], pinit_max, spacing, 0.1f, demoType);
-    std::cout<<"\nWriteDemoSimParams chk4, relativePath="<<relativePath<<"\n "<<std::flush;
+    if (m_FParams.debug>1)std::cout<<"\nWriteDemoSimParams chk4, relativePath="<<relativePath<<"\n "<<std::flush;
     
     WriteSimParams ( relativePath );    if (m_FParams.debug>1) std::cout << "\n WriteSimParams ( relativePath );  completed \n" << std::flush ;  // write data to file
-    std::cout<<"\nWriteDemoSimParams chk5 "<<std::flush;
     
     WriteGenome ( relativePath);        if (m_FParams.debug>1) std::cout << "\n WriteGenome ( relativePath );  completed \n" << std::flush ;
-    std::cout<<"\nWriteDemoSimParams chk6 "<<std::flush;
     
     SavePointsCSV2 ( relativePath, 1 ); if (m_FParams.debug>1) std::cout << "\n SavePointsCSV ( relativePath, 1 );  completed \n" << std::flush ;
-    std::cout<<"\nWriteDemoSimParams chk7 "<<std::flush;
     
 }
 
@@ -976,8 +982,8 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     // find number of lines
     int ch, number_of_lines = 0;
     while ( EOF != ( ch=getc ( SpecFile ) ) )   if ( '\n' == ch )  ++number_of_lines;
-    std::cout << "\nSpecFile = " << SimParams_file_path << std::flush;
-    std::cout << "\nNumber of lines in SpecFile = " << number_of_lines << std::flush;
+    if (m_FParams.debug>1)std::cout << "\nSpecFile = " << SimParams_file_path << std::flush;
+    if (m_FParams.debug>1)std::cout << "\nNumber of lines in SpecFile = " << number_of_lines << std::flush;
 
     // read file
     std::fseek(SpecFile, 0, SEEK_SET);
@@ -1080,10 +1086,12 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     
     ret += std::fscanf ( SpecFile, "gene_activity = %c\n ", &launchParams.gene_activity );
     ret += std::fscanf ( SpecFile, "remodelling = %c\n ", &launchParams.remodelling );
+    ret += std::fscanf ( SpecFile, "read_genome = %c\n ", &launchParams.read_genome );
+    
     ret += std::fscanf ( SpecFile, "\n");
  
     m_FParams.debug = launchParams.debug ;
-    std::cout<<"\n\n   launchParams.debug="<<launchParams.debug<<",  m_FParams.debug="<<m_FParams.debug <<" .\t"<<std::flush;
+    if (m_FParams.debug>1)std::cout<<"\n\n   launchParams.debug="<<launchParams.debug<<",  m_FParams.debug="<<m_FParams.debug <<" .\t"<<std::flush;
     if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadSpecificationFile(..),  ret = " << ret << std::flush;
     fclose ( SpecFile );
     return;
@@ -1095,7 +1103,6 @@ void FluidSystem::WriteExampleSpecificationFile ( const char * relativePath ){ /
     //const char * SimParams_file_path = relativePath;
     FILE * SpecFile = fopen ( Specification_file_path, "w" );
     int ret =0;
-    
     
     ret += std::fprintf ( SpecFile, "num_particles = %u\n ", launchParams.num_particles );
     ret += std::fprintf ( SpecFile, "demoType = %u\n ", launchParams.demoType );
@@ -1194,10 +1201,164 @@ void FluidSystem::WriteExampleSpecificationFile ( const char * relativePath ){ /
     
     ret += std::fprintf ( SpecFile, "gene_activity = %c\n ", launchParams.gene_activity );
     ret += std::fprintf ( SpecFile, "remodelling = %c\n ", launchParams.remodelling );
+    ret += std::fprintf ( SpecFile, "read_genome = %c\n ", launchParams.read_genome );
+    
     ret += std::fprintf ( SpecFile, "\n");
     
     fclose ( SpecFile );
     return;
+}
+
+void FluidSystem::WriteSpecificationFile_fromLaunchParams ( const char * relativePath ){ // writes a default version 
+    char Specification_file_path[256];
+    sprintf ( Specification_file_path, "%s/SpecificationFile.txt", relativePath );
+    //const char * SimParams_file_path = relativePath;
+    FILE * SpecFile = fopen ( Specification_file_path, "w" );
+    int ret =0;
+    
+    ret += std::fprintf ( SpecFile, "num_particles = %u\n ", launchParams.num_particles );
+    ret += std::fprintf ( SpecFile, "demoType = %u\n ", launchParams.demoType );
+    ret += std::fprintf ( SpecFile, "simSpace = %u\n ", launchParams.simSpace );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "m_Time = %f\n ", launchParams.m_Time );
+    ret += std::fprintf ( SpecFile, "m_DT = %f\n ", launchParams.m_DT );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "gridsize = %f\n ", launchParams.gridsize);
+    ret += std::fprintf ( SpecFile, "spacing = %f\n ", launchParams.spacing);
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "simscale = %f\n ", launchParams.simscale);
+    ret += std::fprintf ( SpecFile, "smooth_radius = %f\n ", launchParams.smoothradius);
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "visc = %f\n ", launchParams.visc);
+    ret += std::fprintf ( SpecFile, "surface_t = %f\n ", launchParams.surface_tension);
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "mass = %f\n ", launchParams.mass);
+    ret += std::fprintf ( SpecFile, "radius = %f\n ", launchParams.radius);
+    /*ret += std::fprintf ( SpecFile, "dist = %f\n ", m_Param [ PDIST ]);*/
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "int_stiff = %f\n ", launchParams.intstiff);
+    ret += std::fprintf ( SpecFile, "ext_stiff = %f\n ", launchParams.extstiff);
+    ret += std::fprintf ( SpecFile, "ext_damp = %f\n ", launchParams.extdamp);
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "accel_limit = %f\n ", launchParams.accel_limit);
+    ret += std::fprintf ( SpecFile, "vel_limit = %f\n ", launchParams.vel_limit);
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "grav = %f\n ", launchParams.grav);
+    ret += std::fprintf ( SpecFile, "slope = %f\n ", launchParams.ground_slope);
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "force_min = %f\n ", launchParams.force_min);
+    ret += std::fprintf ( SpecFile, "force_max = %f\n ", launchParams.force_max);
+    ret += std::fprintf ( SpecFile, "force_freq = %f\n ", launchParams.force_freq);
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "x_dim = %f\n ", launchParams.x_dim );
+    ret += std::fprintf ( SpecFile, "y_dim = %f\n ", launchParams.y_dim );
+    ret += std::fprintf ( SpecFile, "z_dim = %f\n ", launchParams.z_dim );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "pos_x = %f\n ", launchParams.pos_x );
+    ret += std::fprintf ( SpecFile, "pos_y = %f\n ", launchParams.pos_y );
+    ret += std::fprintf ( SpecFile, "pos_z = %f\n ", launchParams.pos_z );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "volmin_x = %f\n ", launchParams.volmin.x);
+    ret += std::fprintf ( SpecFile, "volmin_y = %f\n ", launchParams.volmin.y );
+    ret += std::fprintf ( SpecFile, "volmin_z = %f\n ", launchParams.volmin.z );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "volmax_x = %f\n ", launchParams.volmax.x );
+    ret += std::fprintf ( SpecFile, "volmax_y = %f\n ", launchParams.volmax.y );
+    ret += std::fprintf ( SpecFile, "volmax_z = %f\n ", launchParams.volmax.z );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "initmin_x = %f\n ", launchParams.initmin.x );
+    ret += std::fprintf ( SpecFile, "initmin_y = %f\n ", launchParams.initmin.y );
+    ret += std::fprintf ( SpecFile, "initmin_z = %f\n ", launchParams.initmin.z );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "initmax_x = %f\n ", launchParams.initmax.x );
+    ret += std::fprintf ( SpecFile, "initmax_y = %f\n ", launchParams.initmax.y );
+    ret += std::fprintf ( SpecFile, "initmax_z = %f\n ", launchParams.initmax.z );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "paramsPath = %s\n ", launchParams.paramsPath );
+    ret += std::fprintf ( SpecFile, "pointsPath = %s\n ", launchParams.pointsPath );
+    ret += std::fprintf ( SpecFile, "genomePath = %s\n ", launchParams.genomePath );
+    ret += std::fprintf ( SpecFile, "outPath = %s\n ", launchParams.outPath );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "num_files = %u\n ", launchParams.num_files );
+    ret += std::fprintf ( SpecFile, "steps_per_InnerPhysicalLoop = %u\n ", launchParams.steps_per_InnerPhysicalLoop );
+    ret += std::fprintf ( SpecFile, "steps_per_file = %u\n ", launchParams.steps_per_file );
+    ret += std::fprintf ( SpecFile, "freeze_steps = %u\n ", launchParams.freeze_steps );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "debug = %u\n ", launchParams.debug );
+    ret += std::fprintf ( SpecFile, "file_num = %u\n ", launchParams.file_num );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "save_ply = %c\n ", launchParams.save_ply );
+    ret += std::fprintf ( SpecFile, "save_csv = %c\n ", launchParams.save_csv );
+    ret += std::fprintf ( SpecFile, "save_vtp = %c\n ", launchParams.save_vtp );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "gene_activity = %c\n ", launchParams.gene_activity );
+    ret += std::fprintf ( SpecFile, "remodelling = %c\n ", launchParams.remodelling );
+    ret += std::fprintf ( SpecFile, "read_genome = %c\n ", launchParams.read_genome );
+    
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    fclose ( SpecFile );
+    return;
+}
+
+void FluidSystem::WriteResultsCSV ( const char * input_folder, const char * output_folder, uint num_particles_start){
+    uint num_bonds_end = 0;
+                                                     // ElastIdx[1]=elastic limit , [2]=rest_length
+    //std::cout<<"\nWriteResultsCSV\n";
+    for (int i=0; i< MaxPoints() ; i++){
+        uint* ElastIdx = getElastIdx( i );
+        float* ElastIdxPtr = (float*)ElastIdx;
+        for (int j=0; j<BONDS_PER_PARTICLE; j++){
+            if( *(ElastIdxPtr+2) > 0)num_bonds_end++;
+            //for (int k=0;k<4;k++)std::cout<<*(ElastIdxPtr+k)<<", ";
+            ElastIdxPtr += DATA_PER_BOND;
+            //std::cout<<"\t";
+        }
+        //std::cout<<"\n";
+    }
+    //std::cout<<"\n"<<std::flush;
+    // timesteps
+    uint timesteps = (launchParams.num_files/100) * launchParams.steps_per_InnerPhysicalLoop * launchParams.steps_per_file ; 
+    // openfile
+    //std::cout << "\nmake_demo2: writing results.csv\n" << std::flush;
+    char buf[256];
+    sprintf ( buf, "%s/results.csv", output_folder );
+    FILE* fp = fopen ( buf, "w" );
+    if (fp == NULL) {
+        std::cout << "\nmake_demo2: results.csv  Could not open file "<< fp <<"\n"<< std::flush;
+        assert(0);
+    }
+    // write data
+    fprintf(fp, "input_folder=,%s,\t",input_folder);
+    fprintf(fp, "output_folder=,%s,\t",output_folder);
+    fprintf(fp, "freeze_steps=,%u,\t",launchParams.freeze_steps);
+    fprintf(fp, "timesteps=,%u,\t",timesteps);
+    fprintf(fp, "num_particles_start=,%u,\t",num_particles_start);
+    fprintf(fp, "num_particles_end=,%u,\t",ActivePoints());
+    fprintf(fp, "num_bonds_start=,%u,\t",UINT_MAX);
+    fprintf(fp, "num_bonds_end=,%u,\t\n",num_bonds_end);  // \n for quick cat of all results files => csv table
+    // closefile
+    fclose(fp);
 }
 
 void FluidSystem::SaveUintArray( uint* array, int numElem1, const char * relativePath ){ /// Used to save an array to .csv for debugging.

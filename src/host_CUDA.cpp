@@ -588,13 +588,14 @@ void FluidSystem::CountingSortChangesCUDA ( ){
 }
 
 void FluidSystem::InitializeBondsCUDA (){
-    cout << "\n\nInitializeBondsCUDA ()\n"<<std::flush;
+    if (m_FParams.debug>1)cout << "\n\nInitializeBondsCUDA ()\n"<<std::flush;
     uint gene           = 1;                                                            // solid  (has springs)
     uint list_length    = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
     void* args[3]       = { &m_FParams.pnumActive, &list_length, &gene};                //initialize_bonds (int ActivePoints, uint list_length, uint gene)
     int numBlocks, numThreads;
     computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
-    cout << "\nInitializeBondsCUDA (): list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<" \t args{m_FParams.pnumActive="<<m_FParams.pnumActive<<", list_length="<<list_length<<", gene="<<gene<<"}"<<std::flush;
+    
+    if (m_FParams.debug>1)cout << "\nInitializeBondsCUDA (): list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<" \t args{m_FParams.pnumActive="<<m_FParams.pnumActive<<", list_length="<<list_length<<", gene="<<gene<<"}"<<std::flush;
     
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_INITIALIZE_BONDS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputePressureCUDA", "cuLaunch", "FUNC_COMPUTE_PRESS", mbDebug);
 }
@@ -649,7 +650,7 @@ void FluidSystem::ComputeGenesCUDA (){  // for each gene, call a kernel wih the 
 }
 
 void FluidSystem::AssembleFibresCUDA (){  //kernel: void assembleMuscleFibres ( int pnum, uint list, uint list_length )
-    cout << "\n\nAssembleFibresCUDA ()\n"<<std::flush;
+    if (m_FParams.debug>1)cout << "\n\nAssembleFibresCUDA ()\n"<<std::flush;
     uint gene = 7; // muscle
     uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene];
     void* args[3] = { &m_FParams.pnumActive, &gene, &list_length };

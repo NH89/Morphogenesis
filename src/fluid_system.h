@@ -181,6 +181,8 @@
         
 		//void AddEmit ( float spacing );
 		int NumPoints ()				{ return mNumPoints; }
+		int MaxPoints ()                { return mMaxPoints; }
+		int ActivePoints ()             { return mActivePoints; }
 		Vector3DF* getPos ( int n )	    { return &m_Fluid.bufV3(FPOS)[n]; }
 		Vector3DF* getVel ( int n )	    { return &m_Fluid.bufV3(FVEL)[n]; }
 		uint* getAge ( int n )			{ return &m_Fluid.bufI(FAGE)[n]; }
@@ -275,16 +277,23 @@
         void WriteDemoSimParams ( const char * relativePath, int gpu_mode, int cpu_mode, uint num_particles, float spacing, float x_dim, float y_dim, float z_dim, uint demoType, uint simSpace, uint debug); // Write standard demo to file, as demonstration of file format. 
         void WriteSimParams ( const char * relativePath );
         void ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);
+        
+        void ReadSpecificationFile(const char* relativePath);
+        void WriteExampleSpecificationFile ( const char * relativePath );
+        void WriteSpecificationFile_fromLaunchParams ( const char * relativePath );
+        void WriteResultsCSV ( const char * input_folder, const char * output_folder, uint num_particles_start );
 
         // Genome for Morphogenesis
         void UpdateGenome ();
-        void SetGenome ( FGenome newGenome );
+        void SetGenome ( FGenome newGenome ){m_FGenome=newGenome;}
         void ReadGenome( const char * relativePath);
         void WriteGenome( const char * relativePath);
+        FGenome	GetGenome();/*{
+            FGenome tempGenome = m_FGenome;
+            for (int i=0; i<3;i++)for(int j=0; j<12; j++)tempGenome.param[i][j]=m_FGenome.param[i][j];
+            return tempGenome;
+        }*/
         
-        // Specification File
-        void ReadSpecificationFile(const char* relativePath);
-        void WriteExampleSpecificationFile ( const char * relativePath );
         
 		// Parameters
 		void UpdateParams ();
@@ -297,6 +306,7 @@
 		void SetDebug(uint b) { m_debug=b; m_FParams.debug=b; /*mbDebug = (bool)b;*/ 
             std::cout<<"\n\nSetDebug(uint b): b="<<b<<", m_FParams.debug = "<<m_FParams.debug<<", (m_FParams.debug>1)="<<(m_FParams.debug>1)<<"\n"<<std::flush;
         }
+        uint GetDebug(){return m_FParams.debug;}
         
         struct {
             const char * relativePath;
@@ -310,7 +320,7 @@
             char outPath[256];
             uint num_files=1, steps_per_file=1, freeze_steps=0, debug=0, steps_per_InnerPhysicalLoop=3;
             int file_num=0, file_increment=0;
-            char save_ply='n', save_csv='n', save_vtp='n',  gene_activity='n', remodelling='n';
+            char save_ply='n', save_csv='n', save_vtp='n',  gene_activity='n', remodelling='n', read_genome='n';
             
             float m_Time, m_DT, gridsize, spacing, simscale, smoothradius, visc, surface_tension, mass, radius, /*dist,*/ intstiff, extstiff, extdamp, accel_limit, vel_limit, grav, ground_slope, force_min, force_max, force_freq;
             Vector3DF volmin, volmax, initmin, initmax;

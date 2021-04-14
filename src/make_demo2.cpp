@@ -3,8 +3,10 @@
 #include <errno.h>
 #include <string.h>
 #include <chrono>
-#include "fluid_system.h"
 #include <filesystem>
+
+#include "fluid_system.h"
+
 typedef	unsigned int		uint;	
 
 int main ( int argc, const char** argv ) 
@@ -37,46 +39,40 @@ int main ( int argc, const char** argv )
     
     FluidSystem fluid;
     fluid.InitializeCuda ();
-    std::cout<<"\n\nmake_demo2 chk0,"<<std::flush;
+    //std::cout<<"\n\nmake_demo2 chk0,"<<std::flush;
     
     fluid.ReadSpecificationFile ( input_folder );
-    std::cout<<"\n\nmake_demo2 chk1, fluid.launchParams.debug="<<fluid.launchParams.debug<<", fluid.launchParams.paramsPath=" <<fluid.launchParams.paramsPath <<std::flush;
+    std::cout<<"\n\nmake_demo2 chk1, fluid.launchParams.debug="<<fluid.launchParams.debug<<", fluid.launchParams.genomePath=" <<fluid.launchParams.genomePath  << ",  fluid.launchParams.spacing="<<fluid.launchParams.spacing<<std::flush;
     
     for(int i=0; i<256; i++){fluid.launchParams.paramsPath[i] = input_folder[i];}
     for(int i=0; i<256; i++){fluid.launchParams.pointsPath[i] = input_folder[i];}
-    for(int i=0; i<256; i++){fluid.launchParams.genomePath[i] = input_folder[i];}
+    //for(int i=0; i<256; i++){fluid.launchParams.genomePath[i] = input_folder[i];} // obtained from SpecificationFile.txt above.
     if(argc==3)for(int i=0; i<256; i++){fluid.launchParams.outPath[i] = output_folder[i];}
-    //char mkdir_cmd[256];
-    //sprintf(mkdir_cmd,"mkdir -p %s", output_folder);
-    //std::system("mkdir_cmd");
-    //std::filesystem::create_directory(output_folder);
     
     if(mkdir(output_folder, 0755) == -1) cerr << "\nError :  failed to create output_folder.\n" << strerror(errno) << endl;
     else cout << "output_folder created\n"; // NB 0755 = rwx owner, rx for others.
     
-    
-    fluid.WriteDemoSimParams(
+    fluid.WriteDemoSimParams(           // Generates the simulation from data previously loaded from SpecificationFile.txt .
         fluid.launchParams.paramsPath, GPU_DUAL, CPU_YES, fluid.launchParams.num_particles, fluid.launchParams.spacing, fluid.launchParams.x_dim, fluid.launchParams.y_dim, fluid.launchParams.z_dim, fluid.launchParams.demoType, fluid.launchParams.simSpace, fluid.launchParams.debug
     ); /*const char * relativePath*/ 
-    std::cout<<"\n\nmake_demo2 chk2 "<<std::flush;
+    //std::cout<<"\n\nmake_demo2 chk2 "<<std::flush;
+    uint num_particles_start=fluid.NumPoints();
+    
     fluid.TransferToCUDA (); 
     fluid.Run2Simulation ();
     
-    
-    std::cout<<"\n\nmake_demo2 chk3 "<<std::flush;
-    
-    // clean up and exit
-    fluid.Exit ();
+    //std::cout<<"\n\nmake_demo2 chk3 "<<std::flush;
+    fluid.WriteResultsCSV(input_folder, output_folder, num_particles_start);// NB post-slurm script to (i) cat results.csv files, (ii)tar-gzip and ftp folders to recipient.
     
     size_t   free1, free2, total;
     cudaMemGetInfo(&free1, &total);
-    printf("\n\nCuda Memory, before cuCtxDestroy(cuContext): free=%lu, total=%lu.\t",free1,total);
+    printf("\n\nmake_demo2: Cuda Memory, before cuCtxDestroy(cuContext): free=%lu, total=%lu.\t",free1,total);
     
     CUresult cuResult = cuCtxDestroy ( cuContext ) ;
     if ( cuResult!=0 ) {printf ( "error closing, cuResult = %i \n",cuResult );}
     
     cudaMemGetInfo(&free2, &total);
-    printf("\nAfter cuCtxDestroy(cuContext): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
+    printf("\nmake_demo2: After cuCtxDestroy(cuContext): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
     
     printf ( "\nClosed make_demo2.\n" );
     return 0;
