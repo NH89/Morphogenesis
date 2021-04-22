@@ -252,8 +252,9 @@ elongation_threshold,	elongation_factor,	strength_threshold,	strengthening_facto
     std::cout<<"\n\nSpecfileBatchGenerator chk3 "<<std::flush;
     
     // clean up and exit
+    printf ( "\nClosing SpecfileBatchGenerator.\n" );
     fluid.Exit ();
-    
+    /*
     size_t   free1, free2, total;
     cudaMemGetInfo(&free1, &total);
     printf("\n\nCuda Memory, before cuCtxDestroy(cuContext): free=%lu, total=%lu.\t",free1,total);
@@ -265,5 +266,6 @@ elongation_threshold,	elongation_factor,	strength_threshold,	strengthening_facto
     printf("\nAfter cuCtxDestroy(cuContext): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
     
     printf ( "\nClosed SpecfileBatchGenerator.\n" );
+    */
     return 0;
 }

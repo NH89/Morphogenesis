@@ -177,9 +177,9 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
             pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
             Vertices->InsertNextCell(1,pid);
             num_active_points++;
-        }else break;
+        }else break;  // Must sort particles before SavePointsVTP2. NB between adding particles and countingSortFull(), there may be a mixture of valid and invalid prticles at the end of the list.
 	}
-	
+	if (m_FParams.debug>1) std::cout<<"\n\nSavePointsVTP2: chk1 num_active_points="<<num_active_points<<std::flush;
 	// Inset vertices for sim volume
 	{
         vtkIdType pid[1];
@@ -196,6 +196,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
             Vertices->InsertNextCell(1,pid);
         }
     }
+    if (m_FParams.debug>1) std::cout<<"\n\nSavePointsVTP2: chk2 num_active_points="<<num_active_points<<std::flush;
 
     // edges = FELASTIDX [0]current index uint                                                         // Lines
     vtkSmartPointer<vtkCellArray> Lines = vtkSmartPointer<vtkCellArray>::New();
@@ -708,7 +709,7 @@ if (ret != (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  
             //  std::cout << "\n velocity = " << sqrt(Vel.x * Vel.x + Vel.y * Vel.y + Vel.z * Vel.z) << "   vel_lim = " << vel_lim;
             //  std::cout << "\n " << std::flush;
             //}
-            if (m_FParams.debug>1)printf("\nParticle out of bounds, i=%u\t Pos=(%f,%f,%f), PosMin=(%f,%f,%f), PosMax=(%f,%f,%f), Closing file and exiting.",
+            /*if (m_FParams.debug>1)*/printf("\nParticle out of bounds, i=%u\t Pos=(%f,%f,%f), PosMin=(%f,%f,%f), PosMax=(%f,%f,%f), Closing file and exiting.",
                    i, Pos.x, Pos.y, Pos.z, PosMin.x, PosMin.y, PosMin.z, PosMax.x, PosMax.y, PosMax.z );
             fclose(points_file);
             Exit();
@@ -773,7 +774,7 @@ void FluidSystem::ReadSimParams ( const char * relativePath ) { // transcribe Si
     ret += std::fscanf ( SimParams_file, "m_Param [ PGROUND_SLOPE ] = %f\n ", &m_Param [ PGROUND_SLOPE ] );
 
     if ( ret != 41 ) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadSimParams(..), read failure ! ret = " << ret << std::flush;
+        /*if (m_FParams.debug>1)*/ std::cout << "\nvoid FluidSystem::ReadSimParams(..), read failure ! ret = " << ret << std::flush;
         fclose ( SimParams_file );
         Exit();
     }

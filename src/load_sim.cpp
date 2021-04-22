@@ -157,22 +157,23 @@ std::cout <<"\nchk load_sim_2.0\n"<<std::flush;
   //  fluid.SavePointsCSV2 ( outPath, file_num );                   //fluid.SavePointsCSV ( outPath, 1 );
   //  fluid.SavePointsVTP2 ( outPath, file_num );
 
+    printf ( "\nClosing load_sim.\n" );
     fluid.Exit ();                                                  // Clean up and close
     
+    /*
     size_t   free1, free2, total;
     cudaMemGetInfo(&free1, &total);
     if(debug>0) printf("\nCuda Memory, before cuCtxDestroy(cuContext): free=%lu, total=%lu.\t",free1,total);
-   // cuCheck(cuCtxSynchronize(), "load_sim.cpp ", "cuCtxSynchronize", "before cuCtxDestroy(cuContext)", 1/*mbDebug*/);  
+   // cuCheck(cuCtxSynchronize(), "load_sim.cpp ", "cuCtxSynchronize", "before cuCtxDestroy(cuContext)", 1/_*mbDebug*_/);  
     
     CUresult cuResult = cuCtxDestroy ( cuContext ) ;
     if ( cuResult!=0 ) {printf ( "error closing, cuResult = %i \n",cuResult );}
     
-   // cuCheck(cuCtxSynchronize(), "load_sim.cpp ", "cuCtxSynchronize", "after cudaDeviceReset()", 1/*mbDebug*/); 
+   // cuCheck(cuCtxSynchronize(), "load_sim.cpp ", "cuCtxSynchronize", "after cudaDeviceReset()", 1/_*mbDebug*_/); 
     cudaMemGetInfo(&free2, &total);
     if(debug>0) printf("\nAfter cuCtxDestroy(cuContext): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
-    
-    
-    /*if(debug>0)*/ printf ( "\nClosing load_sim.\n" );
+    if(debug>0) printf ( "\nClosing load_sim.\n" );
+    */
     return 0;
 }
 

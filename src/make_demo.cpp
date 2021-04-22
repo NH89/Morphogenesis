@@ -102,7 +102,7 @@ int main ( int argc, const char** argv )
     for(int i=0;i<outPath.length(); i++)  fluid.launchParams.outPath[i]    = outPath[i];
     
     fluid.WriteExampleSpecificationFile("./demo");
-    fluid.Exit ();	
     printf("\nmake_demo finished.\n");
+    fluid.Exit ();	
     return 0;
 }

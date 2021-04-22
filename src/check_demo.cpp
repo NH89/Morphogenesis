@@ -47,7 +47,7 @@ int main ( int argc, const char** argv )
     fluid.SavePointsVTP2(outPath, 1 );
     printf("\nchk5\n");
     
-    fluid.Exit ();	
     printf("\ncheck_demo finished.\n");
+    fluid.Exit ();	
     return 0;
 }

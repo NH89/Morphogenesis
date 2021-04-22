@@ -31,7 +31,7 @@ nvcc_present=$return
 
 if [[ ! ( $CUDACXX_present == "installed" || $nvcc_present == "installed" ) ]]
 then 
-    echo "Please set CUDA environment variables before building"
+    echo "Please set CUDA environment variables before building, e.g. export CUDACXX=<path_to_nvcc>"
     exit 1
 else
     echo "CUDA compiler found"

@@ -135,6 +135,7 @@
 
     // additional buffers for morphogenesis   
     #define FELASTIDX   14      //# currently [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index [7]stress integrator [8]change-type binary indicator
+	enum {/*0*/current_index, /*1*/elastic_limit, /*2*/rest_length, /*3*/modulus, /*4*/damping_coeff, /*5*/particle_ID, /*6*/bond_index, /*7*/strain_integrator, /*8*/change_type};//FELASTIDX    
                                 //old : BOND_DATA = BONDS_PER_PARTICLE*3 = 12 //uint[BONDS_PER_PARTICLE * 2 = 8 ]  particleID, modulus, elastic limit    
                                 /* old old : 0=self UID, mass, radius. >0= modulus & particle UID */
     #define FPARTICLEIDX 29    //# uint[BONDS_PER_PARTICLE *2]  list of other particles' bonds connecting to this particle AND their indices // NB risk of overwriting race condition, when making bonds.   
@@ -192,6 +193,8 @@
 		#define CALLFUNC
 	#endif		
 
+
+	
 	// Particle & Grid Buffers
 	struct FBufs {       // holds an array of pointers, and functions to access them.    // used to declare "fbuf" at top of fluid_system_cuda.cu
         // Data type sizes  see https://en.cppreference.com/w/cpp/language/types ,  
@@ -232,6 +235,7 @@
 			CUdeviceptr		gpu    (int n )	{ return mgpu[n];  }
 			CUdeviceptr*	gpuptr (int n )	{ return &mgpu[n]; }		
 		#endif			
+
 	};
 
 /*			float3*			mpos;			// particle buffers

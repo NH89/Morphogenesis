@@ -233,7 +233,7 @@ void FluidSystem::InsertParticlesCUDA ( uint* gcell, uint* gndx, uint* gcnt ){  
     void* args[1] = { &mMaxPoints };  //&mNumPoints
     cuCheck(cuLaunchKernel(m_Func[FUNC_INSERT], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),
             "InsertParticlesCUDA", "cuLaunch", "FUNC_INSERT", mbDebug);
-    if (m_FParams.debug>1) cout<<"\nCalling InsertParticles kernel: args[1] = {"<<mNumPoints<<"}, mMaxPoints="<<mMaxPoints
+    if (m_FParams.debug>1) cout<<"\n########\nCalling InsertParticles kernel: args[1] = {"<<mNumPoints<<"}, mMaxPoints="<<mMaxPoints
         <<"\t m_FParams.numBlocks="<<m_FParams.numBlocks<<", m_FParams.numThreads="<<m_FParams.numThreads<<" \t"<<std::flush;
 
     // Transfer data back if requested (for validation)
@@ -347,7 +347,7 @@ void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
 
     if (m_FParams.debug>1){ 
         std::cout << "\nChk: PrefixSumCellsCUDA 4"<<std::flush;
-        for(int gene=0;gene<NUM_GENES;gene++){    std::cout<<"\nlist_length["<<gene<<"]="<<m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene]<<"\t"<<std::flush;}
+        for(int gene=0;gene<NUM_GENES;gene++){    std::cout<<"\ngene list_length["<<gene<<"]="<<m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene]<<"\t"<<std::flush;}
         }
 //#endif
 }
@@ -436,7 +436,7 @@ void FluidSystem::PrefixSumChangesCUDA ( int zero_offsets ){
     if (m_FParams.debug>1) {
         std::cout << "\nChk: PrefixSumChangesCUDA 4"<<std::flush;
         for(int change_list=0;change_list<NUM_CHANGES;change_list++){
-            std::cout<<"\nPrefixSumChangesCUDA: list_length["<<change_list<<"]="<<m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list]<<"\t"<<std::flush;
+            std::cout<<"\nPrefixSumChangesCUDA: change list_length["<<change_list<<"]="<<m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list]<<"\t"<<std::flush;
         }
     }
 }
@@ -446,9 +446,9 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     // get number of active particles & set short lists for later kernels
     int grid_ScanMax = (m_FParams.gridScanMax.y * m_FParams.gridRes.z + m_FParams.gridScanMax.z) * m_FParams.gridRes.x + m_FParams.gridScanMax.x;
     
-    cuCheck( cuMemcpyDtoH ( &mNumPoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax+1)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA1", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
+    cuCheck( cuMemcpyDtoH ( &mNumPoints,  m_Fluid.gpu(FGRIDOFF)+(m_GridTotal-1/*grid_ScanMax+1*/)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA1", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
     
-    cuCheck( cuMemcpyDtoH ( &mActivePoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax-1)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA2", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
+    cuCheck( cuMemcpyDtoH ( &mActivePoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax/*-1*/)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA2", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
     /*
     int totalPoints = 0;
     cuCheck( cuMemcpyDtoH ( &totalPoints,  m_Fluid.gpu(FGRIDOFF)+(m_GridTotal)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA3", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
@@ -498,6 +498,7 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FELASTIDX),    UINT_MAX,  mMaxPoints * BOND_DATA              ),  "CountingSortFullCUDA", "cuMemsetD32", "FELASTIDX",    mbDebug);
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPARTICLEIDX), UINT_MAX,  mMaxPoints * BONDS_PER_PARTICLE *2  ),  "CountingSortFullCUDA", "cuMemsetD32", "FPARTICLEIDX", mbDebug);
+    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPARTICLE_ID), UINT_MAX,  mMaxPoints                          ),  "CountingSortFullCUDA", "cuMemsetD32", "FPARTICLEIDX", mbDebug);
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FFORCE),      (uint)0.0,  mMaxPoints * 3 /* ie num elements */),  "CountingSortFullCUDA", "cuMemsetD32", "FFORCE",       mbDebug);
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FCONC),             0.0,  mMaxPoints * NUM_TF                 ),  "CountingSortFullCUDA", "cuMemsetD32", "FCONC",        mbDebug);
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FEPIGEN),     (uint)0.0,  mMaxPoints * NUM_GENES              ),  "CountingSortFullCUDA", "cuMemsetD32", "FEPIGEN",      mbDebug);
@@ -524,7 +525,9 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
               "CountingSortFullCUDA7", "cuLaunch", "FUNC_COUNT_SORT_LISTS", mbDebug );                                   // NB threads/2 required on GTX970m
     cuCtxSynchronize ();
     
-    if(m_debug>3){//debug chk
+    if(m_FParams.debug>3){//debug chk
+        std::cout<<"\n### Saving UintArray .csv files."<<std::flush;
+        
         cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN), m_FluidTemp.gpu(FEPIGEN),	mMaxPoints *sizeof(uint[NUM_GENES]) ), "CountingSortFullCUDA8", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
         SaveUintArray_2D( m_Fluid.bufI(FEPIGEN), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_FluidTemp.bufI(FEPIGEN)3.csv" );
         
@@ -545,6 +548,7 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
 }
 
 void FluidSystem::CountingSortChangesCUDA ( ){
+    if (m_FParams.debug>1) std::cout<<"\n\n#### CountingSortChangesCUDA ( )"<<std::flush;
     /* ////////
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES), m_Fluid.gpu(FDENSE_LIST_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS_CHANGES", mbDebug);
     
@@ -570,18 +574,19 @@ void FluidSystem::CountingSortChangesCUDA ( ){
     for(int change_list=0;change_list<NUM_CHANGES;change_list++){                                                   // Note this calculation could be done by a kernel, 
         uint * densebuff_len = m_Fluid.bufI(FDENSE_BUF_LENGTHS_CHANGES);                                            // and only m_Fluid.bufI(FDENSE_LIST_LENGTHS); copied to host.
         uint * denselist_len = m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES);                                           // For each change_list allocate intial buffer, 
-        //if (m_FParams.debug>1)printf("\nCountingSortChangesCUDA2: change_list=%u,  densebuff_len[change_list]=%u, denselist_len[change_list]=%u ,\t\t threads=%u, numElem2=%u,  m_GridTotal=%u \t",
-        //       change_list, densebuff_len[change_list], denselist_len[change_list], threads, numElem2,  m_GridTotal );
+        if (m_FParams.debug>1)printf("\nCountingSortChangesCUDA2: change_list=%u,  densebuff_len[change_list]=%u, denselist_len[change_list]=%u ,\t\t threads=%u, numElem2=%u,  m_GridTotal=%u \t",
+               change_list, densebuff_len[change_list], denselist_len[change_list], threads, numElem2,  m_GridTotal );
         cuCtxSynchronize ();
-        if(m_debug>2){
-            uint fDenseList2[1000000] = {UINT_MAX};// NB 10* num particles.
-            CUdeviceptr*  _list2pointer = (CUdeviceptr*) &m_Fluid.bufC(FDENSE_LISTS_CHANGES)[change_list*sizeof(CUdeviceptr)]; // Get device pointer to FDENSE_LISTS_CHANGES[change_list].
+        if(m_FParams.debug>1){
+            uint fDenseList2[1000000] = {UINT_MAX};//TODO make this array size safe!  NB 10* num particles.
+            CUdeviceptr*  _list2pointer = (CUdeviceptr*) &m_Fluid.bufC(FDENSE_LISTS_CHANGES)[change_list*sizeof(CUdeviceptr)]; 
+                                                                                                                // Get device pointer to FDENSE_LISTS_CHANGES[change_list].
             cuCheck( cuMemcpyDtoH ( fDenseList2, *_list2pointer,	2*sizeof(uint[densebuff_len[change_list]]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
             char filename[256];
             sprintf(filename, "CountingSortChangesCUDA__m_Fluid.bufII(FDENSE_LISTS_CHANGES)[%u].csv", change_list);
             SaveUintArray_2Columns( fDenseList2, denselist_len[change_list], densebuff_len[change_list], filename );
             ///
-            //printf("\n\n*_list2pointer=%llu",*_list2pointer);
+            printf("\n\n*_list2pointer=%llu",*_list2pointer);
             
         }
     }
@@ -678,7 +683,7 @@ void FluidSystem::AssembleFibresCUDA (){  //kernel: void assembleMuscleFibres ( 
     // Kernels:  call by tissue type using dense lists by gene.
     //assembleMuscleFibres()
     //assembleFasciaFibres ()
-    cout << "\nFinished AssembleFibresCUDA ()\n\n"<<std::flush;
+    if (m_FParams.debug>1) cout << "\nFinished AssembleFibresCUDA ()\n\n"<<std::flush;
 }
 
 void FluidSystem::ComputeBondChangesCUDA (){// Given the action of the genes, compute the changes to particle properties & splitting/combining  NB also "inserts changes" 
@@ -705,13 +710,14 @@ void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to e
     for (int change_list = 0; change_list<NUM_CHANGES;change_list++){
     //int change_list = 0; // TODO debug, chk one kernel at a time
         uint list_length = m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES)[change_list];  // num blocks and threads by list length
+        //uint list_length = m_Fluid.bufI(FDENSE_BUF_LENGTHS_CHANGES)[change_list]; 
         //if (change_list!=0 && change_list!=1)continue; // only test heal() and lengthenTissue() for now.
     
         if ((change_list >0)&&(startNewPoints + list_length > mMaxPoints)){         // NB heal() does not create new bonds.
             printf("\n\n### Run out of spare particles. startNewPoints=%u, change_list=%u, list_length=%u, mMaxPoints=%u ###\n", 
             startNewPoints, change_list, list_length, mMaxPoints); 
             list_length = mMaxPoints - startNewPoints;
-            //Exit();
+            Exit();
         }//
     
         void* args[5] = {&mActivePoints, &list_length, &change_list, &startNewPoints, &mMaxPoints};
@@ -722,7 +728,7 @@ void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to e
         
         computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
         
-        if (m_FParams.debug>0) std::cout
+        if (m_FParams.debug>1) std::cout
             <<"\n\nComputeParticleChangesCUDA ():"
             <<" frame ="                    <<m_FParams.frame
             <<", mActivePoints="            <<mActivePoints
@@ -739,7 +745,8 @@ void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to e
         
         if( (list_length>0) && (numBlocks>0) && (numThreads>0)){
             if (m_FParams.debug>1) std::cout
-                <<"\n\nCalling m_Func[FUNC_HEAL+"           <<change_list
+                <<"\n\nComputeParticleChangesCUDA ():"
+                <<"\tCalling m_Func[FUNC_HEAL+"           <<change_list
                 <<"], list_length="                         <<list_length
                 <<", numBlocks="                            <<numBlocks
                 <<", numThreads="                           <<numThreads

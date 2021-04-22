@@ -56,7 +56,7 @@ int main ( int argc, const char** argv )
         fluid.launchParams.paramsPath, GPU_DUAL, CPU_YES, fluid.launchParams.num_particles, fluid.launchParams.spacing, fluid.launchParams.x_dim, fluid.launchParams.y_dim, fluid.launchParams.z_dim, fluid.launchParams.demoType, fluid.launchParams.simSpace, fluid.launchParams.debug
     ); /*const char * relativePath*/ 
     //std::cout<<"\n\nmake_demo2 chk2 "<<std::flush;
-    uint num_particles_start=fluid.NumPoints();
+    uint num_particles_start=fluid.ActivePoints();
     
     fluid.TransferToCUDA (); 
     fluid.Run2Simulation ();

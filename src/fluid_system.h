@@ -132,13 +132,13 @@
     #define FUNC_HEAL                       23 //heal
     #define FUNC_LENGTHEN_TISSUE            24 //lengthen_muscle
     #define FUNC_LENGTHEN_MUSCLE            25 //lengthen_tissue
-    #define FUNC_SHORTEN_MUSCLE             26 //shorten_muscle
-    #define FUNC_SHORTEN_TISSUE             27 //shorten_tissue
+    #define FUNC_SHORTEN_TISSUE             26 //shorten_muscle
+    #define FUNC_SHORTEN_MUSCLE             27 //shorten_tissue
     
-    #define FUNC_STRENGTHEN_MUSCLE          28 //strengthen_muscle
-    #define FUNC_STRENGTHEN_TISSUE          29 //strengthen_tissue
-    #define FUNC_WEAKEN_MUSCLE              30 //weaken_muscle
-    #define FUNC_WEAKEN_TISSUE              31 //weaken_tissue
+    #define FUNC_STRENGTHEN_TISSUE          28 //strengthen_muscle
+    #define FUNC_STRENGTHEN_MUSCLE          29 //strengthen_tissue
+    #define FUNC_WEAKEN_TISSUE              30 //weaken_muscle
+    #define FUNC_WEAKEN_MUSCLE              31 //weaken_tissue
     
     #define FUNC_EXTERNAL_ACTUATION         32
     #define FUNC_FIXED                      33
