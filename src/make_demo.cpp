@@ -103,6 +103,6 @@ int main ( int argc, const char** argv )
     
     fluid.WriteExampleSpecificationFile("./demo");
     printf("\nmake_demo finished.\n");
-    fluid.Exit ();	
+    fluid.Exit_no_CUDA ();	
     return 0;
 }

@@ -215,7 +215,7 @@
         void Run2PhysicalSort();
         void Run2InnerPhysicalLoop();
         void Run2GeneAction();
-        void Run2Remodelling();
+        void Run2Remodelling(uint steps_per_InnerPhysicalLoop);
         void Run2Simulation();
         
         void setFreeze(bool freeze);
@@ -224,6 +224,7 @@
 		void AdvanceTime ();
 		
 		void Exit ();
+        void Exit_no_CUDA ();
 		void TransferToCUDA ();
 		void TransferFromCUDA ();
 		double GetDT()		{ return m_DT; }
@@ -253,7 +254,7 @@
 		void ComputeForceCUDA ();
         void ComputeGenesCUDA ();
         void AssembleFibresCUDA ();
-        void ComputeBondChangesCUDA ();
+        void ComputeBondChangesCUDA (uint steps_per_InnerPhysicalLoop);
         void ComputeParticleChangesCUDA ();
         void CleanBondsCUDA ();                                         // Should this functionality be rolled into countingSortFull() ? OR should it be kept separate? 
         
@@ -287,6 +288,7 @@
         void UpdateGenome ();
         void SetGenome ( FGenome newGenome ){m_FGenome=newGenome;}
         void ReadGenome( const char * relativePath);
+        void Set_genome_tanh_param();
         void WriteGenome( const char * relativePath);
         FGenome	GetGenome();/*{
             FGenome tempGenome = m_FGenome;
@@ -331,7 +333,8 @@
         uint                        m_debug;            // 0=full speed, 1=current special output,  2=host cout, 3=device printf, 4=SaveUintArray, 5=save csv after each kernel
 
 		// Time
-		int							m_Frame;		
+		int							m_Frame;
+        int                         m_Debug_file;
 		float						m_DT;
 		float						m_Time;	
 

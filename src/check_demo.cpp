@@ -48,6 +48,6 @@ int main ( int argc, const char** argv )
     printf("\nchk5\n");
     
     printf("\ncheck_demo finished.\n");
-    fluid.Exit ();	
+    fluid.Exit_no_CUDA ();	
     return 0;
 }

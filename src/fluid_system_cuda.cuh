@@ -65,7 +65,7 @@
 		__global__ void computeForce ( int pnum , bool freeze = false, uint frame =20);	          // skip CAS lock if frame>10
         __global__ void computeDiffusion ( int pnum );
         __global__ void computeGeneAction ( int pnum, int gene, uint list_len );                  //NB here pnum is for the dense list
-        __global__ void computeBondChanges ( int pnum, uint list_length );
+        __global__ void computeBondChanges ( int pnum, uint list_length, uint steps_per_InnerPhysicalLoop );
         
         //__global__ void computeAutomata ( int pnum );
         //__global__ void freeze ( int pnum);                                                     // new freeze kernel, to generate elastic bonds.

@@ -267,6 +267,16 @@ void FluidSystem::Exit (){
     exit(0);
 }
 
+void FluidSystem::Exit_no_CUDA (){
+    // Free fluid buffers
+    for (int n=0; n < MAX_BUF; n++ ) {
+        if (m_FParams.debug>0)std::cout << "\n n = " << n << std::flush;
+        if ( m_Fluid.bufC(n) != 0x0 )
+            free ( m_Fluid.bufC(n) );
+    }
+    exit(0);
+}
+
 void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode ){   // mallocs a buffer - called by FluidSystem::Initialize(), AllocateParticles, and AllocateGrid()
 //also called by WriteDemoSimParams(..)
     bool rtn = true;
@@ -679,7 +689,7 @@ if (m_FParams.debug>1)std::cout << "\n\n Chk5 \n"<<std::flush;
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeGenesCUDA", mbDebug);
     
 if (m_FParams.debug>1)std::cout << "\n\n Chk8 \n"<<std::flush;
-    ComputeBondChangesCUDA ();
+    ComputeBondChangesCUDA (1);// Just 1 step of ComputeForceCUDA() above.
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeBondChangesCUDA", mbDebug);
     
     //  make dense lists of particle changes
@@ -816,7 +826,7 @@ void FluidSystem::Run (const char * relativePath, int frame, bool debug, bool ge
         }
         
         
-        ComputeBondChangesCUDA ();
+        ComputeBondChangesCUDA (1);// Just 1 step of ComputeForceCUDA() above.
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeBondChangesCUDA", mbDebug); // wipes out FEPIGEN ////////////////////////////////////
         if(debug){
             TransferFromCUDA ();
@@ -902,10 +912,24 @@ void FluidSystem::Run2PhysicalSort(){
     if(m_FParams.debug>1)std::cout<<"\n####\nRun2PhysicalSort()start";
     InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug);
-    
+    if(launchParams.debug>0){
+        std::cout<<"\nchk a"<<std::flush;
+        TransferFromCUDA ();
+        m_Debug_file++;
+        std::cout<<"\nchk b: launchParams.outPath="<<launchParams.outPath<<",  m_Frame+m_Debug_file=0;="<<m_Frame+m_Debug_file<<"\t"<<std::flush;
+        SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        std::cout << "\n\nRun2PhysicalSort() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  InsertParticlesCUDA\n"<<std::flush;
+        //TransferFromTempCUDA(int buf_id, int sz );
+    }
     PrefixSumCellsCUDA ( 1 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumCellsCUDA", mbDebug);
-    
+    if(launchParams.debug>0){
+        TransferFromCUDA ();
+        m_Debug_file++;
+        SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        std::cout << "\n\nRun2PhysicalSort() Chk2, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  PrefixSumCellsCUDA\n"<<std::flush;
+        //TransferFromTempCUDA(int buf_id, int sz );
+    }
     CountingSortFullCUDA ( 0x0 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortFullCUDA", mbDebug);
     if(m_FParams.debug>1)std::cout<<"\n####\nRun2PhysicalSort()end";
@@ -924,7 +948,7 @@ void FluidSystem::Run2InnerPhysicalLoop(){
     ComputeForceCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug);
     
-    if(launchParams.debug>4){
+    if(launchParams.debug>1){
         TransferFromCUDA ();
         launchParams.file_increment++;
         SavePointsCSV2 (  launchParams.outPath, launchParams.file_num+launchParams.file_increment );
@@ -941,6 +965,15 @@ void FluidSystem::Run2InnerPhysicalLoop(){
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After SpecialParticlesCUDA", mbDebug);
     
     TransferPosVelVevalFromTemp ();
+    
+     if(launchParams.debug>0){
+        TransferFromCUDA ();
+        m_Debug_file++;
+        SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        std::cout << "\n\nRun2InnerPhysicalLoop() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  TransferPosVelVevalFromTemp ();\n"<<std::flush;
+        //TransferFromTempCUDA(int buf_id, int sz );
+    }
+    
     AdvanceTime ();
     if(m_FParams.debug>1)std::cout<<"\n####\nRun2InnerPhysicalLoop()end";
 }
@@ -955,12 +988,12 @@ void FluidSystem::Run2GeneAction(){//NB gene sorting occurs within Run2PhysicalS
     if(m_FParams.debug>1)std::cout<<"\n####\nRun2GeneAction()end";
 }
 
-void FluidSystem::Run2Remodelling(){
+void FluidSystem::Run2Remodelling(uint steps_per_InnerPhysicalLoop){
     if(m_FParams.debug>1)std::cout<<"\n####\nRun2Remodelling()start";
     AssembleFibresCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AssembleFibresCUDA", mbDebug); 
     
-    ComputeBondChangesCUDA ();
+    ComputeBondChangesCUDA (steps_per_InnerPhysicalLoop);
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeBondChangesCUDA", mbDebug); 
     
     PrefixSumChangesCUDA ( 1 );
@@ -969,8 +1002,25 @@ void FluidSystem::Run2Remodelling(){
     CountingSortChangesCUDA (  );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortChangesCUDA", mbDebug);
     
+    if(launchParams.debug>0){
+        TransferFromCUDA ();
+        m_Debug_file++;
+        SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        std::cout << "\n\nRun2InnerPhysicalLoop() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  CountingSortChangesCUDA ();\n"<<std::flush;
+        //TransferFromTempCUDA(int buf_id, int sz );
+    }
+    
     ComputeParticleChangesCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeParticleChangesCUDA", mbDebug);
+    
+    if(launchParams.debug>0){
+        TransferFromCUDA ();
+        m_Debug_file++;
+        SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        std::cout << "\n\nRun2InnerPhysicalLoop() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  ComputeParticleChangesCUDA ();\n"<<std::flush;
+        //TransferFromTempCUDA(int buf_id, int sz );
+    }
+    
     if(m_FParams.debug>1)std::cout<<"\n####\nRun2Remodelling()end";
 }
 
@@ -1317,11 +1367,12 @@ void FluidSystem::SetupExampleGenome()  {   // need to set up a demo genome
     m_FGenome.activate[0][2*0+1] = 6;
     
     //FBondParams *params_ =  &m_FGenome.fbondparams[0];
+    //Particle remodelling, bond defaults & limits  m_FGenome.param[3][12]
     //0=elastin
-    m_FGenome.param[0][m_FGenome.elongation_threshold]   = 0.1  ;
-    m_FGenome.param[0][m_FGenome.elongation_factor]      = 0.02  ;
-    m_FGenome.param[0][m_FGenome.strength_threshold]     = 0.1  ;
-    m_FGenome.param[0][m_FGenome.strengthening_factor]   = 0.02  ;
+    m_FGenome.param[0][m_FGenome.elongation_threshold]   = 0.5  ;
+    m_FGenome.param[0][m_FGenome.elongation_factor]      = 0.002  ;
+    m_FGenome.param[0][m_FGenome.strength_threshold]     = 1.0  ;
+    m_FGenome.param[0][m_FGenome.strengthening_factor]   = 0.002  ;
     
     m_FGenome.param[0][m_FGenome.max_rest_length]        = 1.0  ;
     m_FGenome.param[0][m_FGenome.min_rest_length]        = 0.3  ;
@@ -1350,10 +1401,10 @@ void FluidSystem::SetupExampleGenome()  {   // need to set up a demo genome
     m_FGenome.param[1][m_FGenome.default_damping]        = 100  ;
     
     //2=apatite
-    m_FGenome.param[2][m_FGenome.elongation_threshold]   = 0.1  ;
-    m_FGenome.param[2][m_FGenome.elongation_factor]      = 0.1  ;
-    m_FGenome.param[2][m_FGenome.strength_threshold]     = 0.1  ;
-    m_FGenome.param[2][m_FGenome.strengthening_factor]   = 0.1  ;
+    m_FGenome.param[2][m_FGenome.elongation_threshold]   = 1.0  ;
+    m_FGenome.param[2][m_FGenome.elongation_factor]      = 0.001  ;
+    m_FGenome.param[2][m_FGenome.strength_threshold]     = 1.0  ;
+    m_FGenome.param[2][m_FGenome.strengthening_factor]   = 0.001  ;
     
     m_FGenome.param[2][m_FGenome.max_rest_length]        = 1.0  ;
     m_FGenome.param[2][m_FGenome.min_rest_length]        = 0.3  ;
@@ -1364,6 +1415,38 @@ void FluidSystem::SetupExampleGenome()  {   // need to set up a demo genome
     m_FGenome.param[2][m_FGenome.default_rest_length]    = 0.5  ;
     m_FGenome.param[2][m_FGenome.default_modulus]        = 10000000  ;
     m_FGenome.param[2][m_FGenome.default_damping]        = 1000  ;
+    
+    //Bond remodelling  m_FGenome.tanh_param[3][8];                 // lengthening/shortening
+    m_FGenome.tanh_param[m_FGenome.elastin][m_FGenome.l_a] = 0.0;   // y-shift
+    m_FGenome.tanh_param[m_FGenome.elastin][m_FGenome.l_b] = 0.0;   // y-scaling
+    m_FGenome.tanh_param[m_FGenome.elastin][m_FGenome.l_c] = 0.0;   // x-scaling
+    m_FGenome.tanh_param[m_FGenome.elastin][m_FGenome.l_d] = 0.0;   // x-shift
+    
+    m_FGenome.tanh_param[m_FGenome.elastin][m_FGenome.s_a] = 1.008; // strengthening/weakening  // mod_mul = 1.008+0.01*np.tanh(10*si2[i+1]-7)
+    m_FGenome.tanh_param[m_FGenome.elastin][m_FGenome.s_b] = 0.01;
+    m_FGenome.tanh_param[m_FGenome.elastin][m_FGenome.s_c] = 10.0;
+    m_FGenome.tanh_param[m_FGenome.elastin][m_FGenome.s_d] = 7.0;
+    
+    m_FGenome.tanh_param[m_FGenome.collagen][m_FGenome.l_a] = 0.0;  // lengthening/shortening
+    m_FGenome.tanh_param[m_FGenome.collagen][m_FGenome.l_b] = 0.0;
+    m_FGenome.tanh_param[m_FGenome.collagen][m_FGenome.l_c] = 0.0;
+    m_FGenome.tanh_param[m_FGenome.collagen][m_FGenome.l_d] = 0.0;
+    
+    m_FGenome.tanh_param[m_FGenome.collagen][m_FGenome.s_a] = 0.0;  // strengthening/weakening
+    m_FGenome.tanh_param[m_FGenome.collagen][m_FGenome.s_b] = 0.0;
+    m_FGenome.tanh_param[m_FGenome.collagen][m_FGenome.s_c] = 0.0;
+    m_FGenome.tanh_param[m_FGenome.collagen][m_FGenome.s_d] = 0.0;
+    
+    m_FGenome.tanh_param[m_FGenome.apatite][m_FGenome.l_a] = 0.0;   // lengthening/shortening
+    m_FGenome.tanh_param[m_FGenome.apatite][m_FGenome.l_b] = 0.0;
+    m_FGenome.tanh_param[m_FGenome.apatite][m_FGenome.l_c] = 0.0;
+    m_FGenome.tanh_param[m_FGenome.apatite][m_FGenome.l_d] = 0.0;
+    
+    m_FGenome.tanh_param[m_FGenome.apatite][m_FGenome.s_a] = 0.0;   // strengthening/weakening
+    m_FGenome.tanh_param[m_FGenome.apatite][m_FGenome.s_b] = 0.0;
+    m_FGenome.tanh_param[m_FGenome.apatite][m_FGenome.s_c] = 0.0;
+    m_FGenome.tanh_param[m_FGenome.apatite][m_FGenome.s_d] = 0.0;
+    
 }
 
 //////////////////////////////////////////////////////
@@ -1480,35 +1563,42 @@ void FluidSystem::Run2Simulation(){
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval, before 1st timestep", 1/*mbDebug*/);
     setFreeze(true);
     for (int k=0; k<launchParams.freeze_steps; k++){
+      m_Debug_file=0;
       if (m_FParams.debug>0)std::cout<<"\n\nFreeze()"<<k<<"\n"<<std::flush;
-      Run (launchParams.outPath, launchParams.file_num, (launchParams.debug>4), (launchParams.gene_activity=='y'), (launchParams.remodelling=='y') );
+      Run2PhysicalSort();
+      InitializeBondsCUDA();
+      //Run (launchParams.outPath, launchParams.file_num, (launchParams.debug>4), (launchParams.gene_activity=='y'), (launchParams.remodelling=='y') );
       TransferPosVelVeval ();
       if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
       if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
       if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
       launchParams.file_num+=100;
+      m_Frame=launchParams.file_num;
     }
     setFreeze(false);
     printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
     
-    TransferFromCUDA ();
-    SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+99);   // save "start condition" after bond formation, even if not saving the series.
-    SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+99);
-    
     Run2PhysicalSort();
+    //TransferFromCUDA ();
+    //SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+99);   // save "start condition" after bond formation, even if not saving the series.
+    //SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+99);
+    
     for ( ; launchParams.file_num<launchParams.num_files; launchParams.file_num+=100 ) {
+        m_Debug_file=0;
+        m_Frame=launchParams.file_num;
         launchParams.file_increment=0;
         for ( int j=0; j<launchParams.steps_per_file; j++ ) {
             for (int k=0; k<launchParams.steps_per_InnerPhysicalLoop; k++) {
                 Run2InnerPhysicalLoop();                                                                    // Run2InnerPhysicalLoop();
             }
             if(launchParams.gene_activity=='y') Run2GeneAction();                                           // Run2GeneAction();
-            if(launchParams.remodelling=='y') Run2Remodelling();                                            // Run2Remodelling();
-            if( j==launchParams.steps_per_file -1 && launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+80);// data prior to sorting
+            if(launchParams.remodelling=='y') Run2Remodelling(launchParams.steps_per_InnerPhysicalLoop);                                            // Run2Remodelling();
+            //if( j==launchParams.steps_per_file -1 && launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+80);// data prior to sorting
             Run2PhysicalSort();                                                                             // Run2PhysicalSort();                // sort required for SavePointsVTP2 
         }
         auto begin = std::chrono::steady_clock::now();
         if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug); 
         if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
         if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
         if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
@@ -1519,8 +1609,11 @@ void FluidSystem::Run2Simulation(){
         if(launchParams.debug>0) std::cout << "\nLoop duration : "
                     << begin_dbl.count() <<" seconds. Time taken to write files for "
                     << NumPoints() <<" particles : " 
-                    << time.count() << " seconds\n" << std::endl;
+                    << time.count() << " seconds. launchParams.num_files="
+                    << launchParams.num_files << "\n" << std::endl;
         old_begin = begin;
+        
+        //if (mActivePoints < 500 ){std::cout<<"\n(mActivePoints < 500) stopping. chk why I am loosing particles?"<<std::flush;  Exit();}        // temp chk for why I am loosing particles.
     }
     //launchParams.file_num++;
     

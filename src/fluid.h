@@ -135,7 +135,7 @@
 
     // additional buffers for morphogenesis   
     #define FELASTIDX   14      //# currently [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index [7]stress integrator [8]change-type binary indicator
-	enum {/*0*/current_index, /*1*/elastic_limit, /*2*/rest_length, /*3*/modulus, /*4*/damping_coeff, /*5*/particle_ID, /*6*/bond_index, /*7*/strain_integrator, /*8*/change_type};//FELASTIDX    
+	enum {/*0*/current_index, /*1*/elastic_limit, /*2*/rest_length, /*3*/modulus, /*4*/damping_coeff, /*5*/particle_ID, /*6 bond_index*/ strain_sq_integrator, /*7*/strain_integrator, /*8*/change_type};//FELASTIDX    
                                 //old : BOND_DATA = BONDS_PER_PARTICLE*3 = 12 //uint[BONDS_PER_PARTICLE * 2 = 8 ]  particleID, modulus, elastic limit    
                                 /* old old : 0=self UID, mass, radius. >0= modulus & particle UID */
     #define FPARTICLEIDX 29    //# uint[BONDS_PER_PARTICLE *2]  list of other particles' bonds connecting to this particle AND their indices // NB risk of overwriting race condition, when making bonds.   
@@ -367,6 +367,11 @@
         int secrete[NUM_GENES][2*NUM_TF+1];         // -ve secretion => active breakdown. Can be useful for pattern formation.
         int activate[NUM_GENES][2*NUM_GENES+1];
         //uint *function[NUM_GENES];                // cancelled// Hard code a case-switch that calls each gene's function iff the gene is active.
+        
+        enum {l_a, l_b, l_c, l_d,   s_a, s_b, s_c, s_d};   // tanh offset parameters for lengthening/shortening and stregthening/weakening bonds. // computed from params below. ? 
+        //y-shift, y-scaling, x-scaling, x-shift
+        float tanh_param[3][8];
+        
         enum {elastin,collagen,apatite};
                                                     //FBondParams fbondparams[3];   // 0=elastin, 1=collagen, 2=apatite
         
