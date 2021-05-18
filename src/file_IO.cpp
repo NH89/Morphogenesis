@@ -71,8 +71,20 @@ void FluidSystem::ReadGenome( const char * relativePath){
     }
     if (m_FParams.debug>1)std::cout << "\n" << i <<"*"<< j << " remodelling parameters read. ret = "<< ret <<"\n" << std::flush;
     
+    ret=0;
+    ret += std::fscanf(genes_file, "\n\nBond remodelling m_FGenome.tanh_param[3][8] parameters, rows : elastin,collagen,apatite" );
+    ret += std::fscanf(genes_file, "\ncollumns : lengthen/shorten, strengthen/weaken");
+    ret += std::fscanf(genes_file, "\nl_a (y-shift),\t l_b (y-scaling),\t l_c (x-scaling),\t l_d (x-shift),\t\t s_a (y-shift),\t s_b (y-scaling),\t s_c (x-scaling),\t s_d (x-shift)\n");
+    
+    for(int i=0; i<3; i++){//[bond_type][t_param]
+        for(int j=0; j<8; j++)  ret += std::fscanf(genes_file, "\t%f,\t", &m_FGenome.tanh_param[i][j]);
+        ret += std::fscanf(genes_file, "\n");
+    }
+    if (m_FParams.debug>1)std::cout << "\n" << i <<"*"<< j << " remodelling parameters read. ret = "<< ret <<"\n" << std::flush;
+    
     fclose(genes_file);
 }
+
 
 void FluidSystem::WriteGenome( const char * relativePath){
     if (m_FParams.debug>1)std::cout << "\n  FluidSystem::WriteGenome( const char * "<<relativePath<<")  started \n" << std::flush;
@@ -129,6 +141,16 @@ void FluidSystem::WriteGenome( const char * relativePath){
         fprintf(fp, "\n");
     }
     
+    fprintf(fp, "\n\nBond remodelling m_FGenome.tanh_param[3][8] parameters, rows : elastin,collagen,apatite" );
+    fprintf(fp, "\ncollumns : lengthen/shorten, strengthen/weaken");
+    fprintf(fp, "\nl_a (y-shift),\t l_b (y-scaling),\t l_c (x-scaling),\t l_d (x-shift),\t\t s_a (y-shift),\t s_b (y-scaling),\t s_c (x-scaling),\t s_d (x-shift)\n");
+    
+    for(int bond_type=0; bond_type<3; bond_type++){
+        for(int t_param=0; t_param<8; t_param++)   fprintf(fp, "\t%f,\t", m_FGenome.tanh_param[bond_type][t_param]);
+        fprintf(fp, "\n");
+    }
+    
+    
     fprintf(fp, "\n\n\
     struct FGenome{   // ## currently using fixed size genome for efficiency. NB Particle data size depends on genome size.\n\
         uint mutability[NUM_GENES];\n\
@@ -177,6 +199,13 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
             pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
             Vertices->InsertNextCell(1,pid);
             num_active_points++;
+            //vector<uint2> sim2vtp 
+            //vector pushhback (i, num_active_points)
+            /*
+            double samplePoint[3];
+            points3D->GetPoint(i,samplePoint);
+            cout<<"\ni="<<i<<", points3D->GetNumberOfPoints()="<<points3D->GetNumberOfPoints()<<", Pos->x="<<Pos->x<<", samplePoint[0]="<<samplePoint[0]<<std::flush;
+            */
         }else break;  // Must sort particles before SavePointsVTP2. NB between adding particles and countingSortFull(), there may be a mixture of valid and invalid prticles at the end of the list.
 	}
 	if (m_FParams.debug>1) std::cout<<"\n\nSavePointsVTP2: chk1 num_active_points="<<num_active_points<<std::flush;
@@ -202,52 +231,85 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     vtkSmartPointer<vtkCellArray> Lines = vtkSmartPointer<vtkCellArray>::New();
     uint *ElastIdx;
     float *ElastIdxPtr;
+    /*
+    vtkSmartPointer<vtkFloatArray> bondLength = vtkSmartPointer<vtkFloatArray>::New();
+    bondLength->SetNumberOfComponents(9);
+	bondLength->SetName("FBondLength");
+    */
+    Vector3DF* Pos_i;
+    //Vector3DF* Pos_j; 
+    //
     for ( unsigned int i = 0; i < num_active_points; ++i )
 	{	
+        Pos_i = getPos(i);
         ElastIdx = getElastIdx(i);
-        //ElastIdxPtr = (float*)ElastIdx;
+        ElastIdxPtr = (float*)ElastIdx;
         for(int j=0; j<(BONDS_PER_PARTICLE ); j++) { 
             uint secondParticle = ElastIdx[j * DATA_PER_BOND];
-            uint bond = ElastIdx[j * DATA_PER_BOND +2];          // NB [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
-            if (bond==0 || bond==UINT_MAX || secondParticle==UINT_MAX) secondParticle = i;                    // i.e. if [2]restlength, then bond is broken, therefore bond to self.
+            float bond = ElastIdxPtr[j * DATA_PER_BOND +2];          // NB [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index 
+            
+            if (bond<0.000001 || bond==UINT_MAX || secondParticle==UINT_MAX) secondParticle = i;  // i.e. if [2]restlength, then bond is broken, therefore bond to self. //|| 0.0==(float)bond  || isnan(bond)
+            //if(i==4)printf("\nbond=%f, secondParticle=%u,",bond, secondParticle);
+            
             vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
             line->GetPointIds()->SetId(0,i);
             line->GetPointIds()->SetId(1,secondParticle);
             Lines->InsertNextCell(line);
+            /*
+            //points3D->Get ?;
+            double samplePoint_i[3], samplePoint_j[3];
+            points3D->GetPoint(i,samplePoint_i);
+            points3D->GetPoint(secondParticle,samplePoint_j);
+            
+            bondLength->InsertNextTuple9(i, secondParticle, j, ElastIdxPtr[j*DATA_PER_BOND], ElastIdxPtr[j*DATA_PER_BOND+1], ElastIdxPtr[j*DATA_PER_BOND+3],  ElastIdxPtr[j*DATA_PER_BOND+4], ElastIdx[j*DATA_PER_BOND+5], ElastIdx[j* DATA_PER_BOND+6] );
+            
+            if(i==4)printf("\n %u, %u, %u, %f, %f, %f, %f, %u, %u, %f, %u, ", i, secondParticle, ElastIdx[j*DATA_PER_BOND], ElastIdxPtr[j*DATA_PER_BOND+1], ElastIdxPtr[j*DATA_PER_BOND+2], ElastIdxPtr[j*DATA_PER_BOND+3], ElastIdxPtr[j*DATA_PER_BOND+4], ElastIdx[j*DATA_PER_BOND+5], ElastIdx[j*DATA_PER_BOND+6], ElastIdxPtr[j*DATA_PER_BOND+7], ElastIdx[j*DATA_PER_BOND+8] );
+            
+            //Pos_j = getPos(secondParticle);
+            //bondLength->InsertNextTuple9(i, secondParticle, j, bond, float(bond), samplePoint_i[2]-Pos_i->z,  Pos_i->x-Pos_j->x, Pos_i->x-Pos_j->x, Pos_i->x-Pos_j->x  );
+            //bondLength->InsertNextTuple9(i, secondParticle, j, samplePoint_i[0]-Pos_i->x, samplePoint_i[1]-Pos_i->y, samplePoint_i[2]-Pos_i->z, samplePoint_j[0]-Pos_j->x, samplePoint_j[1]-Pos_j->y, samplePoint_j[2]-Pos_j->z );
+            //bondLength->InsertNextTuple6(i, secondParticle, j, Pos_i->x-Pos_j->x, Pos_i->x-Pos_j->x, Pos_i->x-Pos_j->x );
+            */
         }
 	}
 	// Sim volume boundry lines
 	for(int corner=0; corner<8; corner++){
-    int firstParticle = corner + num_active_points;
-    vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
-    if(corner&1){ // Pos->x = m_Vec[ PVOLMAX ].x; // bitmask to select axes to swap to PVOLMAX
-        int secondParticle = corner -1 + num_active_points;
-        line->GetPointIds()->SetId(0,firstParticle);
-        line->GetPointIds()->SetId(1,secondParticle);
-        Lines->InsertNextCell(line);
+        int firstParticle = corner + num_active_points;
+        vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
+        if(corner&1){ // Pos->x = m_Vec[ PVOLMAX ].x; // bitmask to select axes to swap to PVOLMAX
+            int secondParticle = corner -1 + num_active_points;
+            line->GetPointIds()->SetId(0,firstParticle);
+            line->GetPointIds()->SetId(1,secondParticle);
+            Lines->InsertNextCell(line);
+        }
+        if(corner&2){ // Pos->y = m_Vec[ PVOLMAX ].y;
+            int secondParticle = corner -2 + num_active_points;
+            line->GetPointIds()->SetId(0,firstParticle);
+            line->GetPointIds()->SetId(1,secondParticle);
+            Lines->InsertNextCell(line);
+        }
+        if(corner&4){ // Pos->z = m_Vec[ PVOLMAX ].z; 
+            int secondParticle = corner -4 + num_active_points;
+            line->GetPointIds()->SetId(0,firstParticle);
+            line->GetPointIds()->SetId(1,secondParticle);
+            Lines->InsertNextCell(line);
+        }
+        //pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
+        //Vertices->InsertNextCell(1,pid);
+        /*
+        for (int j=0; j<(BONDS_PER_PARTICLE ); j++){
+            bondLength->InsertNextTuple9(firstParticle, firstParticle, j, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 );// Fill the viewing frame bonds with zeros.
+        }
+        */
     }
-    if(corner&2){ // Pos->y = m_Vec[ PVOLMAX ].y;
-        int secondParticle = corner -2 + num_active_points;
-        line->GetPointIds()->SetId(0,firstParticle);
-        line->GetPointIds()->SetId(1,secondParticle);
-        Lines->InsertNextCell(line);
-    }
-    if(corner&4){ // Pos->z = m_Vec[ PVOLMAX ].z; 
-        int secondParticle = corner -4 + num_active_points;
-        line->GetPointIds()->SetId(0,firstParticle);
-        line->GetPointIds()->SetId(1,secondParticle);
-        Lines->InsertNextCell(line);
-    }
-    //pid[0] = points3D->InsertNextPoint(Pos->x, Pos->y, Pos->z);
-    //Vertices->InsertNextCell(1,pid);
-    }
+    
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////// Particle Data 
     
     // FELASTIDX bond data, float and uint vtkDataArrays, stored in particles
     vtkSmartPointer<vtkUnsignedIntArray> BondsUIntData = vtkSmartPointer<vtkUnsignedIntArray>::New();
-    BondsUIntData->SetNumberOfComponents(3);
-	BondsUIntData->SetName("curr_idx, particle ID, bond index");
+    BondsUIntData->SetNumberOfComponents(6);
+	BondsUIntData->SetName("parent_idx, parent_ID, curr_idx, particle ID, bond index");
     
     vtkSmartPointer<vtkFloatArray> BondsFloatData = vtkSmartPointer<vtkFloatArray>::New();
     BondsFloatData->SetNumberOfComponents(6);
@@ -259,14 +321,13 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
         ElastIdx = getElastIdx(i);                     // FELASTIDX[BONDS_PER_PARTICLE]  [0]current index uint, [5]particle ID uint, [6]bond index uint
         ElastIdxPtr = (float*)ElastIdx;                // FELASTIDX[BONDS_PER_PARTICLE]  [1]elastic limit float, [2]restlength float, [3]modulus float, [4]damping coeff float,
         for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
-            BondsUIntData->InsertNextTuple3(ElastIdx[j], ElastIdx[j+5], ElastIdx[j+6]);
-            //BondsFloatData->InsertNextTuple6(ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdxPtr[j+7], 0);
-            BondsFloatData->InsertNextTuple6(ElastIdx[j+1], ElastIdx[j+2], ElastIdx[j+3], ElastIdx[j+4], ElastIdx[j+7], 0);
+            BondsUIntData->InsertNextTuple6(i, ElastIdx[j], *getParticle_ID(i), ElastIdx[j+5], j/DATA_PER_BOND, 0);
+            BondsFloatData->InsertNextTuple6(ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdxPtr[j+7], 0);
         }
     }
     for(int corner=0; corner<8; corner++){
         for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
-            BondsUIntData->InsertNextTuple3(0,0,0);
+            BondsUIntData->InsertNextTuple6(0,0,0,0,0,0);
             BondsFloatData->InsertNextTuple6(0,0,0,0,0,0);
         }
     }
@@ -475,6 +536,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
 	//polydata->SetVerts(Vertices);
     polydata->SetLines(Lines);
     
+    //polydata->GetCellData()->AddArray(bondLength);
    
     //if (m_FParams.debug>1)cout << "\nStarting writing bond data to polydata\n" << std::flush;
     polydata->GetCellData()->AddArray(BondsUIntData);
@@ -531,7 +593,7 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
     float *ElastIdxPtr;
     
     fprintf(fp, "i,, x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", BONDS_PER_PARTICLE, DATA_PER_BOND);  // This system inserts commas to align header with csv data
-    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",(%u)[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator, [8]change-type,,  ",i);
+    for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",(%u)[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]stress_sq integrator, [7]stress integrator, [8]change-type,,  ",i);
     fprintf(fp, "\t"); 
     fprintf(fp, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u*2]", BONDS_PER_PARTICLE);    
     for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, "%u,,, ",i);
@@ -568,7 +630,7 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
         fprintf(fp, "%u,,%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t", i, Pos->x, Pos->y,Pos->z, Vel->x,Vel->y,Vel->z, *Age, *Clr );
         //if (m_FParams.debug>1) std::cout<<"\t"<<Pos->z<<std::flush;
         for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
-            fprintf(fp, "%u, %f, %f, %f, %f, %u, %u, %f, %u, ", ElastIdx[j], ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdx[j+5], ElastIdx[j+6], ElastIdxPtr[j+7], ElastIdx[j+8] );
+            fprintf(fp, "%u, %f, %f, %f, %f, %u, %f, %f, %u, ", ElastIdx[j], ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdx[j+5], ElastIdxPtr[j+6], ElastIdxPtr[j+7], ElastIdx[j+8] );
             
            /*
             // if ((j%DATA_PER_BOND==0)||((j+1)%DATA_PER_BOND==0))  fprintf(fp, "%u, ",  ElastIdx[j] );  // print as int   [0]current index, [5]particle ID, [6]bond index 
@@ -650,7 +712,7 @@ void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int 
     int result=-2;
     result = std::fscanf(points_file, "i,, x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", &bond_data, &data_per_bond);
 //if (m_FParams.debug>1) std::cout<<"\n\n ReadPointsCSV2() line 1241: scanf result="<<result<<"\n"<<std::flush; 
-    for (int i=0; i<data_per_bond; i++) result+=std::fscanf(points_file, ",(%u)[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]bond index, [7]stress integrator, [8]change-type,,  ",&discard_uint);
+    for (int i=0; i<data_per_bond; i++) result+=std::fscanf(points_file, ",(%u)[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]stress_sq integrator, [7]stress integrator, [8]change-type,,  ",&discard_uint);
     bond_data = bond_data * data_per_bond;
     result += fscanf(points_file, "\t");
 //if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() line 1246: scanf result="<<result<<"\n"<<std::flush; 
@@ -674,7 +736,7 @@ if (m_FParams.debug>1) std::cout<<"\n\n ReadPointsCSV2() starting loop: number_o
         ret += std::fscanf(points_file, "%u,,%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t",&index, &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Age, &Clr );
 //if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() row="<< i <<", (line 1259, ret="<<ret<<"),\t"<<std::flush;
         for(int j=0; j<BOND_DATA; j+=DATA_PER_BOND) {// BONDS_PER_PARTICLE * DATA_PER_BOND
-            ret += std::fscanf(points_file, "%u, %f, %f, %f, %f, %u, %u, %f, %u, ", &ElastIdxU[j+0], &ElastIdxF[j+1], &ElastIdxF[j+2], &ElastIdxF[j+3], &ElastIdxF[j+4], &ElastIdxU[j+5], &ElastIdxU[j+6], &ElastIdxF[j+7], &ElastIdxU[j+8] );
+            ret += std::fscanf(points_file, "%u, %f, %f, %f, %f, %u, %f, %f, %u, ", &ElastIdxU[j+0], &ElastIdxF[j+1], &ElastIdxF[j+2], &ElastIdxF[j+3], &ElastIdxF[j+4], &ElastIdxU[j+5], &ElastIdxF[j+6], &ElastIdxF[j+7], &ElastIdxU[j+8] );
         }
       //if (m_FParams.debug>1)printf("\t%u\t",ElastIdxU[0]);
 //if (m_FParams.debug>1) std::cout<<"(line 1263, ret="<<ret<<")\t"<<std::flush;
