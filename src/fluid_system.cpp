@@ -232,7 +232,8 @@ void FluidSystem::UpdateParams (){
     FluidParamCUDA (  m_Param[PSIMSCALE], m_Param[PSMOOTHRADIUS], m_Param[PRADIUS], m_Param[PMASS], m_Param[PRESTDENSITY],
                       *(float3*)& m_Vec[PBOUNDMIN], *(float3*)& m_Vec[PBOUNDMAX], m_Param[PEXTSTIFF], m_Param[PINTSTIFF],
                       m_Param[PVISC], m_Param[PSURFACE_TENSION], m_Param[PEXTDAMP], m_Param[PFORCE_MIN], m_Param[PFORCE_MAX], m_Param[PFORCE_FREQ],
-                      m_Param[PGROUND_SLOPE], grav.x, grav.y, grav.z, m_Param[PACCEL_LIMIT], m_Param[PVEL_LIMIT] ); 
+                      m_Param[PGROUND_SLOPE], grav.x, grav.y, grav.z, m_Param[PACCEL_LIMIT], m_Param[PVEL_LIMIT], 
+                      m_Param[PACTUATION_FACTOR], m_Param[PACTUATION_PERIOD]); 
 }
 
 void FluidSystem::SetParam (int p, float v ){
@@ -610,7 +611,7 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                 
                 if(demoType == 1){                                                                    ////// Remodelling & actuation demo
                                                                                 // Fixed base, bone, tendon, muscle, elastic, external actuation
-                    if(Pos.z == min.z)                                        EpiGen[11]=fixedActive;   // fixed particle
+                    if(Pos.z <= min.z+spacing)                                EpiGen[11]=fixedActive;   // fixed particle
                     if(Pos.z >= max.z-spacing)                                EpiGen[12]=fixedActive;   // external actuation particle 
                     
                     if(Pos.z >= min.z+5*spacing && Pos.z < min.z+10*spacing)  EpiGen[9] =fixedActive;   // bone
@@ -989,7 +990,7 @@ void FluidSystem::Run2GeneAction(){//NB gene sorting occurs within Run2PhysicalS
 }
 
 void FluidSystem::Run2Remodelling(uint steps_per_InnerPhysicalLoop){
-    if(m_FParams.debug>1)std::cout<<"\n####\nRun2Remodelling()start";
+    if(m_FParams.debug>1){std::cout<<"\n####\nRun2Remodelling()start";}
     AssembleFibresCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AssembleFibresCUDA", mbDebug); 
     
@@ -1006,7 +1007,7 @@ void FluidSystem::Run2Remodelling(uint steps_per_InnerPhysicalLoop){
         TransferFromCUDA ();
         m_Debug_file++;
         SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
-        std::cout << "\n\nRun2InnerPhysicalLoop() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  CountingSortChangesCUDA ();\n"<<std::flush;
+        std::cout << "\n\nRun2Remodelling() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  CountingSortChangesCUDA ();\n"<<std::flush;
         //TransferFromTempCUDA(int buf_id, int sz );
     }
     
@@ -1017,7 +1018,7 @@ void FluidSystem::Run2Remodelling(uint steps_per_InnerPhysicalLoop){
         TransferFromCUDA ();
         m_Debug_file++;
         SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
-        std::cout << "\n\nRun2InnerPhysicalLoop() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  ComputeParticleChangesCUDA ();\n"<<std::flush;
+        std::cout << "\n\nRun2Remodelling() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  ComputeParticleChangesCUDA ();\n"<<std::flush;
         //TransferFromTempCUDA(int buf_id, int sz );
     }
     
@@ -1161,6 +1162,9 @@ void FluidSystem::SetupDefaultParams (){
 
     // Default sim config
     m_Param [PGRIDSIZE] = m_Param[PSMOOTHRADIUS] * 2;
+    
+    m_Param [ PACTUATION_FACTOR ] = 0;
+    m_Param [ PACTUATION_PERIOD ] = 1;
 }
 
 void FluidSystem::SetupExampleParams (uint spacing){
@@ -1190,7 +1194,7 @@ void FluidSystem::SetupExampleParams (uint spacing){
         //m_Param [PDRAWGRID] = 1;				// Grid drawing
         //m_Param [PDRAWTEXT] = 1;				// Text drawing
         m_Param [PSIMSCALE ] = 1.0f;
-
+        launchParams.read_genome = 'y'; 
     }
     break;
     case 1:		// Tower
@@ -1238,11 +1242,12 @@ void FluidSystem::SetupExampleParams (uint spacing){
         m_Param [ PSIMSCALE ] = 1.0f;
         m_Param [ PRADIUS ] = 1.0f;
         m_Param [ PSMOOTHRADIUS ] = 1.0f;
+        m_Param [ PVISC ] = 0.1f;
         
         m_Vec [ PVOLMIN ].Set ( 0, 0, 0 );
-        m_Vec [ PVOLMAX ].Set ( 10, 20, 20 ); //( 80, 50, 80 );
+        m_Vec [ PVOLMAX ].Set ( 10, 20, 50 ); //( 80, 50, 80 );
         m_Vec [ PINITMIN ].Set ( m_Vec [ PVOLMIN ].x,  m_Vec [ PVOLMIN ].y, m_Vec [ PVOLMIN ].z );// will be reset to m_Vec[PBOUNDMIN].
-        m_Vec [ PINITMAX ].Set ( 60, 80, 60 );
+        m_Vec [ PINITMAX ].Set ( 10, 20, 30 );
         
         m_Param [ PGRAV ] = 2.000000f;
         m_Vec [ PPLANE_GRAV_DIR ].Set ( 0, -1, 0 );
@@ -1275,6 +1280,10 @@ void FluidSystem::SetupExampleParams (uint spacing){
         m_Vec [ PVOLMAX ] = launchParams.volmax;
         m_Vec [ PINITMIN ] = launchParams.initmin;
         m_Vec [ PINITMAX ] = launchParams.initmax;
+        
+        m_Param [ PACTUATION_FACTOR ] = launchParams.actuation_factor;
+        m_Param [ PACTUATION_PERIOD ] = launchParams.actuation_period;
+        
         break;
     case 8:  // default demo for parameter sweeps
         launchParams.num_particles = 4000;
@@ -1337,7 +1346,11 @@ void FluidSystem::SetupExampleParams (uint spacing){
         
         launchParams.gene_activity = 'n';
         launchParams.remodelling = 'n';
-        launchParams.read_genome = 'n'; 
+        launchParams.read_genome = 'y'; 
+        
+        m_Param [ PACTUATION_FACTOR ] = 0;
+        m_Param [ PACTUATION_PERIOD ] = 1;
+        
         break;
     }
     //std::cout<<"\nSetupExampleParams()3: launchParams.genomePath = "<<launchParams.genomePath<<"\n"<<std::flush;
@@ -1557,43 +1570,79 @@ void FluidSystem::RunSimulation (){
 }
 
 void FluidSystem::Run2Simulation(){
+    printf("\n\n Run2Simulation(), m_FParams.debug=%i .", m_FParams.debug );
     Init_FCURAND_STATE_CUDA ();
     auto old_begin = std::chrono::steady_clock::now();
     TransferPosVelVeval ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval, before 1st timestep", 1/*mbDebug*/);
     setFreeze(true);
+    m_Debug_file=0;
+    if (m_FParams.debug>0)std::cout<<"\n\nFreeze()"<<-1<<"\n"<<std::flush;
+    Run2PhysicalSort();
+    InitializeBondsCUDA();
+    
+    if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug); 
+    if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
+    if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
+    if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+    launchParams.file_num+=100;
+    /*
     for (int k=0; k<launchParams.freeze_steps; k++){
       m_Debug_file=0;
       if (m_FParams.debug>0)std::cout<<"\n\nFreeze()"<<k<<"\n"<<std::flush;
-      Run2PhysicalSort();
-      InitializeBondsCUDA();
+      //Run2PhysicalSort();
+      //InitializeBondsCUDA();
       //Run (launchParams.outPath, launchParams.file_num, (launchParams.debug>4), (launchParams.gene_activity=='y'), (launchParams.remodelling=='y') );
-      TransferPosVelVeval ();
+      for (int k=0; k<launchParams.steps_per_InnerPhysicalLoop*2; k++) Run2InnerPhysicalLoop();
+      Run2PhysicalSort();
+      ZeroVelCUDA ();                                                                                       // remove velocity, kinetic energy and momentum
+      //TransferPosVelVeval ();
       if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
       if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
       if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
       launchParams.file_num+=100;
       m_Frame=launchParams.file_num;
     }
-    setFreeze(false);
-    printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
-    
-    Run2PhysicalSort();
-    //TransferFromCUDA ();
-    //SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+99);   // save "start condition" after bond formation, even if not saving the series.
-    //SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+99);
-    
-    for ( ; launchParams.file_num<launchParams.num_files; launchParams.file_num+=100 ) {
+    */
+    /////////
+    for ( ; launchParams.file_num<launchParams.freeze_steps; launchParams.file_num+=100 ) {
+        std::cout<<"\n\nfile_num="<<launchParams.file_num<<", of "<<launchParams.num_files<<"\n"<<std::flush;
         m_Debug_file=0;
         m_Frame=launchParams.file_num;
-        launchParams.file_increment=0;
+        launchParams.file_increment=0;                                                                      // used within Run2InnerPhysicalLoop(); 
         for ( int j=0; j<launchParams.steps_per_file; j++ ) {
             for (int k=0; k<launchParams.steps_per_InnerPhysicalLoop; k++) {
+                std::cout<<"\tk="<<k;
                 Run2InnerPhysicalLoop();                                                                    // Run2InnerPhysicalLoop();
             }
             if(launchParams.gene_activity=='y') Run2GeneAction();                                           // Run2GeneAction();
-            if(launchParams.remodelling=='y') Run2Remodelling(launchParams.steps_per_InnerPhysicalLoop);                                            // Run2Remodelling();
-            //if( j==launchParams.steps_per_file -1 && launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+80);// data prior to sorting
+            if(launchParams.remodelling=='y') Run2Remodelling(launchParams.steps_per_InnerPhysicalLoop);                                          // Run2Remodelling();
+            Run2PhysicalSort();                                                                             // Run2PhysicalSort();                // sort required for SavePointsVTP2 
+            ZeroVelCUDA ();                                                                                 // remove velocity, kinetic energy and momentum
+        }
+        if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug); 
+        if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
+        if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
+        if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+    }
+    setFreeze(false);                                                                                       // freeze=false => bonds can be broken now.
+    printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
+    //Run2PhysicalSort();
+    
+    for ( ; launchParams.file_num<launchParams.num_files; launchParams.file_num+=100 ) {
+        std::cout<<"\n\nfile_num="<<launchParams.file_num<<", of "<<launchParams.num_files<<"\n"<<std::flush;
+        m_Debug_file=0;
+        m_Frame=launchParams.file_num;
+        launchParams.file_increment=0;                                                                      // used within Run2InnerPhysicalLoop(); 
+        for ( int j=0; j<launchParams.steps_per_file; j++ ) {
+            for (int k=0; k<launchParams.steps_per_InnerPhysicalLoop; k++) {
+                std::cout<<"\tk="<<k;
+                Run2InnerPhysicalLoop();                                                                    // Run2InnerPhysicalLoop();
+            }
+            if(launchParams.gene_activity=='y') Run2GeneAction();                                           // Run2GeneAction();
+            if(launchParams.remodelling=='y') Run2Remodelling(launchParams.steps_per_InnerPhysicalLoop);                                          // Run2Remodelling();
             Run2PhysicalSort();                                                                             // Run2PhysicalSort();                // sort required for SavePointsVTP2 
         }
         auto begin = std::chrono::steady_clock::now();

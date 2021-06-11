@@ -62,7 +62,7 @@ void FluidSystem::ReadGenome( const char * relativePath){
     ret += std::fscanf(genes_file, "\nRemodelling parameters, rows : elastin,collagen,apatite\n" );
     ret += std::fscanf(genes_file, "\ncollumns : /*triggering bond parameter changes*/, /*triggering particle changes*/, /*initial values for new bonds*/" );
     ret += std::fscanf(genes_file, "\nelongation_threshold,\telongation_factor,\tstrength_threshold,\tstrengthening_factor,\t\t\
-    max_rest_length,\tmin_rest_length,\tmax_modulus,\tmin_modulus,\t\t\t\
+    max_rest_length,\tmin_rest_length,\tmax_modulus,\t\t\tmin_modulus,\t\t\
     elastLim,\tdefault_rest_length,\tdefault_modulus,\tdefault_damping\n");
     
     for(i=0; i<3; i++){
@@ -84,7 +84,6 @@ void FluidSystem::ReadGenome( const char * relativePath){
     
     fclose(genes_file);
 }
-
 
 void FluidSystem::WriteGenome( const char * relativePath){
     if (m_FParams.debug>1)std::cout << "\n  FluidSystem::WriteGenome( const char * "<<relativePath<<")  started \n" << std::flush;
@@ -133,7 +132,7 @@ void FluidSystem::WriteGenome( const char * relativePath){
     fprintf(fp, "\n\nRemodelling parameters, rows : elastin,collagen,apatite" );
     fprintf(fp, "\ncollumns : /*triggering bond parameter changes*/, /*triggering particle changes*/, /*initial values for new bonds*/" );
     fprintf(fp, "\nelongation_threshold,\telongation_factor,\tstrength_threshold,\tstrengthening_factor,\t\t\
-    max_rest_length,\tmin_rest_length,\tmax_modulus,\tmin_modulus,\t\t\t\
+    max_rest_length,\tmin_rest_length,\tmax_modulus,\t\t\tmin_modulus,\t\t\
     elastLim,\tdefault_rest_length,\tdefault_modulus,\tdefault_damping\n");
     
     for(int i=0; i<3; i++){
@@ -311,28 +310,65 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     BondsUIntData->SetNumberOfComponents(6);
 	BondsUIntData->SetName("parent_idx, parent_ID, curr_idx, particle ID, bond index");
     
-    vtkSmartPointer<vtkFloatArray> BondsFloatData = vtkSmartPointer<vtkFloatArray>::New();
-    BondsFloatData->SetNumberOfComponents(6);
-	BondsFloatData->SetName("elastic limit, restlength, modulus, damping coeff, stress integrator");
+    //vtkSmartPointer<vtkFloatArray> BondsFloatData = vtkSmartPointer<vtkFloatArray>::New();
+    //BondsFloatData->SetNumberOfComponents(6);
+	//BondsFloatData->SetName("elastic limit, restlength, modulus, damping coeff, strain integrator, strain^2 integrator");
+    
+    ///
+    vtkSmartPointer<vtkFloatArray> elastic_limit = vtkSmartPointer<vtkFloatArray>::New();
+    elastic_limit->SetNumberOfComponents(1);
+    elastic_limit->SetName("elastic_limit");
+    
+    vtkSmartPointer<vtkFloatArray> restlength = vtkSmartPointer<vtkFloatArray>::New();
+    restlength->SetNumberOfComponents(1);
+    restlength->SetName("restlength");
+    
+    vtkSmartPointer<vtkFloatArray> modulus = vtkSmartPointer<vtkFloatArray>::New();
+    modulus->SetNumberOfComponents(1);
+    modulus->SetName("modulus");
+    
+    vtkSmartPointer<vtkFloatArray> damping_coeff = vtkSmartPointer<vtkFloatArray>::New();
+    damping_coeff->SetNumberOfComponents(1);
+    damping_coeff->SetName("damping_coeff");
+    
+    vtkSmartPointer<vtkFloatArray> strain_integrator = vtkSmartPointer<vtkFloatArray>::New();
+    strain_integrator->SetNumberOfComponents(1);
+    strain_integrator->SetName("strain_integrator");
+    
+    vtkSmartPointer<vtkFloatArray> strain_sq_integrator = vtkSmartPointer<vtkFloatArray>::New();
+    strain_sq_integrator->SetNumberOfComponents(1);
+    strain_sq_integrator->SetName("strain_sq_integrator");
     
     
     for ( unsigned int i = 0; i < num_active_points; ++i )
 	{
-        ElastIdx = getElastIdx(i);                     // FELASTIDX[BONDS_PER_PARTICLE]  [0]current index uint, [5]particle ID uint, [6]bond index uint
+        ElastIdx = getElastIdx(i);                     // FELASTIDX[BONDS_PER_PARTICLE]  [0]current index uint, [5]particle ID uint, 
         ElastIdxPtr = (float*)ElastIdx;                // FELASTIDX[BONDS_PER_PARTICLE]  [1]elastic limit float, [2]restlength float, [3]modulus float, [4]damping coeff float,
+                                                       //                                [6]strain_sq_integrator, [7]strain_integrator
         for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
-            BondsUIntData->InsertNextTuple6(i, ElastIdx[j], *getParticle_ID(i), ElastIdx[j+5], j/DATA_PER_BOND, 0);
-            BondsFloatData->InsertNextTuple6(ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdxPtr[j+7], 0);
+            BondsUIntData->InsertNextTuple6(i, *getParticle_ID(i), ElastIdx[j], ElastIdx[j+5], j/DATA_PER_BOND, 0);
+            //BondsFloatData->InsertNextTuple6(ElastIdxPtr[j+1], ElastIdxPtr[j+2], ElastIdxPtr[j+3], ElastIdxPtr[j+4], ElastIdxPtr[j+7], ElastIdxPtr[j+6]);
+            elastic_limit->InsertNextTuple1(ElastIdxPtr[j+1]);
+            restlength->InsertNextTuple1(ElastIdxPtr[j+2]);
+            modulus->InsertNextTuple1(ElastIdxPtr[j+3]);
+            damping_coeff->InsertNextTuple1(ElastIdxPtr[j+4]);
+            strain_integrator->InsertNextTuple1(ElastIdxPtr[j+7]);
+            strain_sq_integrator->InsertNextTuple1(ElastIdxPtr[j+6]);
         }
     }
     for(int corner=0; corner<8; corner++){
         for(int j=0; j<(BOND_DATA); j+=DATA_PER_BOND) { 
             BondsUIntData->InsertNextTuple6(0,0,0,0,0,0);
-            BondsFloatData->InsertNextTuple6(0,0,0,0,0,0);
+            //BondsFloatData->InsertNextTuple6(0,0,0,0,0,0);
+            elastic_limit->InsertNextTuple1(0);
+            restlength->InsertNextTuple1(0);
+            modulus->InsertNextTuple1(0);
+            damping_coeff->InsertNextTuple1(0);
+            strain_integrator->InsertNextTuple1(0);
+            strain_sq_integrator->InsertNextTuple1(0);
         }
     }
-    //BondsUIntData->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
-    //BondsFloatData->SetNumberOfComponents(BONDS_PER_PARTICLE *4); 
+    
     
 
     // FVEL 3df, 
@@ -347,22 +383,25 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     for(int corner=0; corner<8; corner++){
         fvel->InsertNextTuple3(0,0,0);
     }
-    fvel->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
+    //fvel->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
     
     
-/*    // FVEVAL 3df, 
+    // FVEVAL 3df, 
     Vector3DF* Veval;
     vtkSmartPointer<vtkFloatArray> fveval = vtkSmartPointer<vtkFloatArray>::New();
-    fvel->SetNumberOfComponents(3);
-	fvel->SetName("FVEVAL");
+    fveval->SetNumberOfComponents(3);
+	fveval->SetName("FVEVAL");
     for(unsigned int i=0;i<num_active_points;i++){
         Veval = getVeval(i);
         fveval->InsertNextTuple3(Veval->x,Veval->y,Veval->z);
     }
-    fveval->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
-*/
+    for(int corner=0; corner<8; corner++){
+        fveval->InsertNextTuple3(0,0,0);
+    }
+    //fveval->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
+
     
-/*    // FFORCE 3df, 
+    // FFORCE 3df, 
     Vector3DF* Force;
     vtkSmartPointer<vtkFloatArray> fforce = vtkSmartPointer<vtkFloatArray>::New();
     fforce->SetNumberOfComponents(3);
@@ -371,31 +410,41 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
         Force = getForce(i);
         fforce->InsertNextTuple3(Force->x,Force->y,Force->z);
     }
-    fforce->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
-*/
-    
-    
-/*    // FPRESS f,
-    float* Pres;
-    vtkSmartPointer<vtkFloatArray> fpres = vtkSmartPointer<vtkFloatArray>::New();
-    fpres->SetNumberOfComponents(1);
-	fpres->SetName("FPRESS");
-    for(unsigned int i=0;i<num_active_points;i++){
-        Pres = getPres(i);
-        fpres->InsertNextTuple(Pres);
+    for(int corner=0; corner<8; corner++){
+        fforce->InsertNextTuple3(0,0,0);
     }
-*/     
+    //fforce->SetNumberOfComponents(BONDS_PER_PARTICLE *3);
+
     
-/*    // FDENSITY f, 
-    float* Dens;
+    // FPRESS f,
+    float* Press;
+    vtkSmartPointer<vtkFloatArray> fpress = vtkSmartPointer<vtkFloatArray>::New();
+    fpress->SetNumberOfComponents(1);
+	fpress->SetName("FPRESS");
+    for(unsigned int i=0;i<num_active_points;i++){
+        Press = getPres(i);
+        fpress->InsertNextValue(*Press);
+    }
+    for(int corner=0; corner<8; corner++){
+        fpress->InsertNextValue(0);
+    }
+     
+    
+    // FDENSITY f, 
+    float Dens, *InverseDens ;
     vtkSmartPointer<vtkFloatArray> fdens = vtkSmartPointer<vtkFloatArray>::New();
-    fdens->SetNumberOfComponents(1);
-	fdens->SetName("FDENSITY");
+    fdens->SetNumberOfComponents(2);
+	fdens->SetName("FDENSITY,(1/density,density)");
     for(unsigned int i=0;i<num_active_points;i++){
-        Dens = getDensity(i);
-        fdens->InsertNextTuple(Dens);
+        InverseDens = getDensity(i);
+        if(*InverseDens==0)Dens=0; 
+        else Dens=1/(*InverseDens);
+        fdens->InsertNextTuple2(*InverseDens, Dens);
     }
-*/
+    for(int corner=0; corner<8; corner++){
+        fdens->InsertNextTuple2(0,0);
+    }
+
     
     // FAGE ushort, 
     unsigned int* age = getAge(0);
@@ -540,7 +589,15 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
    
     //if (m_FParams.debug>1)cout << "\nStarting writing bond data to polydata\n" << std::flush;
     polydata->GetCellData()->AddArray(BondsUIntData);
-    polydata->GetCellData()->AddArray(BondsFloatData);
+    //polydata->GetCellData()->AddArray(BondsFloatData);
+    polydata->GetCellData()->AddArray(elastic_limit);
+    polydata->GetCellData()->AddArray(restlength);
+    polydata->GetCellData()->AddArray(modulus);
+    polydata->GetCellData()->AddArray(damping_coeff);
+    polydata->GetCellData()->AddArray(strain_integrator);
+    polydata->GetCellData()->AddArray(strain_sq_integrator);
+   
+    
     //polydata->GetPointData()->AddArray(BondsUIntData);
     //polydata->GetPointData()->AddArray(BondsFloatData);
     polydata->GetPointData()->AddArray(fage);
@@ -548,6 +605,11 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     polydata->GetPointData()->AddArray(fpid);
     polydata->GetPointData()->AddArray(fmass_radius);
     polydata->GetPointData()->AddArray(fnidx);
+    polydata->GetPointData()->AddArray(fvel);
+    polydata->GetPointData()->AddArray(fveval);
+    polydata->GetPointData()->AddArray(fforce);
+    polydata->GetPointData()->AddArray(fpress);
+    polydata->GetPointData()->AddArray(fdens);
     
     for(int i=0;i<NUM_TF; i++)      polydata->GetPointData()->AddArray(fconc[i]);
     for(int i=0;i<NUM_GENES; i++)   polydata->GetPointData()->AddArray(fepigen[i]);
@@ -954,7 +1016,7 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath, int gpu_mode, 
     if (m_FParams.debug>1)std::cout<<"\nWriteDemoSimParams chk1, num_particles="<<num_particles<<", m_FParams.debug="<<m_FParams.debug <<", launchParams.genomePath="<< launchParams.genomePath  <<std::flush;
     
     m_Param[PEXAMPLE] = simSpace;          // simSpace==2 : wave pool example.
-    m_Param[PGRID_DENSITY] = 2.0;
+    m_Param[PGRID_DENSITY] = 2.0;   // gives gridsize = 2*smoothradius/griddensity = smoothradius. 
     m_Param[PNUM] = num_particles;  // 1000000;    //1000 = minimal simulation, 1000000 = large simulation
     AllocateBuffer ( FPARAMS, sizeof(FParams), 1,0, GPU_OFF, CPU_YES ); 
     m_Time = 0;
@@ -1150,6 +1212,10 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     ret += std::fscanf ( SpecFile, "gene_activity = %c\n ", &launchParams.gene_activity );
     ret += std::fscanf ( SpecFile, "remodelling = %c\n ", &launchParams.remodelling );
     ret += std::fscanf ( SpecFile, "read_genome = %c\n ", &launchParams.read_genome );
+    ret += std::fscanf ( SpecFile, "\n");
+    
+    ret += std::fscanf ( SpecFile, "actuation_factor = %f\n ", &launchParams.actuation_factor );
+    ret += std::fscanf ( SpecFile, "actuation_period = %f\n ", &launchParams.actuation_period );
     
     ret += std::fscanf ( SpecFile, "\n");
  
@@ -1265,6 +1331,10 @@ void FluidSystem::WriteExampleSpecificationFile ( const char * relativePath ){ /
     ret += std::fprintf ( SpecFile, "gene_activity = %c\n ", launchParams.gene_activity );
     ret += std::fprintf ( SpecFile, "remodelling = %c\n ", launchParams.remodelling );
     ret += std::fprintf ( SpecFile, "read_genome = %c\n ", launchParams.read_genome );
+    ret += std::fprintf ( SpecFile, "\n");
+    
+    ret += std::fprintf ( SpecFile, "actuation_factor = %f\n ", m_Param[PACTUATION_FACTOR] );//  launchParams.actuation_factor );
+    ret += std::fprintf ( SpecFile, "actuation_period = %f\n ", m_Param[PACTUATION_PERIOD] );// launchParams.actuation_period );
     
     ret += std::fprintf ( SpecFile, "\n");
     

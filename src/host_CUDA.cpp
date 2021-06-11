@@ -55,7 +55,7 @@ void FluidSystem::FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, fl
     m_FParams.szPnts = (m_FParams.numBlocks  * m_FParams.numThreads);
 }
 
-void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float surface_tension, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl){
+void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float surface_tension, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, float a_f, float a_p ){
     m_FParams.psimscale = ss;
     m_FParams.psmoothradius = sr;
     m_FParams.pradius = pr;
@@ -83,7 +83,8 @@ void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, flo
     m_FParams.pdist = pow ( m_FParams.pmass / m_FParams.prest_dens, 1/3.0f );
                                                                                 // Normalization constants.
     m_FParams.poly6kern = 315.0f / (64.0f * 3.141592f * pow( sr, 9.0f) );
-    m_FParams.wendlandC2kern = 21 / (16 * 3.141592f );   
+    m_FParams.wendlandC2kern = 21 / (2 * 3.141592f );   // This is the value calculated in SymPy as per Wendland C2 as per (Dehnen & Aly 2012)
+    // 16   // The  WC2 kernel in DualSPHysics assumes  values of 0<=q<=2 , hence the divisor 16pi in the normalisation constant for 3D. 
     /* My notes from Sympy my notebook. 
     Where Wendland C2 kernel:
     
@@ -119,6 +120,10 @@ void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, flo
     m_FParams.d2 = m_FParams.psimscale * m_FParams.psimscale;
     m_FParams.rd2 = m_FParams.r2 / m_FParams.d2;
     m_FParams.vterm = m_FParams.lapkern * m_FParams.pvisc;
+    
+    m_FParams.actuation_factor = a_f;
+    m_FParams.actuation_period = a_p;
+    
 
     // Transfer sim params to device
     cuCheck ( cuMemcpyHtoD ( cuFParams,	&m_FParams,		sizeof(FParams) ), "FluidParamCUDA", "cuMemcpyHtoD", "cuFParams", mbDebug);
@@ -151,8 +156,16 @@ void FluidSystem::TransferFromCUDA (){
     // Return particle buffers
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPOS),         m_Fluid.gpu(FPOS),          mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FPOS",         mbDebug);
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FVEL),         m_Fluid.gpu(FVEL),          mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FVEL",         mbDebug);
+    
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FVEVAL),       m_Fluid.gpu(FVEVAL),        mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FVELAL",       mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FFORCE),       m_FluidTemp.gpu(FFORCE),    mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FFORCE",       mbDebug);
+    //NB PhysicalSort zeros m_Fluid.gpu(FFORCE)
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPRESS),       m_Fluid.gpu(FPRESS),        mMaxPoints *sizeof(float) ),                           "TransferFromCUDA", "cuMemcpyDtoH", "FPRESS",       mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FDENSITY),     m_Fluid.gpu(FDENSITY),      mMaxPoints *sizeof(float) ),                           "TransferFromCUDA", "cuMemcpyDtoH", "FDENSITY",     mbDebug);
+    
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FAGE),         m_Fluid.gpu(FAGE),          mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FAGE",         mbDebug);
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FCLR),         m_Fluid.gpu(FCLR),          mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FCLR",         mbDebug);
+    
     // add extra data for morphogenesis
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FELASTIDX),	m_Fluid.gpu(FELASTIDX),	    mMaxPoints *sizeof(uint[BOND_DATA]) ),                 "TransferFromCUDA", "cuMemcpyDtoH", "FELASTIDX",    mbDebug); 
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FPARTICLEIDX),	m_Fluid.gpu(FPARTICLEIDX),	mMaxPoints *sizeof(uint[BONDS_PER_PARTICLE *2]) ),     "TransferFromCUDA", "cuMemcpyDtoH", "FPARTICLEIDX", mbDebug);
@@ -388,8 +401,8 @@ void FluidSystem::PrefixSumChangesCUDA ( int zero_offsets ){
     }
     cuCtxSynchronize ();
 
-    for(int change_list=0;change_list<NUM_CHANGES;change_list++){
-        array1  = array0 + change_list*numElem1*sizeof(int); //m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES);//[change_list*numElem1]   ;///
+    for(int change_list=0; change_list<NUM_CHANGES; change_list++){
+        array1  = array0 + change_list*numElem1*sizeof(int); //m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES);//[change_list*numElem1]   ;      // CUdeviceptr to change_list within m_Fluid.gpu(FGRIDCNT_CHANGES), for start of prefix-sum.
         scan1   = scan0 + change_list*numElem1*sizeof(int);
         cuCheck ( cuMemsetD8 ( scan1,  0,	numElem1*sizeof(int) ), "PrefixSumChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );        
         cuCheck ( cuMemsetD8 ( array2, 0,	numElem2*sizeof(int) ), "PrefixSumChangesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
@@ -548,7 +561,8 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
 }
 
 void FluidSystem::CountingSortChangesCUDA ( ){
-    if (m_FParams.debug>1) std::cout<<"\n\n#### CountingSortChangesCUDA ( )"<<std::flush;
+    //std::cout<<"\n\n#### CountingSortChangesCUDA ( ):   m_FParams.debug = "<< m_FParams.debug <<"\n";
+    if (m_FParams.debug>1) {std::cout<<"\n\n#### CountingSortChangesCUDA ( )"<<std::flush;}
     /* ////////
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES), m_Fluid.gpu(FDENSE_LIST_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS_CHANGES", mbDebug);
     
@@ -577,7 +591,7 @@ void FluidSystem::CountingSortChangesCUDA ( ){
         if (m_FParams.debug>1)printf("\nCountingSortChangesCUDA2: change_list=%u,  densebuff_len[change_list]=%u, denselist_len[change_list]=%u ,\t\t threads=%u, numElem2=%u,  m_GridTotal=%u \t",
                change_list, densebuff_len[change_list], denselist_len[change_list], threads, numElem2,  m_GridTotal );
         cuCtxSynchronize ();
-        if(m_FParams.debug>1){
+        if(m_FParams.debug>0){
             uint fDenseList2[1000000] = {UINT_MAX};//TODO make this array size safe!  NB 10* num particles.
             CUdeviceptr*  _list2pointer = (CUdeviceptr*) &m_Fluid.bufC(FDENSE_LISTS_CHANGES)[change_list*sizeof(CUdeviceptr)]; 
                                                                                                                 // Get device pointer to FDENSE_LISTS_CHANGES[change_list].
@@ -750,7 +764,7 @@ void FluidSystem::ComputeParticleChangesCUDA (){// Call each for dense list to e
         if( (list_length>0) && (numBlocks>0) && (numThreads>0)){
             if (m_FParams.debug>0) std::cout
                 <<"\nComputeParticleChangesCUDA ():"
-                <<"\tCalling m_Func[FUNC_HEAL+"           <<change_list
+                <<"\tCalling m_Func[FUNC_HEAL+"             <<change_list
                 <<"], list_length="                         <<list_length
                 <<", numBlocks="                            <<numBlocks
                 <<", numThreads="                           <<numThreads
@@ -796,6 +810,13 @@ void FluidSystem::TransferPosVelVevalFromTemp (){
     TransferFromTempCUDA ( FPOS,	mMaxPoints *sizeof(Vector3DF) );    // NB if some points have been removed, then the existing list is no longer dense,  
     TransferFromTempCUDA ( FVEL,	mMaxPoints *sizeof(Vector3DF) );    // hence must use mMaxPoints, not mNumPoints
     TransferFromTempCUDA ( FVEVAL,	mMaxPoints *sizeof(Vector3DF) );
+}
+
+void FluidSystem::ZeroVelCUDA (){                                       // Used to remove velocity, kinetic energy and momentum during initialization.
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After freeze Run2PhysicalSort ", mbDebug);
+    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FVEL),   0.0,  mMaxPoints ),  "ZeroVelCUDA", "cuMemsetD32", "FVEL",        mbDebug);
+    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FVEVAL), 0.0,  mMaxPoints ),  "ZeroVelCUDA", "cuMemsetD32", "FVEVAL",      mbDebug);
+    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After freeze ZeroVelCUDA ", mbDebug);
 }
 
 void FluidSystem::AdvanceCUDA ( float tm, float dt, float ss ){

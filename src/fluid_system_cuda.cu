@@ -588,8 +588,8 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell, floa
 
 	float3 dist;
 	float dsq, r, q, b, c, sum = 0.0;//, sum_p6k = 0.0;
-	register float d2 = fparam.psimscale * fparam.psimscale;                // max length in simulation space
-	register float r2 = fparam.r2 / d2;                                     // = m_FParams.psmoothradius^2 / m_FParams.psimscale^2
+	//register float d2 = fparam.psimscale * fparam.psimscale;                // max length in simulation space
+	register float r2 = fparam.r2; // / d2;                                     // = m_FParams.psmoothradius^2 / m_FParams.psimscale^2
     register float H  = fparam.H;                                           // = m_FParams.psmoothradius / m_FParams.psimscale;
     register float sr = fparam.psmoothradius;
 	
@@ -613,13 +613,14 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell, floa
          * 
          */
         // NB r2 = fparam.r2 / d2; above.
-		if ( dsq < r2 && dsq > 0.0) {                                       // if(in-range && not the same particle) ie unused particles can be stored at one point.
+        //if(i==1)printf("\nr2=,%f, sr=,%f, d2=,%f, H=,%f , simscale=,%f",r2, sr, d2, H, fparam.psimscale );
+		if ( dsq < r2 && dsq > 0.0) {    //nb dsq=0 -> sum+=1               // if(in-range && not the same particle) ie unused particles can be stored at one point.
             r=sqrt(dsq);
             q=r/sr;                                                         //r/H; i.e ss:=1
-            b=(1-q/2.0);
+            b=(1-q);                     // corrected to my SymPy version. Wendland C2 as per (Dehnen & Aly 2012) NB Version in DualSPHysics seems wrong i.e. b=(1-q/2)^4*(2*q+1).
             b*=b; 
-            b*=b;
-            sum  += b*(2*q +1);//(H+4*r);                                   // Wendland C^2 quintic kernel for 3 dimensions.
+            b*=b;                        //  1 >= b >= 0.0, smaller for larger distance, inverted x^4 curve. 
+            sum  += b*(4*q +1);//(H+4*r);                                   // Wendland C^2 quintic kernel for 3 dimensions.
             /*
             if (i<5 && k<6)printf("\n contribPressure()1: i=,%u, ,j=,%u,\t ,r=sqrt(dsq)=,%f, ,H=sr/ss=,%f, q=r/H=,%f, ,b=(1-q/2.0)^3,%f,\t ,pressure= 1-q/2.0)^3*(2*q +1)=,%f  ",i, pndx, r, H, q, b, b*(2*q +1) );
             
@@ -652,14 +653,22 @@ extern "C" __global__ void computePressure ( int pnum )
 	__syncthreads();
     
 	// Compute Density & Pressure
-    float old_sum=sum,  old_sum_p6k=sum_p6k;
+    //float old_sum=sum,  old_sum_p6k=sum_p6k;
     //float rest_dens = fparam.prest_dens; //  0.0015;
 	sum = sum * fparam.pmass * fparam.wendlandC2kern;
 	//sum_p6k = sum_p6k * fparam.pmass * fparam.poly6kern;
     
 	if ( sum == 0.0 ) sum = 1.0;
 	fbuf.bufF(FPRESS)  [ i ] = ( sum - fparam.prest_dens ) * fparam.pintstiff;   // pressure = (diff from rest density) * stiffness
-	fbuf.bufF(FDENSITY)[ i ] = 1.0f / sum;
+	fbuf.bufF(FDENSITY)[ i ] = 1.0f  / sum;    // NB FDENSITY = 1/density . The reciprocal calculated here to avoid doing so repeatedly for each interaction of the particle.
+	//NB  (gradient of pressure)/density = (gradient of work) , in Eulers equations for incompressible flow. see https://en.wikipedia.org/wiki/Euler_equations_(fluid_dynamics)
+	// i.e.  del P /rho = del work  ... = F , because work = force * distance.  
+	//
+	// In Smoothed Particle Hydrodynamics (Mongahan 2005), section 3.1:
+	// Force on 'a' owing to 'b', F_(ab) is a scalar fn of |r_a - r_b| 
+	// 
+	// m_a * m_b * (P_b/(rho_b)^2 + P_a/(rho_a)^2) * r_(ab)  
+	
     /*
     if (i<10)printf("\n computePressure()2: i=,%u, ,old_sum=,%f, ,old_sum_p6k=,%-20.20f, ,sum*=pmass*wendlandC2kern=,%.32f, ,sum_p6k*=pmass*poly6kern=,%f,\t ,wendlandC2kern=,%f, poly6kern=,%f, ,pmass=,%f, ,prest_dens=,%f, ,pintstiff=,%f,\t ,Pressure=(sum-prest_dens)*pintstiff=,%f  ", 
         i, old_sum, old_sum_p6k, sum, sum_p6k, fparam.wendlandC2kern, fparam.poly6kern, fparam.pmass, fparam.prest_dens, fparam.pintstiff, fbuf.bufF(FPRESS)[i]  );
@@ -1026,7 +1035,7 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
     //if ( i >= pnum || i==0 ) {printf("\tcomputeBondChanges:i %u>=%u pnum\t",i,pnum);   return;} 
     
     if (i >= pnum ) {printf("\tcomputeBondChanges:i %u>=%u pnum\t",i,pnum);   return;} 
-    if (fparam.debug>2 && i==0 ) {printf("\tcomputeBondChanges:i=%u,  pnum=%u, fparam.maxPoints=%u \t",i, pnum, fparam.maxPoints);}
+    if (fparam.debug>0 && i==0 ) {printf("\tcomputeBondChanges:i=%u,  pnum=%u, fparam.maxPoints=%u \t",i, pnum, fparam.maxPoints);}
 
     float * fbufFCONC = &fbuf.bufF(FCONC)[i*NUM_TF];
     //float * ftempFCONC = &ftemp.bufF(FCONC)[i*NUM_TF];
@@ -1055,6 +1064,9 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
     float*bond_flt_ptr  = &fbuf.bufF(FELASTIDX)[i*BOND_DATA];                                       //FELASTIDX   [0]current index, [1]elastic limit, [2]restlength, [3]modulus,
                                                                                                                 //[4]damping coeff, [5]particle ID,   [6]bond index, 
                                                                                                                 //[7]stress integrator,  [8]change-type binary indicator
+    if (fparam.debug>0 && i==53 ) {printf("\ncomputeBondChanges:i=%u, initial reading bond_flt_ptr[rest_length]=%f ,  \t",
+                i, bond_flt_ptr[rest_length]  ); }
+                                                                                                                
     register int gridTot = fparam.gridTotal;
     /*
     // hold as a texture or similar. // part of fparams ? 
@@ -1083,30 +1095,46 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
     */
     uint bond_type[BONDS_PER_PARTICLE] = {0};                                                       //  0=elastin, 1=collagen, 2=apatite
     // calculate material type for bond
-    for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 2*(fbufFEPIGEN[9*fparam.maxPoints]>0/*bone*/);
-    if (fbufFEPIGEN[6*fparam.maxPoints]>0/*tendon*/||fbufFEPIGEN[7*fparam.maxPoints]>0/*muscle*/||fbufFEPIGEN[10*fparam.maxPoints]>0/*elast lig*/) {bond_type[0] = 1; bond_type[3] = 1;}
-    for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 1*(fbufFEPIGEN[6*fparam.maxPoints]>0/*cartilage*/);
+   // for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 2*(fbufFEPIGEN[9*fparam.maxPoints]>0/*bone*/);
+   // if (fbufFEPIGEN[6*fparam.maxPoints]>0/*tendon*/||fbufFEPIGEN[7*fparam.maxPoints]>0/*muscle*/||fbufFEPIGEN[10*fparam.maxPoints]>0/*elast lig*/) {bond_type[0] = 1; bond_type[3] = 1;}
+   // for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 1*(fbufFEPIGEN[6*fparam.maxPoints]>0/*cartilage*/);
+    
+    unsigned int tissueType;                                   // bond_type: 0=elastin, 1=collagen, 2=apatite
+    if      (fbufFEPIGEN[9*fparam.maxPoints]>0/*bone*/)       {tissueType =9;   bond_type[0]=2; bond_type[1]=2; bond_type[2]=2; bond_type[3]=2; }                                          
+    else if (fbufFEPIGEN[6*fparam.maxPoints]>0/*tendon*/)     {tissueType =6;   bond_type[0]=1; bond_type[1]=0; bond_type[2]=0; bond_type[3]=0; } 
+    else if (fbufFEPIGEN[7*fparam.maxPoints]>0/*muscle*/)     {tissueType =7;   bond_type[0]=1; bond_type[1]=0; bond_type[2]=0; bond_type[3]=0; } 
+    else if (fbufFEPIGEN[10*fparam.maxPoints]>0/*elast lig*/) {tissueType =10;  bond_type[0]=1; bond_type[1]=0; bond_type[2]=0; bond_type[3]=0; } 
+    else if (fbufFEPIGEN[6*fparam.maxPoints]>0/*cartilage*/)  {tissueType =8;   bond_type[0]=1; bond_type[1]=1; bond_type[2]=1; bond_type[3]=1; } 
+    else                                                      {tissueType =0;   bond_type[0]=0; bond_type[1]=0; bond_type[2]=0; bond_type[3]=0; } 
+    
+    
+    
     
     //if (fparam.debug>2 && i%1000==0)printf(",%u,",i);
+    
+    if (fparam.debug>0 && i==0 ) {printf("\tcomputeBondChanges:i=%u,  bond_type=(%u,%u,%u,%u), fgenome.tanh_param[bond_type[bond]][fgenome.s_d]=%f  \t",
+        i, bond_type[0],bond_type[1],bond_type[2],bond_type[3],   fgenome.tanh_param[bond_type[3]][fgenome.s_d]   ); }
     
     // bond ID for weaken and shorten
     uint _bonds = 0;
     float strength[BONDS_PER_PARTICLE] = {FLT_MAX};
+    uint shorten = 0;
     
-    for (uint bond=0; bond<BONDS_PER_PARTICLE;bond++, bond_uint_ptr+=DATA_PER_BOND, bond_flt_ptr+=DATA_PER_BOND ){
+    for (uint bond=0; bond<BONDS_PER_PARTICLE; bond++, bond_uint_ptr+=DATA_PER_BOND, bond_flt_ptr+=DATA_PER_BOND ){
+        if (fparam.debug>0 && i==53 ) {printf("\ncomputeBondChanges:i=%u,  bond=%u, 2nd reading bond_flt_ptr[rest_length]=%f ", i, bond, bond_flt_ptr[rest_length] );}
         if (bond_flt_ptr[rest_length]>0){                                                           // NB (rest_length==0) => bond broken, do not modify.
             float strain_integrator_ = bond_flt_ptr[strain_integrator] / float(steps_per_InnerPhysicalLoop);
             float strain_sq_integrator_ = bond_flt_ptr[strain_sq_integrator] / float(steps_per_InnerPhysicalLoop);
             bond_flt_ptr[strain_integrator] = 0.0;
             bond_flt_ptr[strain_sq_integrator] = 0.0;
             float * param_ptr = fgenome.param[bond_type[bond]];
-            
-            float L_a =fgenome.tanh_param[bond_type[bond]][fgenome.l_a];
+                                                                            // Read the tanh() shift parameters for the bond
+            float L_a =fgenome.tanh_param[bond_type[bond]][fgenome.l_a];    // lengthen/shorten  l_a (y-shift),	 l_b (y-scaling),	 l_c (x-scaling),	 l_d (x-shift), 
             float L_b =fgenome.tanh_param[bond_type[bond]][fgenome.l_b];
             float L_c =fgenome.tanh_param[bond_type[bond]][fgenome.l_c];
             float L_d =fgenome.tanh_param[bond_type[bond]][fgenome.l_d];
             
-            float S_a =fgenome.tanh_param[bond_type[bond]][fgenome.s_a];
+            float S_a =fgenome.tanh_param[bond_type[bond]][fgenome.s_a];    // strengthen/weaken  s_a (y-shift),	 s_b (y-scaling),	 s_c (x-scaling),	 s_d (x-shift)
             float S_b =fgenome.tanh_param[bond_type[bond]][fgenome.s_b];
             float S_c =fgenome.tanh_param[bond_type[bond]][fgenome.s_c];
             float S_d =fgenome.tanh_param[bond_type[bond]][fgenome.s_d];
@@ -1118,14 +1146,28 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
             float integ_stren_thresh = (strain_integrator_ - param_ptr[fgenome.strength_threshold]);
             */
             //NB pow() must be an odd power, to preseve sign.
-            bond_flt_ptr[rest_length] +=  bond_flt_ptr[rest_length] * pow((strain_integrator_ - param_ptr[fgenome.elongation_threshold])/param_ptr[fgenome.elongation_threshold],3) * param_ptr[fgenome.elongation_factor]; // TODO replace with shifted tanh from Jupyter notebooks.
-            
+            //bond_flt_ptr[rest_length] +=  bond_flt_ptr[rest_length] * pow((strain_integrator_ - param_ptr[fgenome.elongation_threshold])/param_ptr[fgenome.elongation_threshold],3) * param_ptr[fgenome.elongation_factor]; // TODO replace with shifted tanh from Jupyter notebooks.
+
+            // restelength adjustment : 
+            // rl_mul = 1.008+0.01*np.tanh((10*si1[i+1]) -7)
+            // rest_len = np.append(rest_len, rest_len[i] * rl_mul )
             bond_flt_ptr[rest_length] *= L_a + L_b * tanh( L_c * strain_integrator_ - L_d   );      // NB l_abcd & s_abcd should be defined in genome. 
                                                                                                     // The rules for generating them should be in notes/scripts. 
+          //  if (tissueType==6 && i%100==0 ) {printf("\ncomputeBondChanges:i=%u,  bond=%u, bond_flt_ptr[rest_length]=%f , multiplier=%f, L_a=%f, L_b=%f, L_c=%f, L_d=%f,  strain_integrator_=%f \t",
+          //      i, bond,    bond_flt_ptr[rest_length],  L_a+L_b*tanh(L_c*strain_integrator_-L_d), L_a, L_b, L_c, L_d, strain_integrator_  ); }
+                
+                
             
-            bond_flt_ptr[modulus]     +=  bond_flt_ptr[modulus]     * pow((strain_sq_integrator_ - param_ptr[fgenome.strength_threshold])/param_ptr[fgenome.strength_threshold],3)   * param_ptr[fgenome.strengthening_factor]; // TODO replace with shifted tanh from Jupyter notebooks.
+            //bond_flt_ptr[modulus]     +=  bond_flt_ptr[modulus]     * pow((strain_sq_integrator_ - param_ptr[fgenome.strength_threshold])/param_ptr[fgenome.strength_threshold],3)   * param_ptr[fgenome.strengthening_factor]; // TODO replace with shifted tanh from Jupyter notebooks.
             
+            // strength adjustment :
+            //mod_mul = 1.008+0.01*np.tanh((10*si2[i+1]) -7)
+            //modulus = np.append(modulus, modulus[i]*mod_mul)
             bond_flt_ptr[modulus] *= S_a + S_b * tanh( S_c * strain_sq_integrator_ - S_d   );
+            
+         //   if ( (S_a+S_b*tanh(S_c*strain_sq_integrator_-S_d))>1.0 && i%10==0 ) {printf("\ncomputeBondChanges:i=%u,  bond=%u, bond_flt_ptr[modulus]=%f , multiplier=%f, S_a=%f, S_b=%f, S_c=%f, S_d=%f,  strain_sq_integrator_=%f \t",
+         //       i, bond,    bond_flt_ptr[modulus],  S_a+S_b*tanh(S_c*strain_sq_integrator_-S_d), S_a, S_b, S_c, S_d, strain_sq_integrator_  ); }
+            
             /*
             if (fparam.debug>2 && fbuf.bufI(FPARTICLE_ID)[i]<10){
                 //printf("\ncomputeBondChanges(): ParticleID=%u,  bond=%u, bond_type=%u, fbufFEPIGEN[9]=%2.2f, [6]=%2.2f, [7]=%2.2f, [10]=%2.2f,  rest_length=%f,  modulus=%f\t, strain_integrator=%f, elongation_threshold=%f,\t integ-elong_thresh=%f elongation_factor=%f, \t restln_multiplier=%f \t\t strength_threshold=%f, integ_stren_thresh=%f, strengthening_factor=%f, strength_multiplier=%f",
@@ -1140,6 +1182,7 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
                                                                                                     // i.e. if (bond==0 && fbufFEPIGEN[7]>0/*muscle*/) m=2 else m=1;
                                                                                                     // NB two different lists for each change, for (muscle & elastic ligg  vs other tissues)
         bond_uint_ptr[change_type]=0;                                                               // Need to zero the indicator.
+        
         /*
         //if (fparam.debug>2 && i%1000==0)if(bond_flt_ptr[2]!=0.0)printf(",");  //("\tcomputeBondChanges:(bond_flt_ptr[2]!=0.0): =i%u \t", i);
         //if (fparam.debug>2 && i%1000==0)if(!(bond < 3 || fbufFEPIGEN[8]>0 ||  fbufFEPIGEN[9]>0))printf("'");   //("\tcomputeBondChanges:!(bond < 3 || fbufFEPIGEN[8]>0 ||  fbufFEPIGEN[9]>0): =i%u \t", i);   
@@ -1173,15 +1216,19 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
           //      particle_index , bond_uint_ptr[8], fbufFGRIDCNT_CHANGES[ 0*gridTot  + fbuf.bufI(FGCELL)[i] ])
           */
             break;                                                                                  // First, heal one bond per timestep. Remodel only after freeze.
-        }else if(fparam.freeze==false){                                                                                      // prevents clash with heal.
+        }/*else if(fparam.freeze==false){                                                                                      // prevents clash with heal.
             if (bond_flt_ptr[rest_length] > fgenome.param[bond_type[bond]][fgenome.max_rest_length]) 
             {  
                 atomicAdd ( &fbufFGRIDCNT_CHANGES[ m*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );        //add to elongate list , store particleIdx & bond 
                 bond_uint_ptr[change_type]+=2*m;                                                    // ie lengthen_tissue=2, lengthen_muscle=4
                 //printf("\nbond_uint_ptr[change_type]=%u, // ie lengthen_tissue=2, lengthen_muscle=4",bond_uint_ptr[change_type]);
             }
-            /*
-            //if (bond_flt_ptr[rest_length] < fgenome.param[bond_type[bond]][fgenome.min_rest_length] ) //consider for shorten list
+            
+            if (bond_flt_ptr[rest_length] < fgenome.param[bond_type[bond]][fgenome.min_rest_length] ) //consider for shorten list
+            {
+                shorten += (1<<bond);
+            }
+            
             //{  
                 //atomicAdd ( &fbufFGRIDCNT_CHANGES[ (2+m)*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );    //add to shorten list 
                 //bond_uint_ptr[change_type]+=8*m;
@@ -1190,7 +1237,7 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
                 //strength[bond] = bond_flt_ptr[modulus];
                 // replace with: find strongest bond, if strongest bond needs shortening, then remove particle.
             //}
-            */
+            
             if (bond_flt_ptr[modulus] > fgenome.param[bond_type[bond]][fgenome.max_modulus])     
             {  
                 atomicAdd ( &fbufFGRIDCNT_CHANGES[ (4+m)*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );    //add to strengthen list 
@@ -1201,7 +1248,7 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
                 atomicAdd ( &fbufFGRIDCNT_CHANGES[ (6+m)*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );    //add to weaken list
                 bond_uint_ptr[change_type]+=128*m;
             }
-        }
+        }*/
     }
     
     // particle removal lists, require all bonds to be weak. 
@@ -1219,11 +1266,10 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
         bond_uint_ptr[change_type]+=8*m;
     }
     */
-    //
     
-    uint bond_ = 0;
-    for (uint bond=0; bond<BONDS_PER_PARTICLE; bond++)if(strength[bond] < strength[bond_]) bond_=bond;                  // find strongest bond
+     // Lengthen : needs to (i) take account of 'fparam.freeze' and 'heal', i.e. not reproduce heal list.
     
+    /*
     if (fbuf.bufF(FELASTIDX)[i*BOND_DATA +rest_length] < fgenome.param[bond_type[bond_]][fgenome.min_rest_length] ){    // NB chk rest_len of strongest bond.
         printf("\ncomputeBondChanges():  particle_index=%u, bond_=%u  rest_len=%f, min_rest_len=%f",
                particle_index, bond_, fbuf.bufF(FELASTIDX)[i*BOND_DATA +rest_length], fgenome.param[bond_type[bond_]][fgenome.min_rest_length]  );
@@ -1231,6 +1277,20 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
         int m = 1 + ((bond_==0)&&(fbufFEPIGEN[7*fparam.maxPoints]>0|fbufFEPIGEN[10*fparam.maxPoints]>0));               // muscle or elast_lig
         atomicAdd ( &fbufFGRIDCNT_CHANGES[ (2+m)*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );                                // add to shorten list
         bond_uint_ptr[change_type]+=8*m;
+    }
+    */
+    
+    if (shorten!=0){    // This prevents necessary strong bonds being removed by particle "shortening" of weak bonds.
+        uint bond_ = 0;
+        for (uint bond=0; bond<BONDS_PER_PARTICLE; bond++)if(strength[bond] < strength[bond_]) bond_=bond;              // find strongest bond
+        if ((shorten>>bond_)&1) {                                                                                       // if the strongest bond is flagged for removal
+            printf("\ncomputeBondChanges():  particle_index=%u, bond_=%u  rest_len=%f, min_rest_len=%f",
+               particle_index, bond_, fbuf.bufF(FELASTIDX)[i*BOND_DATA +rest_length], fgenome.param[bond_type[bond_]][fgenome.min_rest_length]  );
+        
+            int m = 1 + ((bond_==0)&&(fbufFEPIGEN[7*fparam.maxPoints]>0|fbufFEPIGEN[10*fparam.maxPoints]>0));           // muscle or elast_lig
+            atomicAdd ( &fbufFGRIDCNT_CHANGES[ (2+m)*gridTot  + fbuf.bufI(FGCELL)[i] ], 1 );                            // add to shorten list
+            bond_uint_ptr[change_type]+=8*m;
+        }
     }
 }
 
@@ -1897,11 +1957,34 @@ extern "C" __global__ void initialize_bonds (int ActivePoints, uint list_length,
     float * floatptr    = &fbuf.bufF(FELASTIDX)[i*BOND_DATA];
     //printf("\n initialize_bonds()3: i=%u,  ",i);
     
-    uint  elastin       = fgenome.elastin;
+    /////
+    uint  * fbufFEPIGEN = &fbuf.bufI(FEPIGEN)[i];
+    uint bond_type[BONDS_PER_PARTICLE] = {fgenome.elastin, fgenome.elastin, fgenome.elastin, fgenome.elastin };//{0};           //  0=elastin, 1=collagen, 2=apatite
+    // calculate material type for bond
+    {    
+    //for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 2*(fbufFEPIGEN[9*fparam.maxPoints]>0/*bone*/);
+    //if (fbufFEPIGEN[6*fparam.maxPoints]>0/*tendon*/||fbufFEPIGEN[7*fparam.maxPoints]>0/*muscle*/||fbufFEPIGEN[10*fparam.maxPoints]>0/*elast lig*/) {bond_type[0] = 1; bond_type[3] = 1;}
+    //for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 1*(fbufFEPIGEN[6*fparam.maxPoints]>0/*cartilage*/);
+    //if (i%100==0){
+    //    printf("\ninitialize_bonds(): bond_type[bond]=(%u,%u,%u,%u), fbufFEPIGEN[9*fparam.maxPoints]=%u, fbufFEPIGEN[7*fparam.maxPoints]=%u, fbufFEPIGEN[10*fparam.maxPoints]=%u, fbufFEPIGEN[6*fparam.maxPoints]=%u  ",
+    //           bond_type[0],bond_type[1],bond_type[2],bond_type[3], fbufFEPIGEN[9*fparam.maxPoints], fbufFEPIGEN[7*fparam.maxPoints], fbufFEPIGEN[10*fparam.maxPoints], fbufFEPIGEN[6*fparam.maxPoints]);
+    }
+    // from saveVTP() host code
+    unsigned int tissueType;                                   // bond_type: 0=elastin, 1=collagen, 2=apatite
+    if      (fbufFEPIGEN[9*fparam.maxPoints]>0/*bone*/)       {tissueType =9;   bond_type[0]=2; bond_type[1]=2; bond_type[2]=2; bond_type[3]=2; }                                          
+    else if (fbufFEPIGEN[6*fparam.maxPoints]>0/*tendon*/)     {tissueType =6;   bond_type[0]=1; bond_type[1]=0; bond_type[2]=0; bond_type[3]=0; } 
+    else if (fbufFEPIGEN[7*fparam.maxPoints]>0/*muscle*/)     {tissueType =7;   bond_type[0]=1; bond_type[1]=0; bond_type[2]=0; bond_type[3]=0; } 
+    else if (fbufFEPIGEN[10*fparam.maxPoints]>0/*elast lig*/) {tissueType =10;  bond_type[0]=1; bond_type[1]=0; bond_type[2]=0; bond_type[3]=0; } 
+    else if (fbufFEPIGEN[6*fparam.maxPoints]>0/*cartilage*/)  {tissueType =8;   bond_type[0]=1; bond_type[1]=1; bond_type[2]=1; bond_type[3]=1; } 
+    else                                                      {tissueType =0;   bond_type[0]=0; bond_type[1]=0; bond_type[2]=0; bond_type[3]=0; } 
+    /////
+    /*
+    uint  elastin       = fgenome.elastin;                                      // here the idea is to make all bonds eastin initially, then remodel by tissue type + forces
     float damping       = fgenome.param[elastin][fgenome.default_damping];
     float modulus       = fgenome.param[elastin][fgenome.default_modulus];
     float rest_length   = fgenome.param[elastin][fgenome.default_rest_length];
     float elastLim      = fgenome.param[elastin][fgenome.elastLim];
+    */
     //printf("\n initialize_bonds()4: i=%u,  ",i);
     
     for (int bond=0; bond<BONDS_PER_PARTICLE; bond++){
@@ -1912,16 +1995,17 @@ extern "C" __global__ void initialize_bonds (int ActivePoints, uint list_length,
         //if(bondToIdx[bond]>=ActivePoints)printf("\ninitialize_bonds()4.2: i=%u, bond=%u,  bondToIdx[bond]=%u      ",i,bond, bondToIdx[bond] );
         if(bondToIdx[bond]<ActivePoints){ 
             uintptr [bond*DATA_PER_BOND +0] = bondToIdx[bond];
-            floatptr[bond*DATA_PER_BOND +1] = elastLim;
-            floatptr[bond*DATA_PER_BOND +2] = rest_length;
-            floatptr[bond*DATA_PER_BOND +3] = modulus;
-            floatptr[bond*DATA_PER_BOND +4] = damping;
+            floatptr[bond*DATA_PER_BOND +1] = fgenome.param[bond_type[bond]][fgenome.elastLim];
+            floatptr[bond*DATA_PER_BOND +2] = fgenome.param[bond_type[bond]][fgenome.default_rest_length]; // sqrt(bond_dsq); // set restlen = initial length
+            floatptr[bond*DATA_PER_BOND +3] = fgenome.param[bond_type[bond]][fgenome.default_modulus];
+            floatptr[bond*DATA_PER_BOND +4] = fgenome.param[bond_type[bond]][fgenome.default_damping];
             uintptr [bond*DATA_PER_BOND +5] = fbuf.bufI(FPARTICLE_ID)[bondToIdx[bond]];
             uintptr [bond*DATA_PER_BOND +6] = 0;
             uintptr [bond*DATA_PER_BOND +7] = 0;
         }
     }
-    //printf("\n initialize_bonds()5: i=%u,  ",i);
+    //if(tissueType==9)printf("\n initialize_bonds()5: i=%u, tissueType==9 i.e. 'bone', bond_type[0]=%u, floatptr[0*DATA_PER_BOND +1]=%f, i.e. elastlim",i, bond_type[0], floatptr[0*DATA_PER_BOND +1]);
+    //if(tissueType==8)printf("\n initialize_bonds()5: i=%u, tissueType==8 i.e. 'cartilage' ",i);
 }    
 
 
@@ -2910,7 +2994,7 @@ extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const
 
     // this is all standard setup stuff, borrowed from contributePressure()
     register float d2 = fparam.psimscale * fparam.psimscale; // (particle simulation scale), not PSI
-    register float r2 = fparam.r2 / d2;
+    register float r2 = fparam.r2 / d2;     // TODO update to match contribPressure, i.e. not use psimscale
 
     // offset of particle in particle list, and number of particles in cell?
     int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];
@@ -3069,7 +3153,6 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
          * 
          * where alpha_D = 21/(16*Pi*h**3)  , the normalization kernel in 3D,
          * i.e. 1/integral_(0,2){kernel * area of a sphere}dr 
-         * 
          */
         /* My new kernels
          * sr=1
@@ -3083,7 +3166,7 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
          */
         
         if ( dsq < 1 /*fparam.rd2*/ && dsq > 0) {                                                           // IF in-range && not the same particle
-            float kern = pow((sr - r),3);
+            float kern = pow((sr - r),3);                                                                   // used as a component of surface tension kernel AND directly in viscosity
             sdist   = sqrt(dsq * fparam.d2);                                                                // smoothing distance
             float press = 100*(ipress+fbuf.bufF(FPRESS)[j]);///sdist
             
@@ -3135,12 +3218,13 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
         bonds[a][1]= UINT_MAX;
         bond_dsq[a]= fparam.rd2;                                                    // NB if ( dsq < fparam.rd2 && dsq > 0) is the cut off for fluid interaction range
     } 
-    
+    uint i_ID = fbuf.bufI(FPARTICLE_ID)[i];
     //if(fbuf.bufI(FPARTICLE_ID)[i]<10) printf("\ncomputeForce() chk2: ParticleID=%u  ",fbuf.bufI(FPARTICLE_ID)[i] );  
     //__syncthreads();
     
     float3  pvel = {fbuf.bufF3(FVEVAL)[ i ].x,  fbuf.bufF3(FVEVAL)[ i ].y,  fbuf.bufF3(FVEVAL)[ i ].z}; // copy i's FEVAL to thread memory
     bool hide;
+    bool long_bonds = false;
     for (int a=0;a<BONDS_PER_PARTICLE;a++){                                         // compute elastic force due to bonds /////////////////////////////////////////////////////////
         uint bond                   = i*BOND_DATA + a*DATA_PER_BOND;                // bond's index within i's FELASTIDX 
         uint j                      = fbuf.bufI(FELASTIDX)[bond];                   // particle IDs   i*BOND_DATA + a
@@ -3167,16 +3251,23 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
             fbuf.bufF(FELASTIDX)[bond + /*7*/strain_integrator] = (fbuf.bufF(FELASTIDX)[bond + /*7*/strain_integrator] + spring_strain);// * DECAY_FACTOR; // spring strain integrator
                                                                                     // NB must divide by iterations when reading integrators, then re-zero integrators.
           
-          if(abs_dist > 2) printf("\ncomputeForce(): long bond, parent=%u, other_particle=%u, bond_idx=%u, abs_dist=%f  ", i, j, a, abs_dist);
+     //     if(abs_dist > 2) printf("\ncomputeForce(): long bond, parent=%u, other_particle=%u, bond_idx=%u, abs_dist=%f  ", i, j, a, abs_dist);
           
           //if(fbuf.bufI(FPARTICLE_ID)[i]<10) printf("\ncomputeForce() chk3: ParticleID=%u, bond=%u, restlength=%f, modulus=%f , abs_dist=%f , spring_strain=%f , strain_integrator=%f  ",fbuf.bufI(FPARTICLE_ID)[i], a, restlength , modulus , abs_dist , spring_strain , fbuf.bufF(FELASTIDX)[bond + 7]  );  
             
-            eterm = ((float)(abs_dist < elastic_limit)) * ( ((dist/abs_dist) * spring_strain * modulus) - damping_coeff*rel_vel); // Elastic force due to bond ####
+            eterm = ((float)(abs_dist < elastic_limit)) * ( ((dist/abs_dist) * spring_strain * modulus) - damping_coeff*rel_vel) /(fparam.pmass); //Accel due to elastic bond. NB equal masses particles
+            //eterm = make_float3(0,0,0);
             
-            //if(i<10) printf("\ncomputeForce() : i=,%u, bond=,%u, eterm=(,%f,%f,%f,) ",i, a, eterm.x,eterm.y,eterm.z);
+            if(fparam.debug >0  && abs_dist>1.5 /* i==uint(pnum/2) */  /*fbuf.bufF(FEPIGEN)[i +  12*fparam.maxPoints]*/) {                      // if "external actuation" particle
+                long_bonds=true;
+                printf("\ncomputeForce() 1: frame=%u, i=,%u, i_ID=%u, j=%u, j_ID=%u, other_particle_ID=%u, \t\t bond=,%u, eterm=(,\t%f,\t%f,\t%f,\t) restlength=%f, modulus=%f , abs_dist=%f , spring_strain=%f , strain_integrator=%f,  damping_coeff*rel_vel.z/fparam.pmass=%f,  ((dist/abs_dist) * spring_strain * modulus) /fparam.pmass=%f ",
+                       frame, i, i_ID,  j, fbuf.bufI(FPARTICLE_ID)[j], other_particle_ID, a, eterm.x,eterm.y,eterm.z,   restlength , modulus , abs_dist , spring_strain , fbuf.bufF(FELASTIDX)[bond + 7],
+                       damping_coeff*rel_vel.z/fparam.pmass,     (((dist.z/abs_dist) * spring_strain * modulus) /fparam.pmass)
+                      );
+            }
             
-            if(eterm.x!=eterm.x||eterm.y!=eterm.y||eterm.z!=eterm.z){ // "isnan()" by IEEE 754 rule, NaN is not equal to NaN
-                if(!hide){
+            if(eterm.x!=eterm.x||eterm.y!=eterm.y||eterm.z!=eterm.z){               // "isnan()" by IEEE 754 rule, NaN is not equal to NaN
+                if(!hide ){ 
                 printf("\n#### i=,%i, j=,%i, bond=,%i, eterm.x=%f, eterm.y=%f, eterm.z=%f  \t####",i,j,a,  eterm.x,eterm.y,eterm.z);
                 printf("\ncomputeForce() chk3: ParticleID=%u, bond=%u, restlength=%f, modulus=%f , abs_dist=%f , spring_strain=%f , strain_integrator=%f  ",fbuf.bufI(FPARTICLE_ID)[i], a, restlength , modulus , abs_dist , spring_strain , fbuf.bufF(FELASTIDX)[bond + 7]  );
                 }
@@ -3186,7 +3277,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
                 atomicAdd( &fbuf.bufF3(FFORCE)[ j ].y, eterm.y);
                 atomicAdd( &fbuf.bufF3(FFORCE)[ j ].z, eterm.z);                    // temporary hack, ? better to write a float3 attomicAdd using atomicCAS  #########
             }
-            if (abs_dist >= elastic_limit){                                         // If (out going bond broken)
+            if (abs_dist >= elastic_limit  && freeze==false){                       // If (out going bond broken)  nb 'freeze'=> initializing bonds
                 fbuf.bufF(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +2]=0.0;         // remove broken bond by setting rest length to zero.
                 //fbuf.bufF(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +3]=0;         // set modulus to zero
                 
@@ -3206,18 +3297,22 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
     //if(i<10) printf("\n computeForce()1: i=,%u, elastic force=(,%f,%f,%f,) ",i, force.x,force.y,force.z);
 	
     bondsToFill=BONDS_PER_PARTICLE; // remove and use result from loop above ? ############
-    for (int c=0; c < fparam.gridAdjCnt; c++) {                                 // Call contributeForce(..) for fluid forces AND potential new bonds /////////////////////////
+    float3 fluid_force_sum = make_float3(0,0,0);
+    for (int c=0; c < fparam.gridAdjCnt; c++) {                                     // Call contributeForce(..) for fluid forces AND potential new bonds /////////////////////////
         
         float3 fluid_force = make_float3(0,0,0);
         fluid_force = contributeForce ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FPRESS)[ i ], fbuf.bufF(FDENSITY)[ i ], gc + fparam.gridAdj[c]); 
-        //if (freeze==true) fluid_force *=0.1;                                        // slow fluid movement while forming bonds
-        force += fluid_force;
+        //if (freeze==true) fluid_force *=0.1;                                      // slow fluid movement while forming bonds
+        fluid_force_sum += fluid_force;
     }
-    //if(i<10) printf("\nComputeForce 2: i=,%u, force=(,%f,%f,%f,) ", i,force.x,force.y,force.z);
+    force += fluid_force_sum * fparam.pmass ; // now  force is accel.... 
+    if(fparam.debug >0  && long_bonds==true /*i==uint(pnum/2)*/ /* && fbuf.bufF(FEPIGEN)[i +  12*fparam.maxPoints]*/ ) {                              // if "external actuation" particle
+        fluid_force_sum *= fparam.pmass;
+        printf("\nComputeForce 2: i=,%u,   fluid_force_sum=(,\t%f,\t%f,\t%f,\t) \n\t\t\t force=(,\t%f,\t%f,\t%f,\t) ", 
+               i, fluid_force_sum.x, fluid_force_sum.y, fluid_force_sum.z,   force.x, force.y, force.z );
+    }
     //printf(".\n");
     //__syncthreads();
-    
-    
     //if (fparam.debug>2)printf("\ni=%u, bond_dsq=(%f,%f,%f,%f,%f,%f),",i,bond_dsq[0],bond_dsq[1],bond_dsq[2],bond_dsq[3],bond_dsq[4],bond_dsq[5]);
 
 	//__syncthreads();   // when is this needed ? ############
@@ -3356,18 +3451,19 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 
 	// Leapfrog integration						
 	accel = fbuf.bufF3(FFORCE)[i];
-	accel *= fparam.pmass;	      // implies pmass is 1/mass ? poss faster this way.
-		
+	//accel *= fparam.pmass;	// Moved to computeForce() where fluid_force is added to FFORCE.      
+                                // f=ma, a=f/m, but f=m_a*m_b*{(P_a/rho_a)+(P_b/rho_b)} * smoothing kernel,  where f=m_a*fbuf.bufF3(FFORCE)[i]
+                                // ? compatability of elastic eterm with pterm and vterm in computeForce() ?
 	// Boundaries
 	// Y-axis
-	diff = fparam.pradius - (pos.y - (fparam.pboundmin.y + (pos.x-fparam.pboundmin.x)*fparam.pground_slope )) * ss;
+	diff = fparam.pradius - (pos.y - (fparam.pboundmin.y + (pos.x-fparam.pboundmin.x)*fparam.pground_slope )) ; // * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3( -fparam.pground_slope, 1.0 - fparam.pground_slope, 0);
 		adj = fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
 		norm *= adj; accel += norm;
 	}
 
-	diff = fparam.pradius - ( fparam.pboundmax.y - pos.y )*ss;
+	diff = fparam.pradius - ( fparam.pboundmax.y - pos.y ) ; // * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3(0, -1, 0);
 		adj = fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
@@ -3376,14 +3472,14 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 
 	// X-axis
 	//diff = fparam.pradius - (pos.x - (fparam.pboundmin.x + (sin(time*fparam.pforce_freq)+1)*0.5 * fparam.pforce_min))*ss;  //wave machine NB fparam.pforce_freq
-	diff = fparam.pradius - (pos.x - fparam.pboundmin.x ) * ss;
+	diff = fparam.pradius - (pos.x - fparam.pboundmin.x ) ; // * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3( 1, 0, 0);
 		adj = (fparam.pforce_min+1) * fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
 		norm *= adj; accel += norm;
 	}
 	//diff = fparam.pradius - ( (fparam.pboundmax.x - (sin(time*fparam.pforce_freq)+1)*0.5*fparam.pforce_max) - pos.x)*ss;  //wave machine
-	diff = fparam.pradius - ( fparam.pboundmax.x - pos.x )*ss;
+	diff = fparam.pradius - ( fparam.pboundmax.x - pos.x ) ; // * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3(-1, 0, 0);
 		adj = (fparam.pforce_max+1) * fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
@@ -3391,13 +3487,13 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	}
 
 	// Z-axis
-	diff = fparam.pradius - (pos.z - fparam.pboundmin.z ) * ss;
+	diff = fparam.pradius - (pos.z - fparam.pboundmin.z ) ; // * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3( 0, 0, 1 );
 		adj = fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
 		norm *= adj; accel += norm;
 	}
-	diff = fparam.pradius - ( fparam.pboundmax.z - pos.z )*ss;
+	diff = fparam.pradius - ( fparam.pboundmax.z - pos.z ) ; // * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3( 0, 0, -1 );
 		adj = fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
@@ -3406,7 +3502,7 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	
 	// Shield for particle store at fparam.pboundmax . ? does this exist implicitly due to the other boundaries ? 
 	float3 dist = fparam.pboundmax - pos;
-	diff = 2*fparam.pradius - (dist.x + dist.y + dist.z) * ss;                  // use Manhatan norm for speed & 2*pradius for safety
+	diff = 2*fparam.pradius - (dist.x + dist.y + dist.z) ; // * ss;                  // use Manhatan norm for speed & 2*pradius for safety
 	if ( diff > EPSILON ) {
         norm = make_float3( 1, 1, 1 );                                          // NB planar norm for speed, not spherical
         adj = fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
@@ -3422,23 +3518,33 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
     
 	// Accel Limit
 	speed = accel.x*accel.x + accel.y*accel.y + accel.z*accel.z;
+    /* 
     if(fparam.debug>2 && i<10)printf("\nadvanceParticles()1: i=,%u,  mass=,%f,  accel=(,%f,%f,%f,),\t  accel^2=,%f,\t fparam.AL2=,%f,\t  fparam.pgravity=,(,%f,%f,%f,) ",
         i, fparam.pmass, accel.x,accel.y,accel.z, speed, fparam.AL2, fparam.pgravity.x, fparam.pgravity.y, fparam.pgravity.z
     );
+    */
 	if ( speed > fparam.AL2 ) {
 		accel *= fparam.AL / sqrt(speed);     // reduces accel to fparam.AL, while preserving direction. 
+        /*if(i==uint(numPnts/2))*/if(fparam.debug>1)printf("\nadvanceParticles() Accel Limit: i=,%u,  mass=,%f,  accel=(,%f,%f,%f,),\t  accel^2=,%f,\t fparam.AL2=,%f,\t  fparam.pgravity=,(,%f,%f,%f,) ",
+        i, fparam.pmass, accel.x,accel.y,accel.z, speed, fparam.AL2, fparam.pgravity.x, fparam.pgravity.y, fparam.pgravity.z
+        );
 	}
 
 	// Velocity Limit
 	float3 vel = fbuf.bufF3(FVEL)[i];
     
 	speed = vel.x*vel.x + vel.y*vel.y + vel.z*vel.z;
+    /*
     if(fparam.debug>2 && i<10)printf("\nadvanceParticles()2: i=,%u, accel=(,%f,%f,%f,),  vel=(,%f,%f,%f,),  vel^2=,%f,  fparam.VL2=,%f, ",
         i, accel.x,accel.y,accel.z, vel.x,vel.y,vel.z,  speed, fparam.VL2
     );
+    */
 	if ( speed > fparam.VL2 ) {
 		speed = fparam.VL2;
-		vel *= fparam.VL / sqrt(speed);       // reduces vel to fparam.VL , while preerving direction.
+		vel *= fparam.VL / sqrt(speed);       // reduces vel to fparam.VL , while preserving direction.
+        if(fparam.debug>1)printf("\nadvanceParticles() Velocity Limit: i=,%u,  mass=,%f,  accel=(,%f,%f,%f,),\t  speed=,%f,\t fparam.VL2=,%f,\t  fparam.pgravity=,(,%f,%f,%f,) ",
+        i, fparam.pmass, accel.x,accel.y,accel.z, speed, fparam.VL2, fparam.pgravity.x, fparam.pgravity.y, fparam.pgravity.z
+        );
 	}
 	
 	/*
@@ -3452,17 +3558,16 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
     
 	// Leap-frog Integration                                                    // Write to ftemp.buf*(FEVEL/FVEL/FPOS)
                                                                                 // Allows specialParticles() to read old values.
-	float3 vnext = accel*dt + vel;                                              // v(t+1/2) = v(t-1/2) + a(t) dt		
+	float3 vnext           = accel*dt + vel;                                    // v(t+1/2) = v(t-1/2) + a(t) dt		
 	ftemp.bufF3(FVEVAL)[i] = (vel + vnext) * 0.5;                               // v(t+1) = [v(t-1/2) + v(t+1/2)] * 0.5			
-	ftemp.bufF3(FVEL)[i] = vnext;
-	ftemp.bufF3(FPOS)[i] += (vnext * (dt/ss)) /* + bmotion*/;                          // p(t+1) = p(t) + v(t+1/2) dt		
+	ftemp.bufF3(FVEL)[i]   = vnext;
+	ftemp.bufF3(FPOS)[i]   += (vnext * dt); /*(dt/ss)) + bmotion*/              // p(t+1) = p(t) + v(t+1/2) dt		
     
     
     if (fparam.debug>2 && i<10 ){  // fparam.debug>2 && i==0
         printf("\nadvanceParticles()3: i=,%u,   accel.x==(,%f,%f,%f,),  vel=(,%f,%f,%f,),  dt==%f, vnext.x==(,%f,%f,%f,), ss==%f", //rnd_nmbr=%u, bmotion=(,%f,%f,%f,),
               i, /*rnd_nmbr, bmotion.x,bmotion.y,bmotion.z,*/  accel.x,accel.y,accel.z,  vel.x,vel.y,vel.z,    dt,   vnext.x,vnext.y,vnext.z,   ss
               );
-        
 /*
         printf("\naccel.x==%f",accel.x);
         printf("\ndt==%f",dt);
@@ -3483,7 +3588,7 @@ extern "C" __global__ void externalActuation (uint list_len,  float time, float 
   //if (fparam.debug>2)printf("\nexternalActuation(): i=%u\t",i);
     
     // Get particle vars
-	register float3 accel;//, norm;
+	register float3 accel={0};//, norm;
 	register float speed; //diff, adj, 
 	register float3 pos = fbuf.bufF3(FPOS)[i];
 	register float3 veval = fbuf.bufF3(FVEVAL)[i];
@@ -3502,11 +3607,12 @@ extern "C" __global__ void externalActuation (uint list_len,  float time, float 
     // 2) model input
     // 3) simulation interaction (SOFA)
     
-#define FACTOR  10
-#define PERIOD  20
-    accel +=  fparam.pgravity * FACTOR * sin(time/PERIOD) ;
+#define FACTOR  0.01
+#define PERIOD  100.0
     
+    //accel.z +=  fparam.pgravity.y * fparam.actuation_factor /*FACTOR*/ * sin(time/fparam.actuation_period/*PERIOD*/) ;   /*fparam.pgravity */
     
+    /*
 	// Accel Limit
 	speed = accel.x*accel.x + accel.y*accel.y + accel.z*accel.z;
 	if ( speed > fparam.AL2 ) {
@@ -3532,6 +3638,21 @@ extern "C" __global__ void externalActuation (uint list_len,  float time, float 
     //       i, ftemp.bufF3(FVEL)[i].x, ftemp.bufF3(FVEL)[i].y, ftemp.bufF3(FVEL)[i].z,
     //       ftemp.bufF3(FPOS)[i].x, ftemp.bufF3(FPOS)[i].y, ftemp.bufF3(FPOS)[i].z  
     //      );
+    */
+    ///////////////////////////
+    //float x_=fbuf.bufF3(FPOS)[i].x , y_=fbuf.bufF3(FPOS)[i].y , z_=fbuf.bufF3(FPOS)[i].z ;
+    
+    //float x=ftemp.bufF3(FPOS)[i].x , y=ftemp.bufF3(FPOS)[i].y , z=ftemp.bufF3(FPOS)[i].z ;
+    //if(particle_index==1) printf("\n(i=,%u, old_fpos=,%f,%f,%f, fpos=,%f,%f,%f,)",i,  x_, y_, z_,  x, y, z);
+    
+    ftemp.bufF3(FVEVAL)[i] = fbuf.bufF3(FVEVAL)[i];
+	ftemp.bufF3(FVEL)[i]   = fbuf.bufF3(FVEL)[i];
+	ftemp.bufF3(FPOS)[i]   = fbuf.bufF3(FPOS)[i];
+    
+    ftemp.bufF3(FPOS)[i].z += fparam.actuation_factor * sin(time/(fparam.actuation_period * dt)) ;    //(FACTOR * sin(time/(PERIOD*dt))) ;
+    
+    if( fparam.debug >1  &&  particle_index==1) printf("\n(i=,%u,fpos=,%f,%f,%f,),%f, %f, %f, %f, %f", i,ftemp.bufF3(FPOS)[i].x,ftemp.bufF3(FPOS)[i].y,ftemp.bufF3(FPOS)[i].z,  
+        (fparam.actuation_factor * sin(time/(fparam.actuation_period*dt))),    (time/(fparam.actuation_period*dt)),     time,     fparam.actuation_period, (FACTOR * sin(time/(PERIOD*dt))) );
 }
 
 

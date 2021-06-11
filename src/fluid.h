@@ -306,6 +306,8 @@
 		int3			gridRes, gridScanMax;
 		int				gridSrch, gridTotal, gridAdjCnt, gridActive;
 		int				gridAdj[64];
+        float           actuation_factor;
+        float           actuation_period;
 	};
     
     //////////////////////

@@ -92,6 +92,9 @@
 	#define PGRAV				22 
 	#define PFORCE_FREQ			23	
     #define PSURFACE_TENSION    24
+    
+    #define PACTUATION_FACTOR   25
+    #define PACTUATION_PERIOD   26
 
 	// Vector params   "m_Vec[]" 
 	#define PVOLMIN				0
@@ -185,6 +188,12 @@
 		int ActivePoints ()             { return mActivePoints; }
 		Vector3DF* getPos ( int n )	    { return &m_Fluid.bufV3(FPOS)[n]; }
 		Vector3DF* getVel ( int n )	    { return &m_Fluid.bufV3(FVEL)[n]; }
+		Vector3DF* getVeval ( int n )   { return &m_Fluid.bufV3(FVEVAL)[n]; }
+		Vector3DF* getForce ( int n )   { return &m_Fluid.bufV3(FFORCE)[n]; }
+		
+		float* getPres ( int n )        { return &m_Fluid.bufF(FPRESS)[n];} 
+		float* getDensity ( int n )     { return &m_Fluid.bufF(FDENSITY)[n];} 
+		
 		uint* getAge ( int n )			{ return &m_Fluid.bufI(FAGE)[n]; }
 		uint* getClr ( int n )			{ return &m_Fluid.bufI(FCLR)[n]; }
         uint* getElastIdx( int n )      { return &m_Fluid.bufI(FELASTIDX)[n*(BONDS_PER_PARTICLE * DATA_PER_BOND)]; }        //note #define FELASTIDX   14      
@@ -236,7 +245,7 @@
 		Vector3DF GetGridDelta ()	{ return m_GridDelta; }
 
 		void FluidSetupCUDA ( int num, int gsrch, int3 res, float3 size, float3 delta, float3 gmin, float3 gmax, int total, int chk );
-		void FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float surface_tension, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl);
+		void FluidParamCUDA ( float ss, float sr, float pr, float mass, float rest, float3 bmin, float3 bmax, float estiff, float istiff, float visc, float surface_tension, float damp, float fmin, float fmax, float ffreq, float gslope, float gx, float gy, float gz, float al, float vl, float a_f, float a_p );
 
         void Init_FCURAND_STATE_CUDA ();
 		void InsertParticlesCUDA ( uint* gcell, uint* ccell, uint* gcnt );	
@@ -262,6 +271,7 @@
         void TransferFromTempCUDA ( int buf_id, int sz );
 		void TransferPosVelVeval ();                                    // Called B4 1st timestep, & B4 AdvanceCuda thereafter. 
         void TransferPosVelVevalFromTemp ();
+        void ZeroVelCUDA ();
         
         void AdvanceCUDA ( float time, float dt, float ss );            // Writes to ftemp 
         void SpecialParticlesCUDA (float tm, float dt, float ss);       // Reads fbuf, writes to ftemp, corects AdvanceCUDA().
@@ -326,6 +336,7 @@
             
             float m_Time, m_DT, gridsize, spacing, simscale, smoothradius, visc, surface_tension, mass, radius, /*dist,*/ intstiff, extstiff, extdamp, accel_limit, vel_limit, grav, ground_slope, force_min, force_max, force_freq;
             Vector3DF volmin, volmax, initmin, initmax;
+            float actuation_factor, actuation_period;
         }launchParams ;
 	
 	private:
