@@ -39,18 +39,18 @@
 	#include <stdio.h>
 	#include <stdlib.h>
 	#include <math.h>	
-	#include <vtk-9.0/vtkCellArray.h>
-    #include <vtk-9.0/vtkPoints.h>
-    #include <vtk-9.0/vtkXMLPolyDataWriter.h>
-    #include <vtk-9.0/vtkPolyData.h>
-    #include <vtk-9.0/vtkSmartPointer.h>
-    #include <vtk-9.0/vtkLine.h>
-    #include <vtk-9.0/vtkDataSet.h>
-    #include <vtk-9.0/vtkUnsignedIntArray.h>
-    #include <vtk-9.0/vtkUnsignedCharArray.h>
-    #include <vtk-9.0/vtkFloatArray.h>
-    #include <vtk-9.0/vtkPointData.h>
-    #include <vtk-9.0/vtkCellData.h>
+	#include <vtk-9.5/vtkCellArray.h>			// TODO   Need version agnostic way to #include vtk.
+    #include <vtk-9.5/vtkPoints.h>
+    #include <vtk-9.5/vtkXMLPolyDataWriter.h>
+    #include <vtk-9.5/vtkPolyData.h>
+    #include <vtk-9.5/vtkSmartPointer.h>
+    #include <vtk-9.5/vtkLine.h>
+    #include <vtk-9.5/vtkDataSet.h>
+    #include <vtk-9.5/vtkUnsignedIntArray.h>
+    #include <vtk-9.5/vtkUnsignedCharArray.h>
+    #include <vtk-9.5/vtkFloatArray.h>
+    #include <vtk-9.5/vtkPointData.h>
+    #include <vtk-9.5/vtkCellData.h>
 	#include "fluid.h"
 
 	#define MAX_PARAM			50             // used for m_Param[], m_Vec[], m_Toggle[]

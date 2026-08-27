@@ -69,7 +69,8 @@ int main ( int argc, const char** argv )
     CUdevice cuDevice;
     cuDeviceGet ( &cuDevice, 0 );
     CUcontext cuContext;
-    cuCtxCreate ( &cuContext, 0, cuDevice );
+    CUctxCreateParams ctxCreateParams = {};
+    cuCtxCreate ( &cuContext, &ctxCreateParams, 0, cuDevice );
 
     FluidSystem fluid;
     fluid.SetDebug ( debug );

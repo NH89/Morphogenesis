@@ -82,7 +82,8 @@ void StartCuda ( int devsel, CUcontext ctxsel, CUdevice& dev, CUcontext& ctx, CU
 
     //--- Create new context with Driver API 
     cudaCheck(cuDeviceGet(&dev, devsel), "(global)", "StartCuda", "cuDeviceGet", "", false );
-    cudaCheck(cuCtxCreate(&ctx, CU_CTX_SCHED_AUTO, dev), "(global)", "StartCuda", "cuCtxCreate", "", false );
+	CUctxCreateParams ctxCreateParams = {};
+    cudaCheck(cuCtxCreate(&ctx, &ctxCreateParams, CU_CTX_SCHED_AUTO, dev), "(global)", "StartCuda", "cuCtxCreate", "", false );
 
 	cuDeviceGetName(name, 128, dev);
 	if (verbose) std::cout<<"   Using Device: "<<(int) dev<<", "<<name<<", Context: "<<(void*) ctx<<"\n";

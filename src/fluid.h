@@ -23,15 +23,24 @@
 #ifndef DEF_FLUID
 	#define DEF_FLUID
 	
-	#include <cuda.h>
-	#include <curand.h>
+#include<cuda.h>			// NB needs environmentt variable to be set:  '''export CPATH=:/usr/local/cuda/include:  '''  ideally in   "~.profile" .
+#include<curand.h>
+
+//#include</usr/local/cuda-13.1/include/cuda.h>
+//#include</usr/local/cuda-13.1/include/curand.h>
+
     #include <string.h>
     #include "vector.h"
 //	#include "gvdb_vec.h"
 //	using namespace nvdb;
 
     #include "masks.h"
-#include <../cuda-11.2/targets/x86_64-linux/include/curand_kernel.h>
+//#include <../cuda-11.2/targets/x86_64-linux/include/curand_kernel.h>
+//#include<../cuda-13.1/targets/x86_64-linux/include/curand_kernel.h>
+//#include</usr/local/cuda-13.1/include/curand_kernel.h>
+//#include<../cuda-13.1/include/curand_kernel.h>
+#include<curand_kernel.h>
+
 
 	typedef	unsigned int		uint;	
 	typedef	unsigned short int	ushort;	

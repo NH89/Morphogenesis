@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-set(CMAKE_CUDA_ARCHITECTURES 75 80 86 87 89 90 100 110 120)
+set(CMAKE_CUDA_ARCHITECTURES 86) 						# RTX3080 = 86, insert correct value for your GPU's 'Cuda compute capability': 75 80 86 87 89 90 100 110 120)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-deprecated-gpu-targets")
 if(ENABLE_CUDA_DEBUG)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")        # enable cuda-gdb (may significantly affect performance on some targets)
@@ -59,6 +59,9 @@ endif()
 # #  )
 #include(${VTK_USE_FILE})
 
+find_package(Freetype REQUIRED)
+find_package(jsoncpp REQUIRED)
+
 
 find_package(VTK COMPONENTS 
     CommonCore
@@ -74,7 +77,7 @@ if (NOT VTK_FOUND)
 endif()
 message (STATUS "VTK_VERSION: ${VTK_VERSION}")
 
-include_directories(${CUDA_INCLUDE_DIRS} $(VTK_INCLUDE_DIRS) )#"/home/hoc041/Programming/Cuda/fluids_v4/"
+include_directories(${CUDA_INCLUDE_DIRS} ${VTK_INCLUDE_DIRS} )#"/home/hoc041/Programming/Cuda/fluids_v4/"
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "./install" CACHE PATH "..." FORCE)
