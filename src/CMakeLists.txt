@@ -1,28 +1,62 @@
-cmake_minimum_required(VERSION 3.8  FATAL_ERROR)  
 
-# if(POLICY CMP0025)
-#   cmake_policy(SET CMP0025 NEW) # CMake 3.0  for vtk
-# endif()
-# if(POLICY CMP0053)
-#   cmake_policy(SET CMP0053 NEW) # CMake 3.1  for vtk
-# endif()
+cmake_minimum_required(VERSION 3.20)
 
-cmake_policy(SET CMP0054 NEW)
+project(cuda-samples LANGUAGES C CXX CUDA)
+
+find_package(CUDAToolkit REQUIRED)
+
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+set(CMAKE_CUDA_ARCHITECTURES 75 80 86 87 89 90 100 110 120)
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-deprecated-gpu-targets")
+if(ENABLE_CUDA_DEBUG)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")        # enable cuda-gdb (may significantly affect performance on some targets)
+else()
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo") # add line information to all builds for debug tools (exclusive to -G option)
+endif()
+
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
+
+# Add MSVC-specific flags for standard-conforming preprocessor (required for CCCL)
+if(MSVC)
+    add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/Zc:preprocessor>)
+endif()
 
 
-project(Morphogenesis LANGUAGES C CXX CUDA)
+########################################
+########################################
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CPP_STANDARD 11) # set(CMAKE_CPP_STANDARD 17)  NB need (<=11 for VTP)  &&  (>+11 for C++ threads)
-
-find_package(CUDA REQUIRED)
-#find_package(HDF5 REQUIRED)
-#find_package(VTK REQUIRED)
-#vtk_module_config(VTK
-#    vtkCommonCore
-#    vtkCommonDataModel
-#    vtkIOXML
-#  )
+# cmake_minimum_required(VERSION 3.10  FATAL_ERROR)
+#
+# # if(POLICY CMP0025)
+# #   cmake_policy(SET CMP0025 NEW) # CMake 3.0  for vtk
+# # endif()
+# # if(POLICY CMP0053)
+# #   cmake_policy(SET CMP0053 NEW) # CMake 3.1  for vtk
+# # endif()
+#
+# #cmake_policy(SET CMP0054 NEW)
+#
+#
+# project(Morphogenesis LANGUAGES C CXX CUDA)
+#
+# set(CMAKE_C_STANDARD 17)
+# set(CMAKE_CPP_STANDARD 17) # set(CMAKE_CPP_STANDARD 17)  NB need (<=11 for VTP)  &&  (>+11 for C++ threads)
+#
+# #find_package(CUDA REQUIRED)
+# #find_package(HDF5 REQUIRED)
+# #find_package(VTK REQUIRED)
+# #vtk_module_config(VTK
+# #    vtkCommonCore
+# #    vtkCommonDataModel
+# #    vtkIOXML
+# #  )
 #include(${VTK_USE_FILE})
 
 
