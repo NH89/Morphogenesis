@@ -1795,7 +1795,7 @@ void FluidSystem::WriteSimParams ( const char * relativePath ){
     if (m_FParams.debug>1)printf("\n## opening file %s ", SimParams_file_path);
     FILE* SimParams_file = fopen ( SimParams_file_path, "w" );
     if (SimParams_file == NULL) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::WriteSimParams (const char * relativePath )  Could not open file "<< SimParams_file_path <<"\n"<< std::flush;
+       /* if (m_FParams.debug>1)*/ std::cout << "\nvoid FluidSystem::WriteSimParams (const char * relativePath )  Could not open file "<< SimParams_file_path <<"\n"<< std::flush;
         assert(0);
     }
 

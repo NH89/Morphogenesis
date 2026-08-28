@@ -178,5 +178,6 @@ _deps
 /build/
 /data/check/
 /data/demo/
+/data/old-*
 /data/test/
 /Debug/

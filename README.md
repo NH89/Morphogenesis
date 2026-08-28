@@ -21,29 +21,54 @@ A morphogenesis simulator _(in progress)_ , with soft-matter elasticity, diffusi
 
 The notes below are rough working notes, and will change with development.
 
-### Dependencies 
-VTK is used for .vtp file output for visualization in Parraview.
-NB vtk-dev is broken in Ubuntu 18.04 LTS. 
-You may need to build VTK from source.
-This code has been developed with VTK-9.0.1 .
+### Updated (August 2026) - Cuda-13.1, Ubuntu-26.04 LTS, VTK-9.5, C++17, CMake-4.2
 
-***NB if you need to build VTK, please remember to ***
+The code has beed updated to work with Ubuntu 26.04LTS, and therefore Cuda-13.1, VTK-9.5, C++17, CMake-4.2, all from the Ubuntu repository, no custom installs required. (Except Cuda-13.1 patch, see below.)
+  
+Morphogenesis has no OS-brand dependency, and builds with CMake plus Ninja or Make,  so it 'should' build on any OS where those libraries work with C++17.
 
-    sudo make install
-    sudo ldconfig
-    
-so that the new library will be found at runtime.
+### Environment variables + patch for Cuda 13.1
+
+Cuda requres all the following added to your environment variables on Ubuntu :
+```
+    export CPATH=${CPATH}:/usr/local/cuda/include
+
+    export C_PLUS_INCLUDE_PATH=${C_PLUS_INCLUDE_PATH}:/usr/local/cuda/include
+
+    export LIBRARY_PATH=${LIBRARY_PATH}:/usr/local/cuda/lib64  
+  
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64
+```
+This is best set in the ~/.profile file, so that they are found by you IDE as well as your terminal. 
+
+(Nvidia's [cuda-installation-guide-linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/#environment-setup) does not mention  ```CPATH```  and ```LIBRARY_PATH```, but omitting them can lead to "file not found" errors.)
+
+#### Patch
+Cuda-13.1 (in the Ubuntu 26.04LTS repository) has a bug which has been patched in Cuda 13.2 (custom install not yet supported on Ubuntu 26.04LTS).
+
+Details of the bug, and the patch are provided in [Cuda 13.1 patch on Ubuntu 26.04 LTS.md](Patches_sometimes_required/Cuda-13.1-patch-on-Ubuntu-26.04LTS/Cuda 13.1 patch on Ubuntu 26.04 LTS.md)
 
 
 ### Build instructions 
 
-This project uses Cmake. 
+This project uses CMake. 
 Create a build subdirectory.
 In the build subdirectory
-
+```
     cmake ../
     make
     make install
+```
+#### Or with cmake-gui, recommended 
+- In your build directory
+- type "``` cmake-gui ```"
+- select the "build" and "src" directories
+- click "configure".
+- provide paths to libraries as needed.
+- click "configure" again, until all required libraries are found.
+- then click "generate"
+- Quit cmake-gui  
+- type: "``` cmake --build . ``` " 
 
 
 ### Within Morphogenesis branch executables (so far) include:
@@ -51,20 +76,21 @@ In the build subdirectory
 
 #### make_demo
 usage:
-    
+
+```
     cd data
     make_demo  num_particles  spacing  x_dim  y_dim  z_dim  demoType  simSpace
-    
-    where demoType(0:free falling, 1:remodelling & actuation, 2:diffusion & epigenetics.)
-    
-    and simSpace{0:regression test, 1:Tower(256,128,256), 2:Wave pool(400,200,400), 3:Small dam break(80,60,80), 4:Dual-Wave pool(200,100,30), 5: Microgravity(160,100.160) }
-    
-    demoType sets individual particle properties in "demo/particles_pos_vel_color100001.csv", especially epigenetic states, from 3D positions.
-    
-    simSpace sets parameters in "SimParams." , especially gravity, and wavepool actuation.
-    
-    
-e.g.
+```
+
+where:
+ 
+1. demoType(0:free falling, 1:remodelling & actuation, 2:diffusion & epigenetics.)
+    - demoType sets individual particle properties in "demo/particles_pos_vel_color100001.csv", especially epigenetic states, from 3D positions.
+
+2. simSpace{0:regression test, 1:Tower(256,128,256), 2:Wave pool(400,200,400), 3:Small dam break(80,60,80), 4:Dual-Wave pool(200,100,30), 5: Microgravity(160,100.160) }
+    - simSpace sets parameters in "SimParams." , especially gravity, and wavepool actuation.
+
+e.g.:
 
     ../build/install/bin/make_demo 125 1  6 6 6  0 5       // free falling
     
