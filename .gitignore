@@ -176,8 +176,8 @@ _deps
 # End of https://www.toptal.com/developers/gitignore/api/cmake,clion,cuda,c++
 
 /build/
-/data/check/
-/data/demo/
+/data/check/*
+/data/demo/*
 /data/old-*
 /data/test/
 /Debug/

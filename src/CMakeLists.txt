@@ -65,6 +65,7 @@ find_package(jsoncpp REQUIRED)
 
 find_package(VTK COMPONENTS 
     CommonCore
+    CommonDataModel
     IOGeometry
     IOLegacy
     IOXML
@@ -76,6 +77,19 @@ if (NOT VTK_FOUND)
   return ()
 endif()
 message (STATUS "VTK_VERSION: ${VTK_VERSION}")
+
+# Prevent a "command line is too long" failure in Windows.
+set(CMAKE_NINJA_FORCE_RESPONSE_FILE "ON" CACHE BOOL "Force Ninja to use response files.")
+add_executable(WriteVTP MACOSX_BUNDLE test/WriteVTP.cxx )
+  target_link_libraries(WriteVTP PRIVATE ${VTK_LIBRARIES}
+)
+ # vtk_module_autoinit is needed
+ vtk_module_autoinit(
+   TARGETS WriteVTP
+   MODULES ${VTK_LIBRARIES}
+ )
+
+
 
 include_directories(${CUDA_INCLUDE_DIRS} ${VTK_INCLUDE_DIRS} )#"/home/hoc041/Programming/Cuda/fluids_v4/"
 

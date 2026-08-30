@@ -37,6 +37,9 @@ int main ( int argc, const char** argv )
     fluid.ReadSimParams(paramsPath);
     fluid.ReadGenome(genomePath);
     fluid.ReadPointsCSV2(pointsPath, GPU_OFF, CPU_YES);  //fluid.ReadPointsCSV(pointsPath, GPU_OFF, CPU_YES);
+    printf("\nchk0\n");
+    //fluid.WriteVTP();
+    fluid.SavePointsVTP2(outPath, 1 );
     printf("\nchk1\n");
     fluid.WriteSimParams ( outPath ); 
     printf("\nchk2\n");
@@ -44,10 +47,11 @@ int main ( int argc, const char** argv )
     printf("\nchk3\n");
     fluid.SavePointsCSV2 ( outPath, 1 );
     printf("\nchk4\n");
-    fluid.SavePointsVTP2(outPath, 1 );
+    //fluid.WriteVTP();									// vtk test fn.
+    //fluid.SavePointsVTP2(outPath, 1 );				// vtk segfaults here. Possibly too close to fluid.Exit();
     printf("\nchk5\n");
     
-    fluid.Exit ();	
+    fluid.Exit();
     printf("\ncheck_demo finished.\n");
     return 0;
 }

@@ -39,18 +39,28 @@
 	#include <stdio.h>
 	#include <stdlib.h>
 	#include <math.h>	
-	#include <vtk-9.5/vtkCellArray.h>			// TODO   Need version agnostic way to #include vtk.
-    #include <vtk-9.5/vtkPoints.h>
-    #include <vtk-9.5/vtkXMLPolyDataWriter.h>
-    #include <vtk-9.5/vtkPolyData.h>
-    #include <vtk-9.5/vtkSmartPointer.h>
-    #include <vtk-9.5/vtkLine.h>
-    #include <vtk-9.5/vtkDataSet.h>
-    #include <vtk-9.5/vtkUnsignedIntArray.h>
-    #include <vtk-9.5/vtkUnsignedCharArray.h>
-    #include <vtk-9.5/vtkFloatArray.h>
-    #include <vtk-9.5/vtkPointData.h>
-    #include <vtk-9.5/vtkCellData.h>
+
+	#include <vtkCellArray.h>			// TODO   Need version agnostic way to #include vtk.
+    #include <vtkPoints.h>
+    #include <vtkXMLPolyDataWriter.h>
+    #include <vtkPolyData.h>
+    #include <vtkSmartPointer.h>
+    #include <vtkLine.h>
+    #include <vtkDataSet.h>
+    #include <vtkUnsignedIntArray.h>
+    #include <vtkUnsignedCharArray.h>
+    #include <vtkFloatArray.h>
+    #include <vtkPointData.h>
+    #include <vtkCellData.h>
+
+ //    #include <vtkNew.h>
+
+	// #include <vtkCellArray.h>
+	// #include <vtkNew.h>
+	// #include <vtkPoints.h>
+	// #include <vtkPolyData.h>
+	// #include <vtkXMLPolyDataWriter.h>
+
 	#include "fluid.h"
 
 	#define MAX_PARAM			50             // used for m_Param[], m_Vec[], m_Toggle[]
@@ -302,6 +312,7 @@
         void SaveUintArray_2Columns( uint* array, int numElem1, int buff_len, const char * relativePath ); /// Used to save DESNSE_LIST_CHANGES (particle,bondIdx) arrays to .csv for debugging.
         void SaveUintArray_2D ( uint* array, int numElem1, int numElem2, const char * relativePath );
         
+		void WriteVTP();
         void SavePointsVTP2 ( const char * relativePath, int frame );
         void SavePointsCSV2 ( const char * relativePath, int frame );
         void ReadSimParams ( const char * relativePath );    // path to folder containing simparams and .csv files
