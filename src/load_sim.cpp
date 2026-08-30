@@ -57,37 +57,47 @@ int main ( int argc, const char** argv )
         remodelling = *argv[11];
         printf ("remodelling = %c\n", remodelling );
     }
-
+																											cout<<"\nload_sim  chk_0\n"<<std::flush;
     cuInit ( 0 );                                       // Initialize
+																											cout<<"\nload_sim  chk_1\n"<<std::flush;
     int deviceCount = 0;
+																											cout<<"\nload_sim  chk_2\n"<<std::flush;
     cuDeviceGetCount ( &deviceCount );
     if ( deviceCount == 0 ) {
         printf ( "There is no device supporting CUDA.\n" );
         exit ( 0 );
     }
+																											cout<<"\nload_sim  chk_3\n"<<std::flush;
 
     CUdevice cuDevice;
     cuDeviceGet ( &cuDevice, 0 );
+																											cout<<"\nload_sim  chk_4\n"<<std::flush;
     CUcontext cuContext;
     CUctxCreateParams ctxCreateParams = {};
     cuCtxCreate ( &cuContext, &ctxCreateParams, 0, cuDevice );
+																											cout<<"\nload_sim  chk_5\n"<<std::flush;
 
     FluidSystem fluid;
     fluid.SetDebug ( debug );
     fluid.InitializeCuda ();
+																											cout<<"\nload_sim  chk_6\n"<<std::flush;
 
     fluid.ReadSimParams ( paramsPath );
     fluid.ReadGenome ( genomePath );
     // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
     fluid.ReadPointsCSV2 ( pointsPath, GPU_DUAL, CPU_YES );
+																											cout<<"\nload_sim  chk_7\n"<<std::flush;
     
 if(debug>1) std::cout <<"\nchk load_sim_0.5\n"<<std::flush;    
     fluid.Init_FCURAND_STATE_CUDA ();
+																											cout<<"\nload_sim  chk_8\n"<<std::flush;
     
 if(debug>1) std::cout <<"\nchk load_sim_1.0\n"<<std::flush;
     auto old_begin = std::chrono::steady_clock::now();
+																											cout<<"\nload_sim  chk_9\n"<<std::flush;
     
     fluid.TransferFromCUDA ();
+																											cout<<"\nload_sim  chk_10\n"<<std::flush;
     fluid.SavePointsCSV2 ( outPath, file_num );
     if(save_vtp=='y') fluid.SavePointsVTP2( outPath, file_num);
     file_num++;
