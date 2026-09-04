@@ -37,6 +37,10 @@ int main ( int argc, const char** argv )
     fluid.ReadSimParams(paramsPath);
     fluid.ReadGenome(genomePath);
     fluid.ReadPointsCSV2(pointsPath, GPU_OFF, CPU_YES);  //fluid.ReadPointsCSV(pointsPath, GPU_OFF, CPU_YES);
+
+
+    printf("\nchk0\n");
+    fluid.SavePointsVTP2(outPath, 1 );		// NB SavePointsVTP2(..) must _not_ come immediately before Exit.
     printf("\nchk1\n");
     fluid.WriteSimParams ( outPath ); 
     printf("\nchk2\n");
@@ -44,8 +48,6 @@ int main ( int argc, const char** argv )
     printf("\nchk3\n");
     fluid.SavePointsCSV2 ( outPath, 1 );
     printf("\nchk4\n");
-    fluid.SavePointsVTP2(outPath, 1 );
-    printf("\nchk5\n");
     
     printf("\ncheck_demo finished.\n");
     fluid.Exit_no_CUDA ();	

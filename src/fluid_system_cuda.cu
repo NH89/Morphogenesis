@@ -58,15 +58,15 @@ extern "C" __global__ void insertParticles ( int pnum )                         
 	// printf ( " pos: %012llx, gcell: %012llx, gndx: %012llx, gridcnt: %012llx\n", fbuf.bufC(FPOS), fbuf.bufC(FGCELL), fbuf.bufC(FGNDX), fbuf.bufC(FGRIDCNT) );
   //  if (fparam.debug>2 && i==0)printf("\ninsertParticles(): pnum=%u\n",pnum);
 
-	register float3 gridMin =	fparam.gridMin;                                  // "register" is a compiler 'hint', to keep this variable in thread register
-	register float3 gridDelta = fparam.gridDelta;                                //  even if other variable have to be moved to slower 'local' memory  
-	register int3 gridRes =		fparam.gridRes;                                  //  in the streaming multiprocessor's cache.
-	register int3 gridScan =	fparam.gridScanMax;
-    register int gridTot =      fparam.gridTotal;
+	/*register*/ float3 gridMin =	fparam.gridMin;                                  // "register" is a compiler 'hint', to keep this variable in thread register
+	/*register*/ float3 gridDelta = fparam.gridDelta;                                //  even if other variable have to be moved to slower 'local' memory
+	/*register*/ int3 gridRes =		fparam.gridRes;                                  //  in the streaming multiprocessor's cache.
+	/*register*/ int3 gridScan =	fparam.gridScanMax;
+    /*register*/ int gridTot =      fparam.gridTotal;
 
-	register int		gs;
-	register float3		gcf;
-	register int3		gc;	
+	/*register*/ int		gs;
+	/*register*/ float3		gcf;
+	/*register*/ int3		gc;
 
 	gcf = (fbuf.bufF3(FPOS)[i] - gridMin) * gridDelta;                           // finds bin as a float3
 	gc = make_int3( int(gcf.x), int(gcf.y), int(gcf.z) );                        // crops to an int3
@@ -150,7 +150,7 @@ extern "C" __global__ void tally_denselist_lengths(int num_lists, int fdense_lis
 {
     uint list = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                                  // which dense list is being tallied.
 	if ( list >= num_lists ) return;
-    register int gridTot =      fparam.gridTotal;
+    /*register*/ int gridTot =      fparam.gridTotal;
     fbuf.bufI(fdense_list_lengths)[list] = fbuf.bufI(fgridcnt)[(list+1)*gridTot -1] + fbuf.bufI(fgridoff)[(list+1)*gridTot -1];
     
     //if(fparam.debug>2)printf("\ntally_denselist_lengths: gridTot=%u, fbuf.bufI(%i)[%i] = %u, &fdense_list_lengths)[list]=%p \t",
@@ -293,7 +293,7 @@ extern "C" __global__ void countingSortEPIGEN ( int pnum )
 extern "C" __global__ void countingSortDenseLists ( int pnum )
 {
     unsigned int bin = threadIdx.x + blockIdx.x * SCAN_BLOCKSIZE/2;
-    register int gridTot =      fparam.gridTotal;
+    /*register*/ int gridTot =      fparam.gridTotal;
     if (fparam.debug>2 && bin==0) printf("\n\n######countingSortDenseLists###### bin==0  gridTot=%u, fbuf.bufI (FGRIDOFF)[bin]=%u \n",gridTot, fbuf.bufI (FGRIDOFF)[0]);
 	if ( bin >= gridTot ) return;                                    // for each bin, for each particle, for each gene, 
                                                                      // if gene active, then write to dense list 
@@ -315,10 +315,10 @@ extern "C" __global__ void countingSortDenseLists ( int pnum )
     if (fparam.debug>2 && bin>0 && step>27)  printf("\nbin=%u, gridoff step = %u, grdoff_=%u,  grdoffset=%u \t",bin, step, grdoff_, grdoffset );
     if (fparam.debug>2 && grdoffset>2200 && grdoffset<22100) printf("\ngrdoffset=%u  ",grdoffset);
     */
-    register uint* lists[NUM_GENES];
+    /*register*/ uint* lists[NUM_GENES];
     for (int gene=0; gene<NUM_GENES;gene++) lists[gene]=fbuf.bufII(FDENSE_LISTS)[gene]; // This element entry is a pointer
     
-    register uint* offsets[NUM_GENES];
+    /*register*/ uint* offsets[NUM_GENES];
     for (int gene=0; gene<NUM_GENES;gene++) offsets[gene]=&fbuf.bufI(FGRIDOFF_ACTIVE_GENES)[gene * gridTot];   // The address of this element
     
     if (grdoffset+count > pnum){    printf("\n\n!!Overflow: (grdoffset+count > pnum), bin=%u \n",bin);     return;}
@@ -387,7 +387,7 @@ extern "C" __global__ void countingSortChanges ( int pnum )
     
     //unsigned int bin = threadIdx.x + blockIdx.x * SCAN_BLOCKSIZE/2;     // NB have to searach all particles => use main list bins. 
     }
-    register int gridTot =      fparam.gridTotal;
+    /*register*/ int gridTot =      fparam.gridTotal;
 	if ( bin >= gridTot ) return;                                    // for each bin, for each particle, for each change_list, 
                                                                      // if change_list active, then write to dense list 
     uint count = fbuf.bufI (FGRIDCNT/*_CHANGES*/)[bin];
@@ -403,13 +403,13 @@ extern "C" __global__ void countingSortChanges ( int pnum )
     uint grdoffset = fbuf.bufI (FGRIDOFF)[bin];
     uint change_list_counter[NUM_CHANGES]={0};                       // holds offset within the change-bin for this change-type, for the particles added so far.  
     
-    register uint* lists[NUM_CHANGES];
+    /*register*/ uint* lists[NUM_CHANGES];
     for (int change_list=0; change_list<NUM_CHANGES;change_list++) lists[change_list]=fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list];           // This element entry is a pointer
     
     //if(fparam.debug>2 && bin == 1/*change_list>6*/) for (int change_list=0; change_list<NUM_CHANGES;change_list++) printf("\nPointer to lists[%u] = %p,",change_list, lists[change_list]);
     if (count==0) return; 
     
-    register uint list_length[NUM_CHANGES];
+    /*register*/ uint list_length[NUM_CHANGES];
     for (uint change_list=0; change_list<NUM_CHANGES;change_list++) list_length[change_list]=fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES)[change_list];/*FDENSE_LIST_LENGTHS_CHANGES*/
 /*
     if (bin==0){
@@ -420,7 +420,7 @@ extern "C" __global__ void countingSortChanges ( int pnum )
         }
     }
 */ 
-    register uint* offsets[NUM_CHANGES];
+    /*register*/ uint* offsets[NUM_CHANGES];
     for (int change_list=0; change_list<NUM_CHANGES; change_list++)   offsets[change_list] = &fbuf.bufI(FGRIDOFF_CHANGES)[change_list * gridTot];   // The address of this element
 /*
   //if (fparam.debug>2)printf("\ncountingSortChanges: grdoffset=%u, count=%u, pnum=%u \t",grdoffset, count, pnum);
@@ -589,9 +589,9 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell, floa
 	float3 dist;
 	float dsq, r, q, b, c, sum = 0.0;//, sum_p6k = 0.0;
 	//register float d2 = fparam.psimscale * fparam.psimscale;                // max length in simulation space
-	register float r2 = fparam.r2; // / d2;                                     // = m_FParams.psmoothradius^2 / m_FParams.psimscale^2
-    register float H  = fparam.H;                                           // = m_FParams.psmoothradius / m_FParams.psimscale;
-    register float sr = fparam.psmoothradius;
+	/*register*/ float r2 = fparam.r2; // / d2;                                     // = m_FParams.psmoothradius^2 / m_FParams.psimscale^2
+    /*register*/ float H  = fparam.H;                                           // = m_FParams.psmoothradius / m_FParams.psimscale;
+    /*register*/ float sr = fparam.psmoothradius;
 	
 	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];      // off set of this cell in the list of particles,  PLUS  the count of particles in this cell.
     
@@ -1067,7 +1067,7 @@ extern "C" __global__ void computeBondChanges ( int pnum, uint list_length, uint
     if (fparam.debug>0 && i==53 ) {printf("\ncomputeBondChanges:i=%u, initial reading bond_flt_ptr[rest_length]=%f ,  \t",
                 i, bond_flt_ptr[rest_length]  ); }
                                                                                                                 
-    register int gridTot = fparam.gridTotal;
+    /*register*/ int gridTot = fparam.gridTotal;
     /*
     // hold as a texture or similar. // part of fparams ? 
     // 3 materials for bonds - elastin, collagen, apatite - depend on (i)tissue type (ii) additional bonds 
@@ -1594,9 +1594,9 @@ extern "C" __device__ int findBondAxis(float3 pos, uint j ){
 extern "C" __device__ void find_closest_particle_per_axis(uint particle, float3 pos, uint neighbours[6]){       // Used by "insertNewParticle()"
     uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;  // thread ID used for debugging
     // identify which bin to search  NB particle is new => not yet inserted into a cell
-	register float3 gridMin   =	fparam.gridMin;                 // "register" is a compiler 'hint', to keep this variable in thread register
-	register float3 gridDelta = fparam.gridDelta;               //  even if other variable have to be moved to slower 'local' memory  
-	register int3   gridRes   =	fparam.gridRes;                 //  in the streaming multiprocessor's cache.
+	/*register*/ float3 gridMin   =	fparam.gridMin;                 // "register" is a compiler 'hint', to keep this variable in thread register
+	/*register*/ float3 gridDelta = fparam.gridDelta;               //  even if other variable have to be moved to slower 'local' memory
+	/*register*/ int3   gridRes   =	fparam.gridRes;                 //  in the streaming multiprocessor's cache.
     int		gs;
 	float3	gcf;
 	int3	gc;
@@ -2177,7 +2177,7 @@ extern "C" __global__ void lengthen_tissue ( int ActivePoints, int list_length, 
   //return;  // temporarily suppresses lengthen_muscle ().
     if ( i >= ActivePoints ) return; 
     
-    register uint dense_buf_length=fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES)[change_list];
+    /*register*/ uint dense_buf_length=fbuf.bufI(FDENSE_BUF_LENGTHS_CHANGES)[change_list];
     
     uint bondIdx = fbuf.bufII(FDENSE_LISTS_CHANGES)[change_list][particle_index+dense_buf_length]; // getting what loopks like bin or particle number instead of bondIndx here !
     uint secondParticleIdx  = fbuf.bufI(FELASTIDX)[i*BOND_DATA+bondIdx*DATA_PER_BOND];
@@ -2202,25 +2202,25 @@ extern "C" __global__ void lengthen_tissue ( int ActivePoints, int list_length, 
     
     /**/if (fparam.debug>2  && (threadIdx.x==0 || particle_index==0)  ) printf("\nlengthen_tissue chk5:  i=%u,  next_particle_Idx=%u, fbuf.bufF3(FPOS)[i]=(%f,%f,%f) ",
             i ,next_particle_Idx, fbuf.bufF3(FPOS)[i].x, fbuf.bufF3(FPOS)[i].y, fbuf.bufF3(FPOS)[i].z );
-    __syncthreads;
+    __syncthreads();
     
     /**/if (fparam.debug>2  && (threadIdx.x==0 || particle_index==0)  ) printf("\nlengthen_tissue chk6:  i=%u, fbuf.bufF3(FPOS)[next_particle_Idx]=(%f,%f,%f) ",
             i, fbuf.bufF3(FPOS)[next_particle_Idx].x, fbuf.bufF3(FPOS)[next_particle_Idx].y, fbuf.bufF3(FPOS)[next_particle_Idx].z );
-    __syncthreads;
+    __syncthreads();
     
     //fbuf.bufF3(FPOS)[new_particle_Idx]          = fbuf.bufF3(FPOS)[i] + (fbuf.bufF3(FPOS)[i] - fbuf.bufF3(FPOS)[next_particle_Idx])/2;
     float3 newParticlePos  = fbuf.bufF3(FPOS)[i] + (fbuf.bufF3(FPOS)[next_particle_Idx]  -  fbuf.bufF3(FPOS)[i])/2;                                     // ie (FPOS)[parent] + 1/2 * (dist to next particle)
     
     /**/if (fparam.debug>2  && (threadIdx.x<10 || particle_index==0)  ) printf("\nlengthen_tissue chk7:  i=%u, next_particle_Idx=%u, new_particle_Idx=%u, new_particle_ID=%u, newParticlePos=(%f,%f,%f) ",
             i, next_particle_Idx, new_particle_Idx, fbuf.bufI(FPARTICLE_ID)[new_particle_Idx], newParticlePos.x, newParticlePos.y, newParticlePos.z );
-    __syncthreads;
+    __syncthreads();
     
     // Determine bond type from binary change-type indicator
     uint * fbufFEPIGEN = &fbuf.bufI(FEPIGEN)[i]; //*fparam.maxPoints  *NUM_GENES
     uint bond_type[BONDS_PER_PARTICLE] = {0};                          //  0=elastin, 1=collagen, 2=apatite
     
     //printf("\nlengthen_tissue chk1:  i=%u ",i );
-    //__syncthreads;
+    //__syncthreads();
     
     // Calculate material type for bond
     if (fbufFEPIGEN[9*fparam.maxPoints]/*bone*/) for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 2;
@@ -2229,14 +2229,14 @@ extern "C" __global__ void lengthen_tissue ( int ActivePoints, int list_length, 
     else if (fbufFEPIGEN[8*fparam.maxPoints]/*cartilage*/)for (int bond=0; bond<BONDS_PER_PARTICLE; bond++) bond_type[bond] = 1;
     
     if (fparam.debug>2) printf("\nlengthen_tissue chk8:  i=%u, bondIdx=%u, change_list=%u, particle_index=%u, list_length=%u, dense_buf_length=%u",i, bondIdx, change_list, particle_index, list_length, dense_buf_length);
-    //__syncthreads;
+    //__syncthreads();
     
     
     int ret = insertNewParticle(new_particle_Idx, newParticlePos, i, bondIdx, secondParticleIdx, bondIdx_reciprocal,  bond_type);
     
     /**/if (fparam.debug>2  && (threadIdx.x<10 || particle_index==0)  ) printf("\nlengthen_tissue chk9:  i=%u, next_particle_Idx=%u, new_particle_Idx=%u, new_particle_ID=%u, newParticlePos=(%f,%f,%f) ",
             i, next_particle_Idx, new_particle_Idx, fbuf.bufI(FPARTICLE_ID)[new_particle_Idx], newParticlePos.x, newParticlePos.y, newParticlePos.z );
-    __syncthreads;
+    __syncthreads();
     
     if (fparam.debug>2  && (threadIdx.x==0 || particle_index==0)  ) printf("\nlengthen_tissue() completed i=%u \t",i);
     {//Notes
@@ -2993,8 +2993,8 @@ extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const
     if (fbuf.bufI(FGRIDCNT)[cell] == 0) return;
 
     // this is all standard setup stuff, borrowed from contributePressure()
-    register float d2 = fparam.psimscale * fparam.psimscale; // (particle simulation scale), not PSI
-    register float r2 = fparam.r2 / d2;     // TODO update to match contribPressure, i.e. not use psimscale
+    /*register*/ float d2 = fparam.psimscale * fparam.psimscale; // (particle simulation scale), not PSI
+    /*register*/ float r2 = fparam.r2 / d2;     // TODO update to match contribPressure, i.e. not use psimscale
 
     // offset of particle in particle list, and number of particles in cell?
     int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];
@@ -3207,7 +3207,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
 	if ( gc == GRID_UNDEF ) return;                                                 // particle out-of-range
 
 	gc -= (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
-	register float3 force, eterm, dist;                                             // request to compiler to store in a register for speed.
+	/*register*/ float3 force, eterm, dist;                                             // request to compiler to store in a register for speed.
 	force = make_float3(0,0,0);    eterm = make_float3(0,0,0);     dist  = make_float3(0,0,0);
     float dsq, abs_dist;                                                            // elastic force // new version computes here using particle index rather than ID.
     uint bondsToFill = 0;
@@ -3370,8 +3370,8 @@ extern "C" __global__ void sampleParticles ( float* brick, uint3 res, float3 bmi
 	float3 dist;
 	float dsq;
 	int j, cell;	
-	register float r2 = fparam.r2;
-	register float h2 = 2.0*r2 / 8.0;		// 8.0=smoothing. higher values are sharper
+	/*register*/ float r2 = fparam.r2;
+	/*register*/ float h2 = 2.0*r2 / 8.0;		// 8.0=smoothing. higher values are sharper
 
 	uint3 i = blockIdx * make_uint3(blockDim.x, blockDim.y, blockDim.z) + threadIdx;
 	if ( i.x >= res.x || i.y >= res.y || i.z >= res.z ) return;
@@ -3444,10 +3444,10 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	}
 			
 	// Get particle vars
-	register float3 accel, norm;
-	register float diff, adj, speed;
-	register float3 pos = fbuf.bufF3(FPOS)[i];
-	register float3 veval = fbuf.bufF3(FVEVAL)[i];
+	/*register*/ float3 accel, norm;
+	/*register*/ float diff, adj, speed;
+	/*register*/ float3 pos = fbuf.bufF3(FPOS)[i];
+	/*register*/ float3 veval = fbuf.bufF3(FVEVAL)[i];
 
 	// Leapfrog integration						
 	accel = fbuf.bufF3(FFORCE)[i];
@@ -3588,10 +3588,10 @@ extern "C" __global__ void externalActuation (uint list_len,  float time, float 
   //if (fparam.debug>2)printf("\nexternalActuation(): i=%u\t",i);
     
     // Get particle vars
-	register float3 accel={0};//, norm;
-	register float speed; //diff, adj, 
-	register float3 pos = fbuf.bufF3(FPOS)[i];
-	register float3 veval = fbuf.bufF3(FVEVAL)[i];
+	/*register*/ float3 accel={0};//, norm;
+	/*register*/ float speed; //diff, adj,
+	/*register*/ float3 pos = fbuf.bufF3(FPOS)[i];
+	/*register*/ float3 veval = fbuf.bufF3(FVEVAL)[i];
 
 	// Leapfrog integration						
 	accel = fbuf.bufF3(FFORCE)[i];

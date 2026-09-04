@@ -1,5 +1,7 @@
 
 // MatrixC Code Definition
+#pragma once
+
 #define VNAME		C
 #define VTYPE		unsigned char
 
@@ -1296,7 +1298,7 @@ inline MatrixF &MatrixF::Multiply4x4 (const MatrixF &op) {
         if (rows!=4 || cols!=4)				Debug.Print (DEBUG_MATRIX, "MatrixF::Multiply4x4 m*=op: Matrix m is not 4x4");
 		if (op.rows!=4 || op.cols!=4)		Debug.Print (DEBUG_MATRIX, "MatrixF::Multiply4x4 m*=op: Matrix op is not 4x4");
     #endif
-	register double c1, c2, c3, c4;					// Temporary storage
+	/*register*/ double c1, c2, c3, c4;					// Temporary storage
 	VTYPE *n, *a, *b1, *b2, *b3, *b4;
 	a = data;	n = data; 
 	b1 = op.data; b2 = op.data + 4; b3 = op.data + 8; b4 = op.data + 12;
@@ -1919,7 +1921,7 @@ inline Matrix4F &Matrix4F::operator/= (const double op)			{for ( int n=0; n<16; 
 
 // column-major multiply (like OpenGL)
 inline Matrix4F &Matrix4F::operator*= (const Matrix4F &op) {
-	register float orig[16];				// Temporary storage
+	/*register*/ float orig[16];				// Temporary storage
 	memcpy ( orig, data, 16*sizeof(float) );
 
 	// Calculate First Row
@@ -1957,7 +1959,7 @@ inline Matrix4F &Matrix4F::operator= (const float* op)
 }
 
 inline Matrix4F &Matrix4F::operator*= (const float* op) {
-	register float orig[16];				// Temporary storage
+	/*register*/ float orig[16];				// Temporary storage
 	memcpy ( orig, data, 16*sizeof(float) );
 
 	// Calculate First Row
@@ -1990,7 +1992,7 @@ inline Matrix4F &Matrix4F::operator*= (const float* op) {
 
 inline Matrix4F &Matrix4F::Transpose (void)
 {
-	register float orig[16];				// Temporary storage
+	/*register*/ float orig[16];				// Temporary storage
 	memcpy ( orig, data, 16*sizeof(VTYPE) );
 	
 	data[0] = orig[0];	data[1] = orig[4];	data[2] = orig[8];	data[3] = orig[12];

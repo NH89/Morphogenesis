@@ -71,7 +71,10 @@ std::cout <<"\nchk load_sim_0.2\n"<<std::flush;
     CUdevice cuDevice;
     cuDeviceGet ( &cuDevice, 0 );
     CUcontext cuContext;
-    cuCtxCreate ( &cuContext, 0, cuDevice );
+    //cuCtxCreate ( &cuContext, 0, cuDevice );
+    CUctxCreateParams ctxCreateParams = {};
+    cuCtxCreate ( &cuContext, &ctxCreateParams, 0, cuDevice );
+
 std::cout <<"\nchk load_sim_0.3\n"<<std::flush;  
     
     FluidSystem fluid;

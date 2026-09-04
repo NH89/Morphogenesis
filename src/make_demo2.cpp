@@ -36,7 +36,11 @@ cout << "\nmake_demo2: chk_2 "<<std::flush;
     CUdevice cuDevice;
     cuDeviceGet ( &cuDevice, 0 );
     CUcontext cuContext;
-    cuCtxCreate ( &cuContext, 0, cuDevice );
+    //cuCtxCreate ( &cuContext, 0, cuDevice );
+    CUctxCreateParams ctxCreateParams = {};
+    cuCtxCreate(&cuContext, &ctxCreateParams, CU_CTX_SCHED_AUTO, cuDevice);
+
+
 cout << "\nmake_demo2: chk_3 "<<std::flush;
     FluidSystem fluid;
 

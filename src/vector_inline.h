@@ -8,6 +8,8 @@
 //		Normalize ()	Normalizes vector
 //
 
+#pragma once
+
 #include <math.h>
 
 // Vector2DC Code Definition

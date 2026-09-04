@@ -44,18 +44,18 @@
 	#include <sys/stat.h>
     #include <sys/types.h> 
 	
-	#include <vtk-9.2/vtkCellArray.h>
-    #include <vtk-9.2/vtkPoints.h>
-    #include <vtk-9.2/vtkXMLPolyDataWriter.h>
-    #include <vtk-9.2/vtkPolyData.h>
-    #include <vtk-9.2/vtkSmartPointer.h>
-    #include <vtk-9.2/vtkLine.h>
-    #include <vtk-9.2/vtkDataSet.h>
-    #include <vtk-9.2/vtkUnsignedIntArray.h>
-    #include <vtk-9.2/vtkUnsignedCharArray.h>
-    #include <vtk-9.2/vtkFloatArray.h>
-    #include <vtk-9.2/vtkPointData.h>
-    #include <vtk-9.2/vtkCellData.h>
+	#include <vtkCellArray.h>
+    #include <vtkPoints.h>
+    #include <vtkXMLPolyDataWriter.h>
+    #include <vtkPolyData.h>
+    #include <vtkSmartPointer.h>
+    #include <vtkLine.h>
+    #include <vtkDataSet.h>
+    #include <vtkUnsignedIntArray.h>
+    #include <vtkUnsignedCharArray.h>
+    #include <vtkFloatArray.h>
+    #include <vtkPointData.h>
+    #include <vtkCellData.h>
 	#include "fluid.h"
 	
 	extern bool gProfileRend;

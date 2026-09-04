@@ -1,19 +1,51 @@
-cmake_minimum_required(VERSION 3.8  FATAL_ERROR)  
+# cmake_minimum_required(VERSION 3.8  FATAL_ERROR)
+#
+# cmake_policy(SET CMP0054 NEW)
+#
+# project(Morphogenesis LANGUAGES C CXX CUDA)
+#
+# if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+#   set(CMAKE_INSTALL_PREFIX "~/apps/morphogenesis/0.1.1" CACHE PATH "..." FORCE)
+# endif()
+cmake_minimum_required(VERSION 3.20)
 
-cmake_policy(SET CMP0054 NEW)
+project(cuda-samples LANGUAGES C CXX CUDA)
 
-project(Morphogenesis LANGUAGES C CXX CUDA)
+find_package(CUDAToolkit REQUIRED)
 
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(CMAKE_INSTALL_PREFIX "~/apps/morphogenesis/0.1.1" CACHE PATH "..." FORCE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(CMAKE_CUDA_ARCHITECTURES 86) 						# RTX3080 = 86, insert correct value for your GPU's 'Cuda compute capability': 75 80 86 87 89 90 100 110 120)
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-deprecated-gpu-targets")
+if(ENABLE_CUDA_DEBUG)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")        # enable cuda-gdb (may significantly affect performance on some targets)
+else()
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo") # add line information to all builds for debug tools (exclusive to -G option)
 endif()
+
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
+
+# Add MSVC-specific flags for standard-conforming preprocessor (required for CCCL)
+if(MSVC)
+    add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/Zc:preprocessor>)
+endif()
+
+
+find_package(Freetype REQUIRED)
+find_package(jsoncpp REQUIRED)
+
+
+
 message ( "CMAKE_INSTALL_PREFIX is ${CMAKE_INSTALL_PREFIX}")
 
 
-set(CMAKE_C_STANDARD 11)
-#set(CMAKE_CPP_STANDARD 11) # set(CMAKE_CPP_STANDARD 17)  NB need (<=11 for VTP)  &&  (>+11 for C++ threads)
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+# set(CMAKE_C_STANDARD 11)
+# #set(CMAKE_CPP_STANDARD 11) # set(CMAKE_CPP_STANDARD 17)  NB need (<=11 for VTP)  &&  (>+11 for C++ threads)
+# set(CMAKE_CXX_STANDARD 11)
+# set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING
@@ -23,10 +55,12 @@ RelWithDebInfo MinSizeRel."
 endif(NOT CMAKE_BUILD_TYPE)
 
 
-find_package(CUDA REQUIRED)
+# find_package(CUDA REQUIRED)
+
 
 find_package(VTK COMPONENTS 
     CommonCore
+    CommonDataModel
     IOGeometry
     IOLegacy
     IOXML
@@ -39,11 +73,24 @@ if (NOT VTK_FOUND)
 endif()
 message (STATUS "VTK_VERSION: ${VTK_VERSION}")
 
-include_directories(${CUDA_INCLUDE_DIRS} $(VTK_INCLUDE_DIRS) )#"/home/hoc041/Programming/Cuda/fluids_v4/"
+
+# Prevent a "command line is too long" failure in Windows.
+set(CMAKE_NINJA_FORCE_RESPONSE_FILE "ON" CACHE BOOL "Force Ninja to use response files.")
+# add_executable(WriteVTP MACOSX_BUNDLE test/WriteVTP.cxx )
+#   target_link_libraries(WriteVTP PRIVATE ${VTK_LIBRARIES}
+# )
+ # # vtk_module_autoinit is needed
+ # vtk_module_autoinit(
+ #   TARGETS WriteVTP
+ #   MODULES ${VTK_LIBRARIES}
+ # )
+
+include_directories(${CUDA_INCLUDE_DIRS} ${VTK_INCLUDE_DIRS} )#"/home/hoc041/Programming/Cuda/fluids_v4/"
 
 add_library(fluid_systemPTX OBJECT  fluid_system_cuda.cu  fluid_system_cuda.cuh)
 set_property(TARGET fluid_systemPTX PROPERTY CUDA_PTX_COMPILATION ON)
-set(output_file ${CMAKE_CURRENT_BINARY_DIR}/embedded_objs.h)
+set_property(TARGET fluid_systemPTX PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+#set(output_file ${CMAKE_CURRENT_BINARY_DIR}/embedded_objs.h)
 
 get_filename_component(cuda_compiler_bin "${CMAKE_CUDA_COMPILER}" DIRECTORY)
 find_program(bin_to_c  NAMES bin2c  PATHS ${cuda_compiler_bin}  )
@@ -169,6 +216,7 @@ add_executable(SpecfileBatchGenerator
         ${output_file}
 )
 
+
 #file:///home/nick/Programming/Cuda/Morphogenesis/src/SpecfileBatchGenerator.cpp
         
 add_dependencies(load_sim fluid_systemPTX)
@@ -199,6 +247,12 @@ target_link_libraries(make_demo PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudade
 target_link_libraries(make_demo2 PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport )
 target_link_libraries(SpecfileBatchGenerator PRIVATE "cudart" ${CUDA_LIBRARIES} ${CUDA_cudadevrt_LIBRARY}  -lcuda ${VTK_LIBRARIES} VTK::IOExport )
 target_link_libraries(thread_demo PRIVATE -lpthread )
+
+# vtk_module_autoinit is needed
+vtk_module_autoinit(
+   TARGETS load_sim check_demo make_demo make_demo2 SpecfileBatchGenerator
+   MODULES ${VTK_LIBRARIES}
+)
 
 #nb edit code so that installed binary looks for ptx in correct location             
 install(TARGETS fluid_systemPTX make_demo make_demo2 check_demo load_sim thread_demo SpecfileBatchGenerator

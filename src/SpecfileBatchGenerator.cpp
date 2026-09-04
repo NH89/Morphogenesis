@@ -53,8 +53,11 @@ int main ( int argc, const char** argv )
     CUdevice cuDevice;
     cuDeviceGet ( &cuDevice, 0 );
     CUcontext cuContext;
-    cuCtxCreate ( &cuContext, 0, cuDevice );
+    //cuCtxCreate ( &cuContext, 0, cuDevice );
+    CUctxCreateParams ctxCreateParams = {};
+    cuCtxCreate(&cuContext, &ctxCreateParams, CU_CTX_SCHED_AUTO, cuDevice);
     
+
     FluidSystem fluid;
     fluid.InitializeCuda ();
     

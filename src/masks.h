@@ -2,6 +2,8 @@
 
 //                          Dec		Hex				Binary
 
+#pragma once
+
 #define TWO_POW_3           8		//8		2^3		1000
 #define TWO_POW_4_MINUS_1   15		//F		(2^4) -1	1111
 

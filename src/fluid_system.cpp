@@ -153,7 +153,16 @@ cout << "\nFluidSystem::InitializeCuda : chk_1.2 "<<std::flush;
 cout << "\nFluidSystem::InitializeCuda : chk_2 "<<std::flush;
     sprintf( morphogenesis_ptx, "%s/%s/fluid_systemPTX/fluid_system_cuda.ptx", morphogenesis_ptx, name);  
     if (m_FParams.debug>1)std::cout<<"\n release type = "<<name<<"\t ptx path = "<<morphogenesis_ptx<<std::flush;
-    cuCheck ( cuModuleLoad ( &m_Module, morphogenesis_ptx), "LoadKernel", "cuModuleLoad", morphogenesis_ptx, mbDebug);  
+    //cuCheck ( cuModuleLoad ( &m_Module, morphogenesis_ptx), "LoadKernel", "cuModuleLoad", morphogenesis_ptx, mbDebug);
+
+    char buff[FILENAME_MAX];
+    getcwd( buff, FILENAME_MAX );
+    std::string current_working_dir(buff);
+    std::cout << "\ncurrent_working_dir = "<< current_working_dir << std::endl<<std::flush;	// ### TODO solve address for .ptx file . Is this solved by installing ?
+
+    cuCheck ( cuModuleLoad ( &m_Module, "../build/fluid_system_cuda.ptx" ), "LoadKernel", "cuModuleLoad", "fluid_system_cuda.ptx", mbDebug); //"fluid_system_cuda.ptx"
+
+
     // loads the file "fluid_system_cuda.ptx" as a module with pointer  m_Module.
 
 cout << "\nFluidSystem::InitializeCuda : chk_3 "<<std::flush;
