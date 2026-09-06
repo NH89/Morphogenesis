@@ -120,29 +120,31 @@ void FluidSystem::Initialize (){             // used for CPU only for "check_dem
 // /home/nick/Programming/Cuda/Morphogenesis/build/install/ptx/objects/fluid_systemPTX/fluid_system_cuda.ptx
 void FluidSystem::InitializeCuda (){         // used for load_sim  /home/nick/Programming/Cuda/Morphogenesis/build/install/ptx/objects-Debug/fluid_systemPTX/fluid_system_cuda.ptx
 cout << "\nFluidSystem::InitializeCuda : chk_1 "<<std::flush;
-    if (m_FParams.debug>1)std::cout << "FluidSystem::InitializeCuda () \n";
-    char* morphogenesis_ptx = std::getenv("MORPHOGENESIS_HOME");
+	uint old_debug = m_FParams.debug;
+	m_FParams.debug	= 2;
+    																				if (m_FParams.debug>1)std::cout << "FluidSystem::InitializeCuda () \n";
+    char* morphogenesis_path = std::getenv("MORPHOGENESIS_HOME");					cout << "\nFluidSystem::InitializeCuda : chk_1.1	morphogenesis_ptx : "<< morphogenesis_path<< std::flush;
 
-cout << "\nFluidSystem::InitializeCuda : chk_1.1 morphogenesis_ptx : "<< morphogenesis_ptx<< std::flush;
+    char morphogenesis_ptx[256];
     //Find release-type & path to ptx file
-    sprintf( morphogenesis_ptx, "%s/ptx", morphogenesis_ptx);
-cout << "\nFluidSystem::InitializeCuda : chk_1.1.1  morphogenesis_ptx : "<< morphogenesis_ptx<< std::flush;
-
-    DIR *dir = opendir(morphogenesis_ptx);
-cout << "\nFluidSystem::InitializeCuda : chk_1.1.2 "<< std::flush;
+    sprintf( morphogenesis_ptx, "%s/ptx", morphogenesis_path); 						cout << "\nFluidSystem::InitializeCuda : chk_1.1.1  morphogenesis_ptx : "<< morphogenesis_ptx<< std::flush;
+    																										/*
+                                                                                                             	morphogenesis_ptx : 	/home/nick/apps/morphogenesis/0.1.1/ptx
+                                                                                                            */
+    DIR *dir = opendir(morphogenesis_ptx);											cout << "\nFluidSystem::InitializeCuda : chk_1.1.2 "<< std::flush;
 
     const char *name;
     const char* names[5]= { "objects", "objects-Debug", "objects-Release", "objects-RelWithDebInfo", "objects-MinSizeRel" };
     struct dirent *ent;
     int entry_num = 0;
 
-cout << "\nFluidSystem::InitializeCuda : chk_1.2 "<<std::flush;
+																					cout << "\nFluidSystem::InitializeCuda : chk_1.2 "<<std::flush;
     while((ent = readdir(dir)) != NULL) {
-        if (m_FParams.debug>1)std::cout << "\nInitializeCuda: chk 6, ent->d_name="<<ent->d_name<<", entry_num="<< entry_num <<" \n";
+        																			if (m_FParams.debug>1)std::cout << "\nInitializeCuda: chk 6, ent->d_name="<<ent->d_name<<", entry_num="<< entry_num <<" \n";
         for (int i=0; i<5; i++){
-            if (m_FParams.debug>1)std::cout << "i="<<i<<", std::strcmp("<< ent->d_name <<", "<< names[i] <<") == " << std::strcmp(ent->d_name, names[i]) << "\n";
+            																		if (m_FParams.debug>1)std::cout << "i="<<i<<", std::strcmp("<< ent->d_name <<", "<< names[i] <<") == " << std::strcmp(ent->d_name, names[i]) << "\n";
             if (std::strcmp(ent->d_name, names[i]) == 0 ){
-                if (m_FParams.debug>1)std::cout << "Match ent->d_name = names["<<i<<"]\n";
+                																	if (m_FParams.debug>1)std::cout << "Match ent->d_name = names["<<i<<"] =  "<< names[i] << "\n";
                 name = names[i];
                 break;
             }
@@ -150,22 +152,32 @@ cout << "\nFluidSystem::InitializeCuda : chk_1.2 "<<std::flush;
         if (name != NULL) break;
         entry_num++;
     }
-cout << "\nFluidSystem::InitializeCuda : chk_2 "<<std::flush;
-    sprintf( morphogenesis_ptx, "%s/%s/fluid_systemPTX/fluid_system_cuda.ptx", morphogenesis_ptx, name);  
-    if (m_FParams.debug>1)std::cout<<"\n release type = "<<name<<"\t ptx path = "<<morphogenesis_ptx<<std::flush;
-    //cuCheck ( cuModuleLoad ( &m_Module, morphogenesis_ptx), "LoadKernel", "cuModuleLoad", morphogenesis_ptx, mbDebug);
-
+																											cout << "\nFluidSystem::InitializeCuda : chk_2 "<<std::flush;
+    char ptx_path[256];
+    sprintf(ptx_path, "%s/%s/fluid_systemPTX/fluid_system_cuda.ptx", morphogenesis_ptx, name);
+                                                                                                            if (m_FParams.debug>1)std::cout	<<"\n release type   = "	<<name
+																																			<<"\n ptx path       = "	<<ptx_path	<<std::flush;
+	cuCheck ( cuModuleLoad ( &m_Module, ptx_path), "LoadKernel", "cuModuleLoad", morphogenesis_ptx, mbDebug);
     char buff[FILENAME_MAX];
     getcwd( buff, FILENAME_MAX );
     std::string current_working_dir(buff);
-    std::cout << "\ncurrent_working_dir = "<< current_working_dir << std::endl<<std::flush;	// ### TODO solve address for .ptx file . Is this solved by installing ?
+    																										std::cout << "\ncurrent_working_dir = "<< current_working_dir << std::endl<<std::flush;	// ### TODO solve address for .ptx file . Is this solved by installing ?
 
-    cuCheck ( cuModuleLoad ( &m_Module, "../build/fluid_system_cuda.ptx" ), "LoadKernel", "cuModuleLoad", "fluid_system_cuda.ptx", mbDebug); //"fluid_system_cuda.ptx"
+    																										/*	/home/nick/apps/morphogenesis/0.1.1/ptx/objects-Release/fluid_systemPTX/fluid_system_cuda.ptx
+                                                                                                             *  /home/nick/apps/morphogenesis/0.1.1/ptx/objects-Release/fluid_systemPTX/fluid_system_cuda.ptx
+
+    																											FluidSystem::InitializeCuda : chk_2
+ 																												release type 			= objects-Release
+ 																												ptx path 				= /objects-Release/fluid_systemPTX/fluid_system_cuda.ptx
+																												current_working_dir 	= /home/nick/programming/Morphogenesis/Morphogenesis/data
+
+    																										*/
+    //cuCheck ( cuModuleLoad ( &m_Module, "fluid_system_cuda.ptx" ), "LoadKernel", "cuModuleLoad", "fluid_system_cuda.ptx", mbDebug); // "../build/fluid_system_cuda.ptx"
 
 
     // loads the file "fluid_system_cuda.ptx" as a module with pointer  m_Module.
 
-cout << "\nFluidSystem::InitializeCuda : chk_3 "<<std::flush;
+																											cout << "\nFluidSystem::InitializeCuda : chk_3 "<<std::flush;
     if (m_FParams.debug>1)std::cout << "Chk1.1 \n";
     LoadKernel ( FUNC_INSERT,                           "insertParticles" );
     LoadKernel ( FUNC_COUNTING_SORT,                    "countingSortFull" );
@@ -222,6 +234,9 @@ cout << "\nFluidSystem::InitializeCuda : chk_4 "<<std::flush;
     //ClearNeighborTable ();
     mNumPoints = 0;			// reset count
     if (m_FParams.debug>1)std::cout << "Chk1.5 \n";
+
+
+    m_FParams.debug	= old_debug;
 }
 
 /////////////////////////////////////////////////////////////////
@@ -419,21 +434,21 @@ void FluidSystem::AllocateGrid(int gpu_mode, int cpu_mode){ // NB void FluidSyst
     m_FParams.szGrid = (m_FParams.gridBlocks * m_FParams.gridThreads);
     if (m_FParams.debug>1)cout<<"\nAllocateGrid: m_FParams.szGrid = ("<<m_FParams.gridBlocks<<" * "<<m_FParams.gridThreads<<")"<<std::flush;
     AllocateBuffer ( FGRID,		sizeof(uint),		mMaxPoints,	m_FParams.szPnts,	gpu_mode, cpu_mode );    // # grid elements = number of points
-    AllocateBuffer ( FGRIDCNT,	sizeof(uint),		cnt,	    m_FParams.szGrid,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FGRIDOFF,	sizeof(uint),		cnt,	    m_FParams.szGrid,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FGRIDACT,	sizeof(uint),		cnt,	    m_FParams.szGrid,	gpu_mode, cpu_mode );      // ?? not used ?? ... active bins i.e. containing particles ? 
+    AllocateBuffer ( FGRIDCNT,	sizeof(uint),		cnt,		m_FParams.szGrid,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FGRIDOFF,	sizeof(uint),		cnt,		m_FParams.szGrid,	gpu_mode, cpu_mode );
+    AllocateBuffer ( FGRIDACT,	sizeof(uint),		cnt,		m_FParams.szGrid,	gpu_mode, cpu_mode );      // ?? not used ?? ... active bins i.e. containing particles ?
     // extra buffers for dense lists
-    AllocateBuffer ( FGRIDCNT_ACTIVE_GENES,  sizeof(uint[NUM_GENES]),       cnt,   m_FParams.szGrid,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FGRIDOFF_ACTIVE_GENES,  sizeof(uint[NUM_GENES]),       cnt,   m_FParams.szGrid,	gpu_mode, cpu_mode );
-    AllocateBuffer ( FDENSE_LIST_LENGTHS,	 sizeof(uint),		      NUM_GENES,   NUM_GENES,	        gpu_mode, cpu_mode );
-    AllocateBuffer ( FDENSE_LISTS,	         sizeof(CUdeviceptr),     NUM_GENES,   NUM_GENES,           gpu_mode, cpu_mode );
-    AllocateBuffer ( FDENSE_BUF_LENGTHS,	 sizeof(uint),            NUM_GENES,   NUM_GENES,           gpu_mode, cpu_mode );
+    AllocateBuffer ( FGRIDCNT_ACTIVE_GENES,			sizeof(uint[NUM_GENES]),		cnt,			m_FParams.szGrid,		gpu_mode, cpu_mode );
+    AllocateBuffer ( FGRIDOFF_ACTIVE_GENES,			sizeof(uint[NUM_GENES]),		cnt,			m_FParams.szGrid,		gpu_mode, cpu_mode );
+    AllocateBuffer ( FDENSE_LIST_LENGTHS,			sizeof(uint),					NUM_GENES,		NUM_GENES,				gpu_mode, cpu_mode );
+    AllocateBuffer ( FDENSE_LISTS,					sizeof(CUdeviceptr),			NUM_GENES,		NUM_GENES,				gpu_mode, cpu_mode );	cout<<"	FDENSE_LISTS"<<std::flush;
+    AllocateBuffer ( FDENSE_BUF_LENGTHS,			sizeof(uint),					NUM_GENES,		NUM_GENES,				gpu_mode, cpu_mode );	cout<<"	FDENSE_BUF_LENGTHS"<<std::flush;
     
-    AllocateBuffer ( FGRIDCNT_CHANGES,               sizeof(uint[NUM_CHANGES]),       cnt,   m_FParams.szGrid,	    gpu_mode, cpu_mode );
-    AllocateBuffer ( FGRIDOFF_CHANGES,               sizeof(uint[NUM_CHANGES]),       cnt,   m_FParams.szGrid,	    gpu_mode, cpu_mode );
-    AllocateBuffer ( FDENSE_LIST_LENGTHS_CHANGES,	 sizeof(uint),		      NUM_CHANGES,   NUM_CHANGES,	        gpu_mode, cpu_mode );
-    AllocateBuffer ( FDENSE_LISTS_CHANGES,	         sizeof(CUdeviceptr),     NUM_CHANGES,   NUM_CHANGES,           gpu_mode, cpu_mode );
-    AllocateBuffer ( FDENSE_BUF_LENGTHS_CHANGES,	 sizeof(uint),            NUM_CHANGES,   NUM_CHANGES,           gpu_mode, cpu_mode );
+    AllocateBuffer ( FGRIDCNT_CHANGES,				sizeof(uint[NUM_CHANGES]),		cnt,			m_FParams.szGrid,		gpu_mode, cpu_mode );
+    AllocateBuffer ( FGRIDOFF_CHANGES,				sizeof(uint[NUM_CHANGES]),		cnt,			m_FParams.szGrid,		gpu_mode, cpu_mode );
+    AllocateBuffer ( FDENSE_LIST_LENGTHS_CHANGES,	sizeof(uint),					NUM_CHANGES,	NUM_CHANGES,			gpu_mode, cpu_mode );
+    AllocateBuffer ( FDENSE_LISTS_CHANGES,			sizeof(CUdeviceptr),			NUM_CHANGES,	NUM_CHANGES,			gpu_mode, cpu_mode );	cout<<"	FDENSE_LISTS_CHANGES"<<std::flush;
+    AllocateBuffer ( FDENSE_BUF_LENGTHS_CHANGES,	sizeof(uint),					NUM_CHANGES,	NUM_CHANGES,			gpu_mode, cpu_mode );	cout<<"	FDENSE_BUF_LENGTHS_CHANGES"<<std::flush;
 
     if (gpu_mode != GPU_OFF ) {
         /*if(gpu_mode == GPU_SINGLE || gpu_mode == GPU_DUAL )*/
@@ -452,13 +467,15 @@ void FluidSystem::AllocateGrid(int gpu_mode, int cpu_mode){ // NB void FluidSyst
             m_Fluid.bufI(FDENSE_LIST_LENGTHS_CHANGES)[i] = 0;
             m_Fluid.bufI(FDENSE_BUF_LENGTHS_CHANGES)[i]  = INITIAL_BUFFSIZE_ACTIVE_GENES;
         }
-        cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS),         m_Fluid.bufC(FDENSE_LISTS),          NUM_GENES * sizeof(CUdeviceptr)  );
-        cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS_CHANGES), m_Fluid.bufC(FDENSE_LISTS_CHANGES),  NUM_GENES * sizeof(CUdeviceptr)  );
-        cuMemcpyHtoD(m_Fluid.gpu(FDENSE_BUF_LENGTHS),   m_Fluid.bufC(FDENSE_BUF_LENGTHS),    NUM_GENES * sizeof(CUdeviceptr)  );
-        cuCheck( cuMemcpyHtoD ( m_Fluid.gpu(FDENSE_BUF_LENGTHS_CHANGES), m_Fluid.bufI(FDENSE_BUF_LENGTHS_CHANGES),	sizeof(uint[NUM_CHANGES]) ), "AllocateGrid", "cuMemcpyHtoD", "FDENSE_BUF_LENGTHS_CHANGES", mbDebug);
+        //CUresult cuMemcpyHtoD ( CUdeviceptr dstDevice, 	const void* srcHost, 	size_t ByteCount )
+        //void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode )
+
+        cuCheck( cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS),				m_Fluid.bufC(FDENSE_LISTS),					sizeof(CUdeviceptr)*NUM_GENES   ),	"AllocateGrid", "cuMemcpyHtoD",  "FDENSE_LISTS", 				mbDebug);
+        cuCheck( cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS_CHANGES),		m_Fluid.bufC(FDENSE_LISTS_CHANGES),			sizeof(CUdeviceptr)*NUM_CHANGES ),	"AllocateGrid", "cuMemcpyHtoD",  "FDENSE_LISTS_CHANGES", 		mbDebug);	//###  ? raises error.		// NUM_GENES * sizeof(CUdeviceptr)
+        cuCheck( cuMemcpyHtoD(m_Fluid.gpu(FDENSE_BUF_LENGTHS),			m_Fluid.bufC(FDENSE_BUF_LENGTHS),			sizeof(uint)*NUM_GENES			),	"AllocateGrid", "cuMemcpyHtoD",  "FDENSE_BUF_LENGTHS", 			mbDebug);								// NUM_GENES * sizeof(CUdeviceptr)
+        cuCheck( cuMemcpyHtoD(m_Fluid.gpu(FDENSE_BUF_LENGTHS_CHANGES),	m_Fluid.bufC(FDENSE_BUF_LENGTHS_CHANGES),	sizeof(uint)*NUM_CHANGES 		),	"AllocateGrid", "cuMemcpyHtoD",  "FDENSE_BUF_LENGTHS_CHANGES", 	mbDebug);	//###  ? bufC OR bufI ?		// sizeof(uint[NUM_CHANGES]
         
-    
-        cuCheck(cuMemcpyHtoD(cuFBuf, &m_Fluid, sizeof(FBufs)), "AllocateGrid", "cuMemcpyHtoD", "cuFBuf", mbDebug);  // Update GPU access pointers
+        cuCheck( cuMemcpyHtoD(cuFBuf, &m_Fluid, sizeof(FBufs)), "AllocateGrid", "cuMemcpyHtoD", "cuFBuf", mbDebug);  // Update GPU access pointers
         cuCheck(cuCtxSynchronize(), "AllocateParticles", "cuCtxSynchronize", "", mbDebug);
     }
 }
@@ -930,7 +947,7 @@ void FluidSystem::Run (const char * relativePath, int frame, bool debug, bool ge
 }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
 
 void FluidSystem::Run2PhysicalSort(){
-    if(m_FParams.debug>1)std::cout<<"\n####\nRun2PhysicalSort()start";
+    if(m_FParams.debug>0)std::cout<<"\n####\nRun2PhysicalSort()start";
     InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug);
     if(launchParams.debug>0){
@@ -938,7 +955,7 @@ void FluidSystem::Run2PhysicalSort(){
         TransferFromCUDA ();
         m_Debug_file++;
         std::cout<<"\nchk b: launchParams.outPath="<<launchParams.outPath<<",  m_Frame+m_Debug_file=0;="<<m_Frame+m_Debug_file<<"\t"<<std::flush;
-        SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+      //  SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
         std::cout << "\n\nRun2PhysicalSort() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  InsertParticlesCUDA\n"<<std::flush;
         //TransferFromTempCUDA(int buf_id, int sz );
     }
@@ -947,7 +964,7 @@ void FluidSystem::Run2PhysicalSort(){
     if(launchParams.debug>0){
         TransferFromCUDA ();
         m_Debug_file++;
-        SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+      //  SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
         std::cout << "\n\nRun2PhysicalSort() Chk2, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  PrefixSumCellsCUDA\n"<<std::flush;
         //TransferFromTempCUDA(int buf_id, int sz );
     }
@@ -957,7 +974,7 @@ void FluidSystem::Run2PhysicalSort(){
 }
 
 void FluidSystem::Run2InnerPhysicalLoop(){
-    if(m_FParams.debug>1)std::cout<<"\n####\nRun2InnerPhysicalLoop()start";
+    if(m_FParams.debug>0)std::cout<<"\n####\nRun2InnerPhysicalLoop()start";
     if(m_FParams.freeze==true){
         InitializeBondsCUDA ();
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InitializeBondsCUDA ", mbDebug);
@@ -1000,7 +1017,7 @@ void FluidSystem::Run2InnerPhysicalLoop(){
 }
 
 void FluidSystem::Run2GeneAction(){//NB gene sorting occurs within Run2PhysicalSort()
-    if(m_FParams.debug>1)std::cout<<"\n####\nRun2GeneAction()start";
+    if(m_FParams.debug>0)std::cout<<"\n####\nRun2GeneAction()start";
     ComputeDiffusionCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
     
@@ -1010,7 +1027,7 @@ void FluidSystem::Run2GeneAction(){//NB gene sorting occurs within Run2PhysicalS
 }
 
 void FluidSystem::Run2Remodelling(uint steps_per_InnerPhysicalLoop){
-    if(m_FParams.debug>1){std::cout<<"\n####\nRun2Remodelling()start";}
+    if(m_FParams.debug>0){std::cout<<"\n####\nRun2Remodelling()start";}
     AssembleFibresCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AssembleFibresCUDA", mbDebug); 
     
@@ -1590,7 +1607,7 @@ void FluidSystem::RunSimulation (){
 }
 
 void FluidSystem::Run2Simulation(){
-    printf("\n\n Run2Simulation(), m_FParams.debug=%i .", m_FParams.debug );
+    printf("\n\n Run2Simulation(), m_FParams.debug=%i.   launchParams.save_csv==%c,   launchParams.save_vtp==%c ##############################################\n", m_FParams.debug,   launchParams.save_csv,  launchParams.save_vtp );
     Init_FCURAND_STATE_CUDA ();
     auto old_begin = std::chrono::steady_clock::now();
     TransferPosVelVeval ();
@@ -1650,6 +1667,8 @@ void FluidSystem::Run2Simulation(){
     setFreeze(false);                                                                                       // freeze=false => bonds can be broken now.
     printf("\n\nFreeze finished, starting normal Run ##############################################\n\n");
     //Run2PhysicalSort();
+
+    cout<<"\n launchParams.file_num = "<< launchParams.file_num <<"   <launchParams.num_files = "<< launchParams.num_files  << std::flush;
     
     for ( ; launchParams.file_num<launchParams.num_files; launchParams.file_num+=100 ) {
         std::cout<<"\n\nfile_num="<<launchParams.file_num<<", of "<<launchParams.num_files<<"\n"<<std::flush;
@@ -1675,11 +1694,9 @@ void FluidSystem::Run2Simulation(){
         auto end = std::chrono::steady_clock::now();
         std::chrono::duration<double> time = end - begin;
         std::chrono::duration<double> begin_dbl = begin - old_begin;
-        if(launchParams.debug>0) std::cout << "\nLoop duration : "
-                    << begin_dbl.count() <<" seconds. Time taken to write files for "
-                    << NumPoints() <<" particles : " 
-                    << time.count() << " seconds. launchParams.num_files="
-                    << launchParams.num_files << "\n" << std::endl;
+        /*if(launchParams.debug>0)*/ std::cout	<<"\nOuter loop duration : " 			<< begin_dbl.count() 		<<" seconds. "
+                                                <<"\nTime taken to write files for "	<< NumPoints() 				<<" particles : " 	<< time.count() << " seconds. "
+                                                <<"\nlaunchParams.num_files="			<< launchParams.num_files 	<< "\n" 			<< std::endl;
         old_begin = begin;
         
         //if (mActivePoints < 500 ){std::cout<<"\n(mActivePoints < 500) stopping. chk why I am loosing particles?"<<std::flush;  Exit();}        // temp chk for why I am loosing particles.
@@ -1687,8 +1704,11 @@ void FluidSystem::Run2Simulation(){
     //launchParams.file_num++;
     
     TransferFromCUDA ();
-    SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+99);   // save "end condition", even if not saving the series.
+   // m_FParams.debug = 2; //	### temporary
+     																				/*if(launchParams.debug>0)*/ std::cout << "\nWriting final files \n" << std::endl;
     SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+99);
+    SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+99);   // save "end condition", even if not saving the series.
+
     
     WriteSimParams ( launchParams.outPath ); 
     WriteGenome( launchParams.outPath );

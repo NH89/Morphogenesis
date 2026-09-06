@@ -34,9 +34,39 @@ It can used for
 
 It is in principle a **differentiable simulator** because gradients are available for all parameters. NB functions to access this have not _yet_ been written as of April 2021.
 
+----
+### Updated (August 2026) - Cuda-13.1, Ubuntu-26.04 LTS, VTK-9.5, C++17, CMake-4.2
+
+The code has beed updated to work with Ubuntu 26.04LTS, and therefore Cuda-13.1, VTK-9.5, C++17, CMake-4.2, all from the Ubuntu repository, no custom installs required. (Except Cuda-13.1 patch, see below.)
+
+Morphogenesis has no OS-brand dependency, and builds with CMake plus Ninja or Make,  so it 'should' build on any OS where those libraries work with C++17.
+
+### Environment variables + patch for Cuda 13.1
+
+Cuda requres all the following added to your environment variables on Ubuntu :
+```
+    export CPATH=${CPATH}:/usr/local/cuda/include
+
+    export C_PLUS_INCLUDE_PATH=${C_PLUS_INCLUDE_PATH}:/usr/local/cuda/include
+
+    export LIBRARY_PATH=${LIBRARY_PATH}:/usr/local/cuda/lib64  
+
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64
+```
+
+This is best set in the ~/.profile file, so that they are found by you IDE as well as your terminal. 
+
+(Nvidia's [cuda-installation-guide-linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/#environment-setup) does not mention  ```CPATH```  and ```LIBRARY_PATH```, but omitting them can lead to "file not found" errors.)
+
+#### Patch
+Cuda-13.1 (in the Ubuntu 26.04LTS repository) has a bug which has been patched in Cuda 13.2 (custom install not yet supported on Ubuntu 26.04LTS).
+
+Details of the bug, and the patch are provided in [Cuda 13.1 patch on Ubuntu 26.04 LTS.md](Patches_sometimes_required/Cuda-13.1-patch-on-Ubuntu-26.04LTS/Cuda 13.1 patch on Ubuntu 26.04 LTS.md)
+
+----
 ### Build instructions  
-Morphogenesis depends on Cuda-10 or higher, C++11, CCmake, and vtk-9.x.
-Scripts are provided to build and install vtk-9.0.1 and Morphogenesis.
+Morphogenesis depends on Cuda>=13, C++17, CMake>=3.20, and vtk-9.x.
+Scripts are provided to build and install Morphogenesis.
 These "should" work on individual workstations or GPU clusters.
 
 The scripts call ccmake (cmake ncrurses text-gui, usually available in non-gui environments e.g. clusters).
@@ -48,26 +78,20 @@ If Environment Modules are installed (e.g. on a GPU cluster), then the script in
 
 #### vtk-9
 
-    Morphogenesis depends on vtk-9.x . 
-    See #includes in fluid_system.h . 
-    You may need to adjust the sub-version number.
-
-    cd Morphogenesis/src
-    bash ./install_scripts/install_vtk-9.0.1.sh    ## obsolete
-    
-    
+    Morphogenesis depends on vtk>=9.5
+    See #includes in fluid_system.h
 
 NB(1) The user must ensure that vtk-9.x is installed _before_ building Morphogenesis.
-    
+
 NB(2) It is strongly recommended to use the same c++11 compiler and library for both vtk-9.x and Morphogenesis, to ensure binary ABI compatability.
 
-#### Morphogenesis 
+#### Morphogenesis
 
     cd Morphogenesis/src
-    bash ./install_scripts/install_morphogenesis.sh 
-    
+    bash ./install_scripts/install_morphogenesis.sh
+
     . install_scripts/set_env.sh
-    
+
 Note the "dot space script" syntax is required for set_env.sh .
 This runs the script in the current shell, so that it can set the required enviroment variables.
 
@@ -77,19 +101,19 @@ See the details of the install scripts and module files, and adapt as needed.
 
 ### SLURM for launching batches on a cluster.
 
-To launch a job using a Slurm script : 
+To launch a job using a Slurm script :
 
     sbatch <path_to_script/scriptname.slurm>
-    
+
 e.g.
     cd Morphogenesis/data
     sbatch ../src/slurm/Morphogenesis_test1.slurm
 
-NB SLURM writes stdout and stderr to file : 
+NB SLURM writes stdout and stderr to file :
 
     <working_dir>/slurm-<job_no>.out .
 
-To check the queue : 
+To check the queue :
 
     squeue -u <userID>
 
@@ -99,10 +123,10 @@ Within Non-Reciprocal branch executables (so far) include:
 
 #### "make_demo2"
 
-This is the main way of launching for testing. It reads a file called SpecificationFile.txt in the "demo" directory. 
+This is the main way of launching for testing. It reads a file called SpecificationFile.txt in the "demo" directory.
 
 usage:
-    
+
     make_demo2 <input_folder> <output_folder>
 
 * Input_folder must contain "SpecificationFile.txt", output will be wrtitten to "output_folder_<data_time>".

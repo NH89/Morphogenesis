@@ -35,7 +35,7 @@ endif()
 
 
 find_package(Freetype REQUIRED)
-find_package(jsoncpp REQUIRED)
+find_package(jsoncpp REQUIRED)							# not used. ?Requred by cuda?
 
 
 

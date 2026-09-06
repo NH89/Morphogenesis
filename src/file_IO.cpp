@@ -40,7 +40,7 @@ void FluidSystem::ReadGenome( const char * relativePath){
         ret += std::fscanf(genes_file, "%i,\t\t \n", &m_FGenome.activate[i][2*NUM_GENES] );        //num active elements,
         if (ret != (2 + NUM_GENES + NUM_TF*2 + 1 + NUM_GENES*2 + 1) ) {
             if (m_FParams.debug>1)std::cout << "\nvoid FluidSystem::ReadGenome, read failure !  gene number = " << i << ", ret = "<< ret <<"\n " << std::flush;
-            fclose(genes_file);
+            fflush(genes_file); fclose(genes_file);
             return;
         }
         if (m_FParams.debug>1) for(int j=0; j<NUM_GENES; j++)  std::cout << m_FGenome.sensitivity[i][j] <<",";
@@ -82,7 +82,7 @@ void FluidSystem::ReadGenome( const char * relativePath){
     }
     if (m_FParams.debug>1)std::cout << "\n" << i <<"*"<< j << " remodelling parameters read. ret = "<< ret <<"\n" << std::flush;
     
-    fclose(genes_file);
+	fflush(genes_file); fclose(genes_file);
 }
 
 void FluidSystem::WriteGenome( const char * relativePath){
@@ -171,8 +171,7 @@ void FluidSystem::WriteGenome( const char * relativePath){
         float param[3][12];\n\
     };\n\
     ");
-    
-    fclose(fp);
+    fflush(fp); fclose(fp);
 }
 
 void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// uses vtk library to write binary vtp files
@@ -185,7 +184,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     
     // points, vertices & lines
     // points & vertices = FPOS 3df
-if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
+																								if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 0,  m_FParams.debug = "<<m_FParams.debug<<std::flush;
     vtkSmartPointer<vtkPoints> points3D = vtkSmartPointer<vtkPoints>::New();                           // Points3D
 	vtkSmartPointer<vtkCellArray> Vertices = vtkSmartPointer<vtkCellArray>::New();                     // Vertices
     uint num_active_points = 0;
@@ -207,7 +206,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
             */
         }else break;  // Must sort particles before SavePointsVTP2. NB between adding particles and countingSortFull(), there may be a mixture of valid and invalid prticles at the end of the list.
 	}
-	if (m_FParams.debug>1) std::cout<<"\n\nSavePointsVTP2: chk1 num_active_points="<<num_active_points<<std::flush;
+																								if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk1 num_active_points="<<num_active_points<<std::flush;
 	// Inset vertices for sim volume
 	{
         vtkIdType pid[1];
@@ -224,7 +223,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
             Vertices->InsertNextCell(1,pid);
         }
     }
-    if (m_FParams.debug>1) std::cout<<"\n\nSavePointsVTP2: chk2 num_active_points="<<num_active_points<<std::flush;
+    																							if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2 "<<std::flush;
 
     // edges = FELASTIDX [0]current index uint                                                         // Lines
     vtkSmartPointer<vtkCellArray> Lines = vtkSmartPointer<vtkCellArray>::New();
@@ -271,6 +270,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
             */
         }
 	}
+																								//if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.1 "<<std::flush;
 	// Sim volume boundry lines
 	for(int corner=0; corner<8; corner++){
         int firstParticle = corner + num_active_points;
@@ -301,7 +301,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
         }
         */
     }
-    
+    																							//if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.2 "<<std::flush;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////// Particle Data 
     
@@ -368,7 +368,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
             strain_sq_integrator->InsertNextTuple1(0);
         }
     }
-    
+                                                                                            	//if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.3 "<<std::flush;
     
 
     // FVEL 3df, 
@@ -444,7 +444,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     for(int corner=0; corner<8; corner++){
         fdens->InsertNextTuple2(0,0);
     }
-
+																								//if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.4 "<<std::flush;
     
     // FAGE ushort, 
     unsigned int* age = getAge(0);
@@ -474,7 +474,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     
     // FPARTICLEIDX uint[BONDS_PER_PARTICLE *2],  
 
-    
+    																							//if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.5 "<<std::flush;
     // FPARTICLE_ID  uint, 
     unsigned int* pid = getParticle_ID(0);
     vtkSmartPointer<vtkUnsignedIntArray> fpid = vtkSmartPointer<vtkUnsignedIntArray>::New();
@@ -502,7 +502,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     for(int corner=0; corner<8; corner++){
         fmass_radius->InsertNextTuple2(0,0);
     }
-    
+    																							//if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.6 "<<std::flush;
     // FNERVEIDX uint, 
     unsigned int* nidx = getNerveIdx(0);
     vtkSmartPointer<vtkUnsignedIntArray> fnidx = vtkSmartPointer<vtkUnsignedIntArray>::New();
@@ -534,7 +534,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
             fconc[i]->InsertNextValue(0);
         }
     }
-    
+    																							//if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.7 "<<std::flush;
     // FEPIGEN uint[NUM_GENES] ... make an array of arrays
     vtkSmartPointer<vtkUnsignedIntArray> fepigen[NUM_GENES];
     char buf_epigen[256];
@@ -554,7 +554,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
             fepigen[i]->InsertNextValue(0);
         }
     }
-
+                                                                                                //if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.8 "<<std::flush;
     
     // F_TISSUE_TYPE  uint, 
     unsigned int tissueType;
@@ -576,7 +576,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     for(int corner=0; corner<8; corner++){
         ftissue->InsertNextValue(0);
     }
-    
+    																							//if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.9 "<<std::flush;
   
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // POLYDATA
@@ -616,7 +616,7 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     
     polydata->GetPointData()->AddArray(ftissue);
     
-    //if (m_FParams.debug>1)cout << "\nFinished writing bond data to polydata\n" << std::flush;
+    																							if (m_FParams.debug>1)cout << "\nFinished writing bond data to polydata\n" << std::flush;
    
     // WRITER  
 	vtkSmartPointer<vtkXMLPolyDataWriter> writer = vtkSmartPointer<vtkXMLPolyDataWriter>::New();       // writer
@@ -628,6 +628,9 @@ if (m_FParams.debug>1)cout<<"\nSavePointsVTP2: chk 1"<<std::flush;
     writer->SetDataModeToAscii();   
     //writer->SetDataModeToAppended();    // prefered, produces a human readable header followed by a binary blob.
     //writer->SetDataModeToBinary();
+
+    																							if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk3 "
+                                                                                                    <<"\n"<<std::flush;
 
 	writer->Write();
 if (m_FParams.debug>1)cout << "\nFinished writing vtp file " << buf << "." << endl;
@@ -653,16 +656,24 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
     uint* Age, *Clr, *NerveIdx, *ElastIdx, *Particle_Idx, *Particle_ID, *Mass_Radius, *EpiGen;                  // Q: why are these pointers? A: they get dereferenced below.
     uint mass, radius;
     float *ElastIdxPtr;
-    
+    																																											//if (m_FParams.debug>1) std::cerr << "\n  SavePointsCSV2 chk 1"<<std::flush;
     fprintf(fp, "i,, x coord, y coord, z coord\t\t x vel, y vel, z vel\t\t age,  color\t\t FELASTIDX[%u*%u]", BONDS_PER_PARTICLE, DATA_PER_BOND);  // This system inserts commas to align header with csv data
+    																																											//if (m_FParams.debug>1) std::cerr << "\n  SavePointsCSV2 chk 2"<<std::flush;
     for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, ",(%u)[0]curIdx, [1]elastLim, [2]restLn, [3]modulus, [4]damping, [5]partID, [6]stress_sq integrator, [7]stress integrator, [8]change-type,,  ",i);
     fprintf(fp, "\t"); 
-    fprintf(fp, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u*2]", BONDS_PER_PARTICLE);    
+    																																											//if (m_FParams.debug>1) std::cerr << "\n  SavePointsCSV2 chk 3"<<std::flush;
+    fprintf(fp, "\tParticle_ID, mass, radius, FNERVEIDX,\t\t Particle_Idx[%u*2]", BONDS_PER_PARTICLE);
+    																																											//if (m_FParams.debug>1) std::cerr << "\n  SavePointsCSV2 chk 4"<<std::flush;
     for (int i=0; i<BONDS_PER_PARTICLE; i++)fprintf(fp, "%u,,, ",i);
+    																																											//if (m_FParams.debug>1) std::cerr << "\n  SavePointsCSV2 chk 5"<<std::flush;
     fprintf(fp, "\t\tFCONC[%u] ", NUM_TF);
+    																																											//if (m_FParams.debug>1) std::cerr << "\n  SavePointsCSV2 chk 6"<<std::flush;
     for (int i=0; i<NUM_TF; i++)fprintf(fp, "%u, ",i);
+    																																											//if (m_FParams.debug>1) std::cerr << "\n  SavePointsCSV2 chk 7"<<std::flush;
     fprintf(fp, "\t\tFEPIGEN[%u] ", NUM_GENES);
+    																																											//if (m_FParams.debug>1) std::cerr << "\n  SavePointsCSV2 chk 8"<<std::flush;
     for (int i=0; i<NUM_GENES; i++)fprintf(fp, "%u, ",i);
+    																																											//if (m_FParams.debug>1) std::cerr << "\n  SavePointsCSV2 chk 9"<<std::flush;
     fprintf(fp, "\n");
 
     for(int i=0; i<numpnt; i++) {       // nb need get..() accessors for private data.
@@ -676,7 +687,7 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
         Particle_Idx = getParticle_Idx(i);
         Particle_ID = getParticle_ID(i);//# uint  original pnum, used for bonds between particles. 32bit, track upto 4Bn particles.
         if(*Particle_ID==0){
-         if (m_FParams.debug>1) std::cout << "SavePointsCSV2: Particle_ID = pointer not assigned. i="<<i<<". \t" << std::flush;
+         if (m_FParams.debug>1) std::cerr << "SavePointsCSV2: Particle_ID = pointer not assigned. i="<<i<<". \t" << std::flush;
          return;
         }
         // ? should I be splitting mass_radius with bitshift etc  OR just use two uit arrays .... where are/will these used anyway ?
@@ -713,9 +724,10 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
             EpiGen = getEpiGen(j);
             fprintf(fp, "%u, ",  EpiGen[i] );   // NB FEPIGEN[gene][particle], for memory efficiency on the device. ? Need to test.
         }fprintf(fp, " \n");
+                                                                                                                                                                                //if (m_FParams.debug>1) std::cerr << "\n  SavePointsCSV2 chk 10"<<std::flush;
+
     }
-    fclose ( fp );
-    fflush ( fp );
+    fflush(fp); fclose(fp);
 }
 
 void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode){ // NB allocates buffers as well.
@@ -816,7 +828,7 @@ if (m_FParams.debug>1) std::cout<<"\n\n ReadPointsCSV2() starting loop: number_o
 
 if (ret != (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  // 9 + 6*9 + 4 + 6*2 + 16 + 16 = 111
             if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() fail line 1276, ret="<<ret<<"\n"<<std::flush;// ret=39
-            fclose(points_file);
+            fflush(points_file); fclose(points_file);
             return;
         } // ret=8 ret=32 ret=36 ret=48 ret=64 ret=80 
 
@@ -835,13 +847,13 @@ if (ret != (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  
             //}
             /*if (m_FParams.debug>1)*/printf("\nParticle out of bounds, i=%u\t Pos=(%f,%f,%f), PosMin=(%f,%f,%f), PosMax=(%f,%f,%f), Closing file and exiting.",
                    i, Pos.x, Pos.y, Pos.z, PosMin.x, PosMin.y, PosMin.z, PosMax.x, PosMax.y, PosMax.z );
-            fclose(points_file);
+            fflush(points_file); fclose(points_file);
             Exit();
         }
         AddParticleMorphogenesis2 (&Pos, &Vel, Age, Clr, ElastIdxU, ElastIdxF, Particle_Idx, Particle_ID, Mass_Radius,  NerveIdx, Conc, EpiGen );
     }
     if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() finished reading points. i="<<i<<", NumPoints()="<<NumPoints()<<"\n"<<std::flush;
-    fclose(points_file);
+    fflush(points_file); fclose(points_file);
     AddNullPoints ();                                   // add null particles up to mMaxPoints // should be redundant here as mMaxPoints = number_of_lines-1
     if (gpu_mode != GPU_OFF) TransferToCUDA ();         // Initial transfer
   //if (m_FParams.debug>1)printf("\n m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES)=%llu, \t m_Fluid.gpu(FGRIDOFF_CHANGES)=%llu, \t m_Fluid.gpu(FGRIDCNT_CHANGES)=%llu   \n",m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES), m_Fluid.gpu(FGRIDOFF_CHANGES) , m_Fluid.gpu(FGRIDCNT_CHANGES)   );
@@ -899,7 +911,7 @@ void FluidSystem::ReadSimParams ( const char * relativePath ) { // transcribe Si
 
     if ( ret != 41 ) {
         /*if (m_FParams.debug>1)*/ std::cout << "\nvoid FluidSystem::ReadSimParams(..), read failure ! ret = " << ret << std::flush;
-        fclose ( SimParams_file );
+        fflush(SimParams_file); fclose(SimParams_file);
         Exit();
     }
     m_Vec [ PPLANE_GRAV_DIR ].Set ( pplane_grav_dir.x, pplane_grav_dir.y, pplane_grav_dir.z );
@@ -910,55 +922,52 @@ void FluidSystem::ReadSimParams ( const char * relativePath ) { // transcribe Si
     m_Vec [ PINITMAX ].Set ( pinitmax.x, pinitmax.y, pinitmax.z );
     
     if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadSimParams(..), read success !  ret = " << ret << "\n" << std::flush;
-    fclose ( SimParams_file );
+    fflush(SimParams_file); fclose(SimParams_file);
     return;
 }
 
 void FluidSystem::WriteSimParams ( const char * relativePath ){
-    Vector3DF /*point_grav_pos,*/ pplane_grav_dir, /* pemit_pos, pemit_rate, pemit_ang, pemit_dang,*/ pvolmin, pvolmax, pinitmin, pinitmax;
-
-    //int pwrapx, pwall_barrier, plevy_barrier, pdrain_barrier, prun;
-
-    //point_grav_pos = m_Vec [ PPOINT_GRAV_POS ];
+    Vector3DF  pplane_grav_dir,  pvolmin, pvolmax, pinitmin, pinitmax;						// point_grav_pos,	 pemit_pos, pemit_rate, pemit_ang, pemit_dang,
+    																						//int pwrapx, pwall_barrier, plevy_barrier, pdrain_barrier, prun;
+                                                                                            //point_grav_pos = m_Vec [ PPOINT_GRAV_POS ];
     pplane_grav_dir = m_Vec [ PPLANE_GRAV_DIR ];
-    //pemit_pos = m_Vec [ PEMIT_POS ];
-    //pemit_rate = m_Vec [ PEMIT_RATE ];
-    //pemit_ang = m_Vec [ PEMIT_ANG ];
-    //pemit_dang = m_Vec [ PEMIT_DANG ];
+    																						//pemit_pos = m_Vec [ PEMIT_POS ];
+    																						//pemit_rate = m_Vec [ PEMIT_RATE ];
+    																						//pemit_ang = m_Vec [ PEMIT_ANG ];
+    																						//pemit_dang = m_Vec [ PEMIT_DANG ];
     pvolmin = m_Vec [ PVOLMIN ];
     pvolmax = m_Vec [ PVOLMAX ];
     pinitmin = m_Vec [ PINITMIN ];
     pinitmax = m_Vec [ PINITMAX ];
-/*
-    pwrapx = m_Toggle [ PWRAP_X ] ;
-    pwall_barrier =  m_Toggle [ PWALL_BARRIER ];
-    plevy_barrier = m_Toggle [ PLEVY_BARRIER ];
-    pdrain_barrier = m_Toggle [ PDRAIN_BARRIER ];
-    prun = m_Toggle [ PRUN ];
-*/
-    if (m_FParams.debug>1)std::cout<<"\nWriteSimParams chk1 "<<std::flush;
-    
+                                                                                            /*
+    																							pwrapx = m_Toggle [ PWRAP_X ] ;
+    																							pwall_barrier =  m_Toggle [ PWALL_BARRIER ];
+    																							plevy_barrier = m_Toggle [ PLEVY_BARRIER ];
+    																							pdrain_barrier = m_Toggle [ PDRAIN_BARRIER ];
+    																							prun = m_Toggle [ PRUN ];
+																							*/
+    																						if (m_FParams.debug>1)std::cout<<"\nWriteSimParams chk1 "<<std::flush;
     // open file to write SimParams to
     char SimParams_file_path[256];
     sprintf ( SimParams_file_path, "%s/SimParams.txt", relativePath );
-    if (m_FParams.debug>1)printf("\n## opening file %s ", SimParams_file_path);
+    																						if (m_FParams.debug>1)printf("\n## opening file %s ", SimParams_file_path);
     FILE* SimParams_file = fopen ( SimParams_file_path, "w" );
-    if (SimParams_file == NULL) {
-        std::cout << "\nvoid FluidSystem::WriteSimParams (const char * relativePath )  Could not open file "<< SimParams_file_path <<"\n"<< std::flush;//if (m_FParams.debug>1)
-        assert(0);
-    }
-    if (m_FParams.debug>1)std::cout<<"\nWriteSimParams chk2,  SimParams_file_path="<<SimParams_file_path<<"\n"<<std::flush;
-    /*m_Toggle [ PWRAP_X ] = %i\n m_Toggle [ PWALL_BARRIER ] = %i\n m_Toggle [ PLEVY_BARRIER ] = %i\n m_Toggle [ PDRAIN_BARRIER ] = %i\n */
-    /*
-                           pwrapx, pwall_barrier, plevy_barrier, pdrain_barrier,*/
-    /*  m_Toggle [ PRUN ] = %i\n */
-    /*  m_Vec [ PPOINT_GRAV_POS ].Set ( %f, %f, %f )\n */
-    /*  m_Param [ PMAX_FRAC ] = %f\n */
-    /*  m_Param [ PSTAT_NBRMAX ] = %f\n */
-    /*  m_Param [ PSTAT_SRCHMAX ] = %f\n */
-    /*  m_Vec [ PEMIT_POS ].Set ( %f, %f, %f )\n */
-    /*  m_Vec [ PEMIT_RATE ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_ANG ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_DANG ].Set ( %f, %f, %f )\n */
-    
+    																	if (SimParams_file == NULL) {
+        																		std::cout << "\nvoid FluidSystem::WriteSimParams (const char * relativePath )  Could not open file "<< SimParams_file_path <<"\n"<< std::flush;//if (m_FParams.debug>1)
+        																		assert(0);
+    																	}
+    																						if (m_FParams.debug>1)std::cout<<"\nWriteSimParams chk2,  SimParams_file_path="<<SimParams_file_path<<"\n"<<std::flush;
+																						    /*
+                                                                                            	m_Toggle [ PWRAP_X ] = %i\n m_Toggle [ PWALL_BARRIER ] = %i\n m_Toggle [ PLEVY_BARRIER ] = %i\n m_Toggle [ PDRAIN_BARRIER ] = %i\n
+    																						  pwrapx, pwall_barrier, plevy_barrier, pdrain_barrier,
+    																						  m_Toggle [ PRUN ] = %i\n
+    																						  m_Vec [ PPOINT_GRAV_POS ].Set ( %f, %f, %f )\n
+    																						  m_Param [ PMAX_FRAC ] = %f\n
+    																						  m_Param [ PSTAT_NBRMAX ] = %f\n
+    																						  m_Param [ PSTAT_SRCHMAX ] = %f\n
+    																						  m_Vec [ PEMIT_POS ].Set ( %f, %f, %f )\n
+    																						  m_Vec [ PEMIT_RATE ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_ANG ].Set ( %f, %f, %f )\n m_Vec [ PEMIT_DANG ].Set ( %f, %f, %f )\n
+                                                                                             */
     int ret = std::fprintf(SimParams_file,
                            " m_Time = %f\n m_DT = %f\n m_Param [ PSIMSCALE ] = %f\n m_Param [ PGRID_DENSITY ] = %f\n m_Param [ PVISC ] = %f\n m_Param [ PSURFACE_TENSION ] = %f\n m_Param [ PRESTDENSITY ] = %f\n m_Param [ PSPACING ] = %f\n m_Param [ PMASS ] = %f\n m_Param [ PRADIUS ] = %f\n m_Param [ PDIST ] = %f\n m_Param [ PSMOOTHRADIUS ] = %f\n m_Param [ PINTSTIFF ] = %f\n m_Param [ PEXTSTIFF ] = %f\n m_Param [ PEXTDAMP ] = %f\n m_Param [ PACCEL_LIMIT ] = %f\n m_Param [ PVEL_LIMIT ] = %f\n m_Param [ PGRAV ] = %f\n m_Param [ PGROUND_SLOPE ] = %f\n m_Param [ PFORCE_MIN ] = %f\n m_Param [ PFORCE_MAX ] = %f\n m_Param [ PFORCE_FREQ ] = %f\n m_Vec [ PPLANE_GRAV_DIR ].Set ( %f, %f, %f )\n // Default sim config\n m_Param [ PGRIDSIZE ] = %f\n m_Vec [ PVOLMIN ].Set ( %f, %f, %f )\n m_Vec [ PVOLMAX ].Set ( %f, %f, %f )\n m_Vec [ PINITMIN ].Set ( %f, %f, %f )\n m_Vec [ PINITMAX ].Set ( %f, %f, %f )\n m_Param [ PFORCE_MIN ] = %f\n m_Param [ PFORCE_FREQ ] = %f\n m_Param [ PGROUND_SLOPE ] = %f\n ",
                            m_Time,
@@ -978,22 +987,26 @@ void FluidSystem::WriteSimParams ( const char * relativePath ){
                            m_Param [ PEXTDAMP ],
                            m_Param [ PACCEL_LIMIT ],
                            m_Param [ PVEL_LIMIT ],
-                           //m_Param [ PMAX_FRAC ],
+                           																	//m_Param [ PMAX_FRAC ],
                            m_Param [ PGRAV ],
                            m_Param [ PGROUND_SLOPE ],
                            m_Param [ PFORCE_MIN ],
                            m_Param [ PFORCE_MAX ],
                            m_Param [ PFORCE_FREQ ],
-                           //m_Param [ PSTAT_NBRMAX ],
-                           //m_Param [ PSTAT_SRCHMAX ],
-                           //point_grav_pos.x, point_grav_pos.y, point_grav_pos.z,
+                           																	/*
+                                                                                            	//m_Param [ PSTAT_NBRMAX ],
+                           																		//m_Param [ PSTAT_SRCHMAX ],
+                           																		//point_grav_pos.x, point_grav_pos.y, point_grav_pos.z,
+                           																	*/
                            pplane_grav_dir.x, pplane_grav_dir.y, pplane_grav_dir.z,
-                           //pemit_pos.x, pemit_pos.y, pemit_pos.z,
-                           //pemit_rate.x, pemit_rate.y, pemit_rate.z,
-                           //pemit_ang.x, pemit_ang.y, pemit_ang.z,
-                           //pemit_dang.x, pemit_dang.y, pemit_dang.z,
-                           // Default sim config
-                           //prun,
+                                                                                            /*
+                           																		//pemit_pos.x, pemit_pos.y, pemit_pos.z,
+                           																		//pemit_rate.x, pemit_rate.y, pemit_rate.z,
+                           																		//pemit_ang.x, pemit_ang.y, pemit_ang.z,
+                           																		//pemit_dang.x, pemit_dang.y, pemit_dang.z,
+                           																	*/
+                        	// Default sim config
+                           																	//prun,
                            m_Param [ PGRIDSIZE ],
                            pvolmin.x, pvolmin.y, pvolmin.z,
                            pvolmax.x, pvolmax.y, pvolmax.z,
@@ -1006,7 +1019,7 @@ void FluidSystem::WriteSimParams ( const char * relativePath ){
     
     if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::WriteSimParams (const char * relativePath ) wrote file "<< SimParams_file_path <<"\t"<<
               "ret = " << ret << "\n" << std::flush;
-    fclose(SimParams_file);
+    fflush(SimParams_file); fclose(SimParams_file);
     return;
 }
 
@@ -1226,7 +1239,7 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     m_FParams.debug = launchParams.debug ;
     if (m_FParams.debug>1)std::cout<<"\n\n   launchParams.debug="<<launchParams.debug<<",  m_FParams.debug="<<m_FParams.debug <<" .\t"<<std::flush;
     if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadSpecificationFile(..),  ret = " << ret << std::flush;
-    fclose ( SpecFile );
+    fflush(SpecFile); fclose(SpecFile);
     return;
 }
 
@@ -1341,8 +1354,7 @@ void FluidSystem::WriteExampleSpecificationFile ( const char * relativePath ){ /
     ret += std::fprintf ( SpecFile, "actuation_period = %f\n ", m_Param[PACTUATION_PERIOD] );// launchParams.actuation_period );
     
     ret += std::fprintf ( SpecFile, "\n");
-    
-    fclose ( SpecFile );
+    fflush(SpecFile); fclose(SpecFile);
     return;
 }
 
@@ -1453,8 +1465,7 @@ void FluidSystem::WriteSpecificationFile_fromLaunchParams ( const char * relativ
     ret += std::fprintf ( SpecFile, "read_genome = %c\n ", launchParams.read_genome );
     
     ret += std::fprintf ( SpecFile, "\n");
-    
-    fclose ( SpecFile );
+    fflush(SpecFile); fclose(SpecFile);
     return;
 }
 
@@ -1495,7 +1506,7 @@ void FluidSystem::WriteResultsCSV ( const char * input_folder, const char * outp
     fprintf(fp, "num_bonds_start=,%u,\t",UINT_MAX);
     fprintf(fp, "num_bonds_end=,%u,\t\n",num_bonds_end);  // \n for quick cat of all results files => csv table
     // closefile
-    fclose(fp);
+    fflush(fp); fclose(fp);
 }
 
 void FluidSystem::SaveUintArray( uint* array, int numElem1, const char * relativePath ){ /// Used to save an array to .csv for debugging.
@@ -1508,8 +1519,7 @@ void FluidSystem::SaveUintArray( uint* array, int numElem1, const char * relativ
         fprintf(fp, "\n"); 
         for(uint j=0;j<100 && i+j<numElem1;j++) fprintf(fp, ",%u,%u,",i+j,array[i+j]); 
     }
-    fclose ( fp );
-    fflush ( fp );
+    fflush(fp); fclose(fp);
     std::string s;
     std::stringstream ss;
     ss << relativePath;
@@ -1527,8 +1537,7 @@ void FluidSystem::SaveUintArray_2Columns( uint* array, int numElem1, int buff_le
         fprintf(fp, "\n"); 
         for(uint j=0;j<100 && i+j<numElem1;j++) fprintf(fp, ",%u,%u,%u,",i+j,array[i+j],array[i+j+buff_len]); // i.e. listIdx, ParticleIdx, BondIdx.
     }
-    fclose ( fp );
-    fflush ( fp );
+    fflush(fp); fclose(fp);
     std::string s;
     std::stringstream ss;
     ss << relativePath;
@@ -1546,8 +1555,7 @@ void FluidSystem::SaveUintArray_2D( uint* array, int numElem1, int numElem2, con
         fprintf(fp, "\n"); 
         for(uint j=0; j<numElem2; j++) fprintf(fp, ",%u,",array[j*numElem1+i]); // i.e. listIdx, ParticleIdx, BondIdx.
     }
-    fclose ( fp );
-    fflush ( fp );
+    fflush(fp); fclose (fp);
     std::string s;
     std::stringstream ss;
     ss << relativePath;

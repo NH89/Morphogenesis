@@ -355,8 +355,8 @@ void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
             AllocateBufferDenseLists( gene, sizeof(uint), m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene], FDENSE_LISTS );   // NB frees previous buffer &=> clears data
         }
     }
-    cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS),         m_Fluid.bufC(FDENSE_LISTS),         NUM_GENES * sizeof(CUdeviceptr)  );  // update pointers to lists on device
-    cuMemcpyHtoD(m_Fluid.gpu(FDENSE_BUF_LENGTHS),   m_Fluid.bufC(FDENSE_BUF_LENGTHS),   NUM_GENES * sizeof(CUdeviceptr)  );
+    cuCheck( cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS),         m_Fluid.bufC(FDENSE_LISTS),         NUM_GENES * sizeof(CUdeviceptr)),	"PrefixSumCellsCUDA", "cuMemcpyHtoD",  "FDENSE_LISTS",			mbDebug);  // update pointers to lists on device
+    cuCheck( cuMemcpyHtoD(m_Fluid.gpu(FDENSE_BUF_LENGTHS),   m_Fluid.bufC(FDENSE_BUF_LENGTHS),   NUM_GENES * sizeof(uint)  		),	"PrefixSumCellsCUDA", "cuMemcpyHtoD",  "FDENSE_BUF_LENGTHS",	mbDebug);
 
     if (m_FParams.debug>1){ 
         std::cout << "\nChk: PrefixSumCellsCUDA 4"<<std::flush;
