@@ -52,7 +52,7 @@
     // 
     // # if elastic force is written to both interacting particles, then the effective number of bonds doubles.
     // # i.e. each particle stores three bonds, but the average bonds per atom would be six.
-    #define BONDS_PER_PARTICLE  4// 6 enables triangulated cubic structure    4   // current: 4 bonds plus length and modulus of each NB written to both particles so average 8 bonds per particle //old: actually 3, [0] for self ID, mass & radius
+    #define BONDS_PER_PARTICLE  4//### 4 // 6 enables triangulated cubic structure    4   // current: 4 bonds plus length and modulus of each NB written to both particles so average 8 bonds per particle //old: actually 3, [0] for self ID, mass & radius
 #define DATA_PER_BOND 9 //6 : [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index [7]stress integrator [8]change-type binary indicator
                         // previously 3 : [0]current index, [1]mod_lim, [2]particle ID.
 #define BOND_DATA BONDS_PER_PARTICLE * DATA_PER_BOND
@@ -70,7 +70,7 @@
     // Need _at_least_ 8 morphogens, and 8 transcription factors => 16/4=4 uints or 8*16= 128bits.
     // + rule index (common to most cells, copied to 'local' SMP memory on GPU) => diffusion rate & breakdown rate.
     // 128bits
-    #define NUM_TF              16      //  minimum 8 transcription factors + 8 diffusable morphogens
+    #define NUM_TF              16  //1//###     //  minimum 8 transcription factors + 8 diffusable morphogens
     
     // Epigenetic state requires for each gene: 
     // (i)current activation, (ii)available/silenced (bool), (iii)spread/stop (bool).
@@ -80,7 +80,7 @@
     // Or 16 genes * 8bits = 128 bits
     // (NB there are about 200 cell types in the human body => minimum 8 genes)
     // 128bits
-    #define NUM_GENES           16      //  >= NUM_TF NB each gene wll have a list of sensitivities to TFs & morphogens
+    #define NUM_GENES           16  //1//###     //  >= NUM_TF NB each gene wll have a list of sensitivities to TFs & morphogens
     #define BITS_PER_EPIGENETIC_STATE 8 //i.e. 2 boolean + 6bit activation 2^6=64.
 
     #define NUM_CHANGES 9   //  lengthen/shorten/weaken/strengthen * muscle/tissue + heal : lists for calling particle modification kernels

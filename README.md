@@ -368,11 +368,14 @@ This does not arise where the two programs are run on separate machines, as when
     For Volume rendering:
     In the top menu bar, select "Filters->Point Interpolation->Point Volume Interpolator"
     Select the new "PointVolumeInterpolator" in the pipeline browser
+
     In the Properties pane, select a kernel type, e.g. Gaussian Kernel or Shepard Kernel
     In Coloring, select the model parameter of interest
     Adjust the coloring scale
+
     In "Volume Refinement", "Representation", select "Volume"
     (Alternatively select these in the top menu, second row tool bar.)
+
     In Volume Rendering (near the bottom of the Properties pane), in "Volume Rendering Mode", 
     select "Smart" or "GPU"
     Click Apply (at the toip of the Properties pane.

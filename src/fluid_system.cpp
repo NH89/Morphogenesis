@@ -1719,5 +1719,3 @@ void FluidSystem::Run2Simulation(){
     WriteGenome( launchParams.outPath );
     WriteSpecificationFile_fromLaunchParams( launchParams.outPath );
 }
-
-

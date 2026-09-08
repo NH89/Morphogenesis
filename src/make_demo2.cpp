@@ -81,7 +81,7 @@ int main ( int argc, const char** argv )
     uint num_particles_start=fluid.ActivePoints();
     
     fluid.TransferToCUDA (); 
-    fluid.Run2Simulation ();
+    fluid.Run3Simulation ();															// ###  Using benchmarking edits, instead of Run2Simulation()
                                                                                     	std::cout<<"\n\nmake_demo2 chk7 "<<std::flush;
     fluid.WriteResultsCSV(input_folder, output_folder, num_particles_start);			// NB post-slurm script to (i) cat results.csv files, (ii)tar-gzip and ftp folders to recipient.
     

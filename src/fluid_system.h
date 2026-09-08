@@ -226,6 +226,8 @@
         void Run2GeneAction();
         void Run2Remodelling(uint steps_per_InnerPhysicalLoop);
         void Run2Simulation();
+
+		void Run3Simulation ();
         
         void setFreeze(bool freeze);
         void Freeze ();

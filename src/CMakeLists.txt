@@ -187,7 +187,8 @@ add_executable(make_demo2
         matrix.cpp 
         matrix.h
         matrix_inline.h
-        fluid_system.cpp    
+        fluid_system.cpp
+        run3.cpp
         file_IO.cpp
         host_CUDA.cpp
         fluid_system.h
