@@ -626,7 +626,10 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                 mod_len = ( modulus <<16 | length ); // NB should mask length to prevent it exceeding 16bits, i.e. 255*255
                 
                 for (int i = 0; i<BONDS_PER_PARTICLE;i++){ 
-                    for (int j = 0; j< DATA_PER_BOND; j++){ ElastIdxU[i*DATA_PER_BOND +j] = UINT_MAX; ElastIdxF[i*DATA_PER_BOND +j] = 0; } 
+                    for (int j = 0; j< DATA_PER_BOND; j++){
+                        ElastIdxU[i*DATA_PER_BOND +j] = UINT_MAX;
+                        ElastIdxF[i*DATA_PER_BOND +j] = 0;
+                    }
                     ElastIdxU[i*DATA_PER_BOND +8] = 0;
                 }
                 //NB #define DATA_PER_BOND 6 //6 : [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index
@@ -639,6 +642,8 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                 // mass = m_Param[PMASS]; // 0.00020543f; // kg
                 // radius = m_Param[PRADIUS]; // 0.015f; // m
                 Mass_Radius =  ( (uint(m_Param[PMASS]*255.0f*255.0f)<<16) | uint(m_Param[PRADIUS]*255.0f*255.0f) ) ; // mass=>13, radius=>975
+
+                // ###   Epigenetics and tissue types
                 for (int i=0; i< NUM_TF; i++)    { Conc[i]   = 0 ;}     // morphogen & transcription factor concentrations
                 for (int i=0; i< NUM_GENES; i++) { EpiGen[i] = 0 ;}     // epigenetic state of each gene in this particle
                 uint fixedActive = INT_MAX;                             // FEPIGEN below INT_MAX will count down to inactivation. Count down is inactivated by adding INT_MAX.
