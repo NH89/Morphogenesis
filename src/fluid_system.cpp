@@ -952,119 +952,137 @@ void FluidSystem::Run (const char * relativePath, int frame, bool debug, bool ge
 }// 0:start, 1:InsertParticles, 2:PrefixSumCellsCUDA, 3:CountingSortFull, 4:ComputePressure, 5:ComputeForce, 6:Advance, 7:AdvanceTime
 
 void FluidSystem::Run2PhysicalSort(){
-    if(m_FParams.debug>0)std::cout<<"\n####\nRun2PhysicalSort()start";
+                                                                                                            if(m_FParams.debug>0)std::cout<<"\n####\nRun2PhysicalSort()start";
+    																								time_point_Run2PhysicalSort[0]	= std::chrono::steady_clock::now();
     InsertParticlesCUDA ( 0x0, 0x0, 0x0 );
+    																								time_point_Run2PhysicalSort[1]	= std::chrono::steady_clock::now();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug);
-    if(launchParams.debug>0){
-        std::cout<<"\nchk a"<<std::flush;
-        TransferFromCUDA ();
-        m_Debug_file++;
-        std::cout<<"\nchk b: launchParams.outPath="<<launchParams.outPath<<",  m_Frame+m_Debug_file=0;="<<m_Frame+m_Debug_file<<"\t"<<std::flush;
-      //  SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
-        std::cout << "\n\nRun2PhysicalSort() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  InsertParticlesCUDA\n"<<std::flush;
-        //TransferFromTempCUDA(int buf_id, int sz );
-    }
+    																										if(launchParams.debug>0){
+        																										std::cout<<"\nchk a"<<std::flush;
+        																										TransferFromCUDA ();
+        																										m_Debug_file++;
+        																										std::cout<<"\nchk b: launchParams.outPath="<<launchParams.outPath<<",  m_Frame+m_Debug_file=0;="<<m_Frame+m_Debug_file<<"\t"<<std::flush;
+      																											//  SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        																										std::cout << "\n\nRun2PhysicalSort() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  InsertParticlesCUDA\n"<<std::flush;
+        																										//TransferFromTempCUDA(int buf_id, int sz );
+    																										}
+    																								time_point_Run2PhysicalSort[2]	= std::chrono::steady_clock::now();
     PrefixSumCellsCUDA ( 1 );
+    																								time_point_Run2PhysicalSort[3]	= std::chrono::steady_clock::now();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumCellsCUDA", mbDebug);
-    if(launchParams.debug>0){
-        TransferFromCUDA ();
-        m_Debug_file++;
-      //  SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
-        std::cout << "\n\nRun2PhysicalSort() Chk2, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  PrefixSumCellsCUDA\n"<<std::flush;
-        //TransferFromTempCUDA(int buf_id, int sz );
-    }
+    																										if(launchParams.debug>0){
+        																										TransferFromCUDA ();
+       																											m_Debug_file++;
+      																											//  SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        																										std::cout << "\n\nRun2PhysicalSort() Chk2, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  PrefixSumCellsCUDA\n"<<std::flush;
+        																										//TransferFromTempCUDA(int buf_id, int sz );
+    																										}
+    																								time_point_Run2PhysicalSort[4]	= std::chrono::steady_clock::now();
     CountingSortFullCUDA ( 0x0 );
+    																								time_point_Run2PhysicalSort[5]	= std::chrono::steady_clock::now();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortFullCUDA", mbDebug);
-    if(m_FParams.debug>1)std::cout<<"\n####\nRun2PhysicalSort()end";
+    																								time_point_Run2PhysicalSort[6]	= std::chrono::steady_clock::now();
+    																										if(m_FParams.debug>1)std::cout<<"\n####\nRun2PhysicalSort()end";
 }
 
 void FluidSystem::Run2InnerPhysicalLoop(){
-    if(m_FParams.debug>0)std::cout<<"\n####\nRun2InnerPhysicalLoop()start";
+    																										if(m_FParams.debug>0)std::cout<<"\n####\nRun2InnerPhysicalLoop()start";
+    																								time_point_Run2InnerPhysicalLoop[0]	= std::chrono::steady_clock::now();
     if(m_FParams.freeze==true){
         InitializeBondsCUDA ();
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InitializeBondsCUDA ", mbDebug);
     }
-    
+    																								time_point_Run2InnerPhysicalLoop[1]	= std::chrono::steady_clock::now();
     ComputePressureCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug);
-    
+    																								time_point_Run2InnerPhysicalLoop[2]	= std::chrono::steady_clock::now();
     ComputeForceCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeForceCUDA", mbDebug);
-    
-    if(launchParams.debug>1){
-        TransferFromCUDA ();
-        launchParams.file_increment++;
-        SavePointsCSV2 (  launchParams.outPath, launchParams.file_num+launchParams.file_increment );
-        std::cout << "\n\nRun(relativePath,frame) Chk4, saved "<< launchParams.file_num+3 <<".csv  After CountingSortFullCUDA\n"<<std::flush;
-    }
-    
+    																								time_point_Run2InnerPhysicalLoop[3]	= std::chrono::steady_clock::now();
+    																										if(launchParams.debug>1){
+        																										TransferFromCUDA ();
+                                                                                                                launchParams.file_increment++;
+        																										SavePointsCSV2 (  launchParams.outPath, launchParams.file_num+launchParams.file_increment );
+        																										std::cout << "\n\nRun(relativePath,frame) Chk4, saved "<< launchParams.file_num+3 <<".csv  After CountingSortFullCUDA\n"<<std::flush;
+    																										}
+    																								time_point_Run2InnerPhysicalLoop[4]	= std::chrono::steady_clock::now();
     TransferPosVelVeval ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval ", mbDebug);
-    
+    																								time_point_Run2InnerPhysicalLoop[5]	= std::chrono::steady_clock::now();
     AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);
     
     SpecialParticlesCUDA ( m_Time, m_DT, m_Param[PSIMSCALE]);
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After SpecialParticlesCUDA", mbDebug);
-    
+    																								time_point_Run2InnerPhysicalLoop[6]	= std::chrono::steady_clock::now();
     TransferPosVelVevalFromTemp ();
-    
-     if(launchParams.debug>0){
-        TransferFromCUDA ();
-        m_Debug_file++;
-        SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
-        std::cout << "\n\nRun2InnerPhysicalLoop() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  TransferPosVelVevalFromTemp ();\n"<<std::flush;
-        //TransferFromTempCUDA(int buf_id, int sz );
-    }
-    
+    																								time_point_Run2InnerPhysicalLoop[7]	= std::chrono::steady_clock::now();
+     																										if(launchParams.debug>0){
+        																										TransferFromCUDA ();
+        																										m_Debug_file++;
+        																										SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        																										std::cout << "\n\nRun2InnerPhysicalLoop() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  TransferPosVelVevalFromTemp ();\n"<<std::flush;
+        																										//TransferFromTempCUDA(int buf_id, int sz );
+    																										}
+    																								time_point_Run2InnerPhysicalLoop[8]	= std::chrono::steady_clock::now();
     AdvanceTime ();
-    if(m_FParams.debug>1)std::cout<<"\n####\nRun2InnerPhysicalLoop()end";
+    																								time_point_Run2InnerPhysicalLoop[9]	= std::chrono::steady_clock::now();
+    																										if(m_FParams.debug>1)std::cout<<"\n####\nRun2InnerPhysicalLoop()end";
 }
 
 void FluidSystem::Run2GeneAction(){//NB gene sorting occurs within Run2PhysicalSort()
-    if(m_FParams.debug>0)std::cout<<"\n####\nRun2GeneAction()start";
+    																										if(m_FParams.debug>0)std::cout<<"\n####\nRun2GeneAction()start";
+    																								time_point_Run2GeneAction[0]	= std::chrono::steady_clock::now();
     ComputeDiffusionCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
-    
+    																								time_point_Run2GeneAction[1]	= std::chrono::steady_clock::now();
     ComputeGenesCUDA(); // NB (i)Epigenetic countdown, (ii) GRN gene regulatory network sensitivity to TransciptionFactors (FCONC)
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeGenesCUDA", mbDebug);
-    if(m_FParams.debug>1)std::cout<<"\n####\nRun2GeneAction()end";
+    																								time_point_Run2GeneAction[2]	= std::chrono::steady_clock::now();
+    																										if(m_FParams.debug>1)std::cout<<"\n####\nRun2GeneAction()end";
 }
 
 void FluidSystem::Run2Remodelling(uint steps_per_InnerPhysicalLoop){
-    if(m_FParams.debug>0){std::cout<<"\n####\nRun2Remodelling()start";}
+    																										if(m_FParams.debug>0){std::cout<<"\n####\nRun2Remodelling()start";}
+    																								time_point_Run2Remodelling[0]	= std::chrono::steady_clock::now();
     AssembleFibresCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AssembleFibresCUDA", mbDebug); 
-    
+    																								time_point_Run2Remodelling[1]	= std::chrono::steady_clock::now();
+
     ComputeBondChangesCUDA (steps_per_InnerPhysicalLoop);
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeBondChangesCUDA", mbDebug); 
-    
+    																								time_point_Run2Remodelling[2]	= std::chrono::steady_clock::now();
+
     PrefixSumChangesCUDA ( 1 );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumChangesCUDA", mbDebug);
-    
+    																								time_point_Run2Remodelling[3]	= std::chrono::steady_clock::now();
+
     CountingSortChangesCUDA (  );
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortChangesCUDA", mbDebug);
-    
-    if(launchParams.debug>0){
-        TransferFromCUDA ();
-        m_Debug_file++;
-        SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
-        std::cout << "\n\nRun2Remodelling() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  CountingSortChangesCUDA ();\n"<<std::flush;
-        //TransferFromTempCUDA(int buf_id, int sz );
-    }
-    
+    																								time_point_Run2Remodelling[4]	= std::chrono::steady_clock::now();
+
+    																										if(launchParams.debug>0){
+        																										TransferFromCUDA ();
+        																										m_Debug_file++;
+        																										SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        																										std::cout << "\n\nRun2Remodelling() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  CountingSortChangesCUDA ();\n"<<std::flush;
+        																										//TransferFromTempCUDA(int buf_id, int sz );
+    																										}
+    																								time_point_Run2Remodelling[5]	= std::chrono::steady_clock::now();
+
     ComputeParticleChangesCUDA ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeParticleChangesCUDA", mbDebug);
-    
-    if(launchParams.debug>0){
-        TransferFromCUDA ();
-        m_Debug_file++;
-        SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
-        std::cout << "\n\nRun2Remodelling() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  ComputeParticleChangesCUDA ();\n"<<std::flush;
-        //TransferFromTempCUDA(int buf_id, int sz );
-    }
-    
-    if(m_FParams.debug>1)std::cout<<"\n####\nRun2Remodelling()end";
+    																								time_point_Run2Remodelling[6]	= std::chrono::steady_clock::now();
+
+    																										if(launchParams.debug>0){
+        																										TransferFromCUDA ();
+                                                                                                                m_Debug_file++;
+        																										SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        																										std::cout << "\n\nRun2Remodelling() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  ComputeParticleChangesCUDA ();\n"<<std::flush;
+        																										//TransferFromTempCUDA(int buf_id, int sz );
+                                                                                                            }
+    																								time_point_Run2Remodelling[7]	= std::chrono::steady_clock::now();
+    																										if(m_FParams.debug>1)std::cout<<"\n####\nRun2Remodelling()end";
 }
 
 

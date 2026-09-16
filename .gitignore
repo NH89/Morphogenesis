@@ -176,7 +176,9 @@ _deps
 /data/check/
 /data/demo/
 /data/test/
+/data/out/*
 /data/tests*
+/data/report*
 /Debug/
 ./old-*
 *.kdev4

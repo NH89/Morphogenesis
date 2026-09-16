@@ -193,6 +193,22 @@
 		#define CALLFUNC
 	#endif		
 
+	struct Bond {
+        int		j;						//0
+        float	restlength;
+        float	elastic_limit;
+        float	modulus;
+        float	damping_coeff;
+        uint	other_particle_ID;
+        uint	bondIndex;
+        float	strain_sq_integrator_;
+        float	strain_integrator_;
+    };
+
+    struct Bonds{
+        Bond	b[BONDS_PER_PARTICLE];
+    };
+
 
 	
 	// Particle & Grid Buffers
@@ -202,6 +218,7 @@
         // short int 16bit, int 32bit, long int 64bit, float 32bit, double 64bit, 
 		#ifdef CUDA_KERNEL
 			// on device, access data via gpu pointers 
+			inline CALLFUNC Bonds*  bufB (int n)		{ return (Bonds*)  mgpu[n]; }
 			inline CALLFUNC Vector3DF* bufV3(int n)		{ return (Vector3DF*) mgpu[n]; }
 			inline CALLFUNC float3* bufF3(int n)		{ return (float3*) mgpu[n]; }
 			inline CALLFUNC float*  bufF (int n)		{ return (float*)  mgpu[n]; }
@@ -259,8 +276,8 @@
 		int*			mgridactive;
 
 		char*			mstate;			// state buffer
-		float*			mbrick;*/
-
+		float*			mbrick;
+*/
 
 	// Temporary sort buffer offsets
 	#define BUF_POS			0
@@ -286,6 +303,7 @@
 	// Fluid Parameters (stored on both host and device)
 	struct FParams {
         uint            debug;
+		float			time, dt, sim_scale;
 		int				numThreads, numBlocks, threadsPerBlock;
 		int				gridThreads, gridBlocks;	
 		int				szPnts, szGrid;

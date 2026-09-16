@@ -234,36 +234,46 @@ void FluidSystem::Init_FCURAND_STATE_CUDA (){ // designed to use to bootstrap it
 }
 
 void FluidSystem::InsertParticlesCUDA ( uint* gcell, uint* gndx, uint* gcnt ){   // first zero the counters
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+
     cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT), 0,	m_GridTotal*sizeof(int) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
     cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF), 0,	m_GridTotal*sizeof(int) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
-    
+                                                                                                	time_point_InsertParticlesCUDA[1]	= std::chrono::steady_clock::now();
+
     cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES), 0,	m_GridTotal *sizeof(uint[NUM_GENES]) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
     cuCheck ( cuMemsetD8 ( m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES), 0,	m_GridTotal *sizeof(uint[NUM_GENES]) ), "InsertParticlesCUDA", "cuMemsetD8", "FGRIDOFF", mbDebug );
-    
+                                                                                                	time_point_InsertParticlesCUDA[2]	= std::chrono::steady_clock::now();
+
     // Set long list to sort all particles.
     computeNumBlocks ( m_FParams.pnum, m_FParams.threadsPerBlock, m_FParams.numBlocks, m_FParams.numThreads);				// particles
+                                                                                                	time_point_InsertParticlesCUDA[3]	= std::chrono::steady_clock::now();
     // launch kernel "InsertParticles"
     void* args[1] = { &mMaxPoints };  //&mNumPoints
     cuCheck(cuLaunchKernel(m_Func[FUNC_INSERT], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),
             "InsertParticlesCUDA", "cuLaunch", "FUNC_INSERT", mbDebug);
-    if (m_FParams.debug>1) cout<<"\n########\nCalling InsertParticles kernel: args[1] = {"<<mNumPoints<<"}, mMaxPoints="<<mMaxPoints
-        <<"\t m_FParams.numBlocks="<<m_FParams.numBlocks<<", m_FParams.numThreads="<<m_FParams.numThreads<<" \t"<<std::flush;
+                                                                                                	time_point_InsertParticlesCUDA[4]	= std::chrono::steady_clock::now();
+    																											if (m_FParams.debug>1) cout<<"\n########\nCalling InsertParticles kernel: args[1] = {"<<mNumPoints<<"}, mMaxPoints="<<mMaxPoints
+        																																	<<"\t m_FParams.numBlocks="<<m_FParams.numBlocks<<", m_FParams.numThreads="<<m_FParams.numThreads<<" \t"<<std::flush;
 
     // Transfer data back if requested (for validation)
+                                                                                                	time_point_InsertParticlesCUDA[5]	= std::chrono::steady_clock::now();
     if (gcell != 0x0) {
         cuCheck( cuMemcpyDtoH ( gcell,	m_Fluid.gpu(FGCELL),	mNumPoints *sizeof(uint) ), "InsertParticlesCUDA", "cuMemcpyDtoH", "FGCELL", mbDebug );
         cuCheck( cuMemcpyDtoH ( gndx,	m_Fluid.gpu(FGNDX),		mNumPoints *sizeof(uint) ), "InsertParticlesCUDA", "cuMemcpyDtoH", "FGNDX", mbDebug);
         cuCheck( cuMemcpyDtoH ( gcnt,	m_Fluid.gpu(FGRIDCNT),	m_GridTotal*sizeof(uint) ), "InsertParticlesCUDA", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
         cuCtxSynchronize ();
     }
-    if(m_debug>4){
-        if (m_FParams.debug>1) cout<<"\nSaving (FGCELL) InsertParticlesCUDA: (particleIdx, cell) , mMaxPoints="<<mMaxPoints<<"\t"<<std::flush;
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGCELL), m_Fluid.gpu(FGCELL),	sizeof(uint[mMaxPoints]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGCELL", mbDebug);
-        SaveUintArray( m_Fluid.bufI(FGCELL), mMaxPoints, "InsertParticlesCUDA__m_Fluid.bufI(FGCELL).csv" );
-    }
+                                                                                                	time_point_InsertParticlesCUDA[6]	= std::chrono::steady_clock::now();
+    																											if(m_debug>4){
+        																											if (m_FParams.debug>1) cout<<"\nSaving (FGCELL) InsertParticlesCUDA: (particleIdx, cell) , mMaxPoints="<<mMaxPoints<<"\t"<<std::flush;
+                                                                                                                    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGCELL), m_Fluid.gpu(FGCELL),	sizeof(uint[mMaxPoints]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGCELL", mbDebug);
+                                                                                                                    SaveUintArray( m_Fluid.bufI(FGCELL), mMaxPoints, "InsertParticlesCUDA__m_Fluid.bufI(FGCELL).csv" );
+                                                                                                                }
+                                                                                                	time_point_InsertParticlesCUDA[7]	= std::chrono::steady_clock::now();
 }
 
 void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
+                                                                                                    time_point_PrefixSumCellsCUDA[0]	= std::chrono::steady_clock::now();
     // Prefix Sum - determine grid offsets
     int blockSize = SCAN_BLOCKSIZE << 1;                // NB 1024 = 512 << 1.  NB SCAN_BLOCKSIZE is the number of threads per block
     int numElem1 = m_GridTotal;                         // tot num bins, computed in SetupGrid() 
@@ -282,34 +292,45 @@ void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
 #ifndef xlong
     typedef unsigned long long	xlong;		// 64-bit integer
 #endif
-    if ( numElem1 > SCAN_BLOCKSIZE*xlong(SCAN_BLOCKSIZE)*SCAN_BLOCKSIZE) { if (m_FParams.debug>1)printf ( "\nERROR: Number of elements exceeds prefix sum max. Adjust SCAN_BLOCKSIZE.\n" );  }
+                                                                                                                if ( numElem1 > SCAN_BLOCKSIZE*xlong(SCAN_BLOCKSIZE)*SCAN_BLOCKSIZE) { if (m_FParams.debug>1)printf ( "\nERROR: Number of elements exceeds prefix sum max. Adjust SCAN_BLOCKSIZE.\n" );  }
+                                                                                                    time_point_PrefixSumCellsCUDA[1]	= std::chrono::steady_clock::now();
 
-    void* argsA[5] = {&array1, &scan1, &array2, &numElem1, &zero_offsets };     // sum array1. output -> scan1, array2.         i.e. FGRIDCNT -> FGRIDOFF, FAUXARRAY1
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsA, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
+    void* argsA[5] = {&array1, &scan1, &array2, &numElem1, &zero_offsets };     												// sum array1. output -> scan1, array2.         i.e. FGRIDCNT -> FGRIDOFF, FAUXARRAY1
+    cuCheck ( 	cuLaunchKernel ( 		m_Func[FUNC_FPREFIXSUM], 	numElem2, 1, 1, 	threads, 1, 1, 0, NULL, argsA, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
+                                                                                                    time_point_PrefixSumCellsCUDA[2]	= std::chrono::steady_clock::now();
 
-    void* argsB[5] = { &array2, &scan2, &array3, &numElem2, &zon };             // sum array2. output -> scan2, array3.         i.e. FAUXARRAY1 -> FAUXSCAN1, FAUXARRAY2
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsB, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
+    void* argsB[5] = { &array2, &scan2, &array3, &numElem2, &zon };             												// sum array2. output -> scan2, array3.         i.e. FAUXARRAY1 -> FAUXSCAN1, FAUXARRAY2
+    cuCheck ( 		cuLaunchKernel ( 	m_Func[FUNC_FPREFIXSUM], 	numElem3, 1, 1, 	threads, 1, 1, 0, NULL, argsB, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
+                                                                                                    time_point_PrefixSumCellsCUDA[3]	= std::chrono::steady_clock::now();
 
     if ( numElem3 > 1 ) {
         CUdeviceptr nptr = {0};
-        void* argsC[5] = { &array3, &scan3, &nptr, &numElem3, &zon };	        // sum array3. output -> scan3                  i.e. FAUXARRAY2 -> FAUXSCAN2, &nptr
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], 1, 1, 1, threads, 1, 1, 0, NULL, argsC, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+        void* argsC[5] = { &array3, &scan3, &nptr, &numElem3, &zon };	        												// sum array3. output -> scan3                  i.e. FAUXARRAY2 -> FAUXSCAN2, &nptr
+        cuCheck ( 	cuLaunchKernel (	m_Func[FUNC_FPREFIXSUM], 			1, 1, 1, 	threads, 1, 1, 0, NULL, argsC, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+                                                                                                    time_point_PrefixSumCellsCUDA[4]	= std::chrono::steady_clock::now();
 
-        void* argsD[3] = { &scan2, &scan3, &numElem2 };	                        // merge scan3 into scan2. output -> scan2      i.e. FAUXSCAN2, FAUXSCAN1 -> FAUXSCAN1
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsD, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+        void* argsD[3] = { &scan2, &scan3, &numElem2 };	                        												// merge scan3 into scan2. output -> scan2      i.e. FAUXSCAN2, FAUXSCAN1 -> FAUXSCAN1
+        cuCheck ( 	cuLaunchKernel (	m_Func[FUNC_FPREFIXFIXUP], 	numElem3, 1, 1, 	threads, 1, 1, 0, NULL, argsD, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
     }
-    void* argsE[3] = { &scan1, &scan2, &numElem1 };		                        // merge scan2 into scan1. output -> scan1      i.e. FAUXSCAN1, FGRIDOFF -> FGRIDOFF
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
-    
+                                                                                                    time_point_PrefixSumCellsCUDA[5]	= std::chrono::steady_clock::now();
+    void* argsE[3] = { &scan1, &scan2, &numElem1 };		                        												// merge scan2 into scan1. output -> scan1      i.e. FAUXSCAN1, FGRIDOFF -> FGRIDOFF
+    cuCheck ( 		cuLaunchKernel ( 	m_Func[FUNC_FPREFIXFIXUP], 	numElem2, 1, 1, 	threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+                                                                                                    time_point_PrefixSumCellsCUDA[6]	= std::chrono::steady_clock::now();
+
     // Loop to PrefixSum the Dense Lists - NB by doing one gene at a time, we reuse the FAUX* arrays & scans.
     // For each gene, input FGRIDCNT_ACTIVE_GENES[gene*m_GridTotal], output FGRIDOFF_ACTIVE_GENES[gene*m_GridTotal]
     CUdeviceptr array0  = m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES);
     CUdeviceptr scan0   = m_Fluid.gpu(FGRIDOFF_ACTIVE_GENES);
 
+
+
+                                                                                                    time_point_PrefixSumCellsCUDA[7]	= std::chrono::steady_clock::now();
+
     for(int gene=0;gene<NUM_GENES;gene++){
       //if (m_FParams.debug>1) cout<<"\nPrefixSumCellsCUDA()1:gene="<<gene<<"\t"<<std::flush;
         array1  = array0 + gene*numElem1*sizeof(int); //m_Fluid.gpu(FGRIDCNT_ACTIVE_GENES);//[gene*numElem1]   ;///
         scan1   = scan0 + gene*numElem1*sizeof(int);
+                                                                                                    time_point_PrefixSumCellsCUDA[8]	= std::chrono::steady_clock::now();
 
         //cuCheck ( cuMemsetD8 ( array1, 0,	numElem1*sizeof(int) ), "PrefixSumCellsCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
         cuCheck ( cuMemsetD8 ( scan1,  0,	numElem1*sizeof(int) ), "PrefixSumCellsCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
@@ -319,34 +340,44 @@ void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
         
         cuCheck ( cuMemsetD8 ( array3, 0,	numElem3*sizeof(int) ), "PrefixSumCellsCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
         cuCheck ( cuMemsetD8 ( scan3,  0,	numElem3*sizeof(int) ), "PrefixSumCellsCUDA", "cuMemsetD8", "FGRIDCNT", mbDebug );
-        
+                                                                                                    time_point_PrefixSumCellsCUDA[9]	= std::chrono::steady_clock::now();
+
         void* argsA[5] = {&array1, &scan1, &array2, &numElem1, &zero_offsets };     // sum array1. output -> scan1, array2.         i.e. FGRIDCNT -> FGRIDOFF, FAUXARRAY1
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsA, NULL ), 
+        cuCheck ( 		cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsA, NULL ),
                   "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
+                                                                                                    time_point_PrefixSumCellsCUDA[10]	= std::chrono::steady_clock::now();
 
         void* argsB[5] = { &array2, &scan2, &array3, &numElem2, &zon };             // sum array2. output -> scan2, array3.         i.e. FAUXARRAY1 -> FAUXSCAN1, FAUXARRAY2
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsB, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
+        cuCheck ( 		cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsB, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXSUM", mbDebug);
+                                                                                                    time_point_PrefixSumCellsCUDA[11]	= std::chrono::steady_clock::now();
 
         if ( numElem3 > 1 ) {
             CUdeviceptr nptr = {0};
             void* argsC[5] = { &array3, &scan3, &nptr, &numElem3, &zon };	        // sum array3. output -> scan3                  i.e. FAUXARRAY2 -> FAUXSCAN2, &nptr
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], 1, 1, 1, threads, 1, 1, 0, NULL, argsC, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+            cuCheck ( 	cuLaunchKernel ( m_Func[FUNC_FPREFIXSUM], 		1, 1, 1, threads, 1, 1, 0, NULL, argsC, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+                                                                                                    time_point_PrefixSumCellsCUDA[12]	= std::chrono::steady_clock::now();
 
             void* argsD[3] = { &scan2, &scan3, &numElem2 };	                        // merge scan3 into scan2. output -> scan2      i.e. FAUXSCAN2, FAUXSCAN1 -> FAUXSCAN1
-            cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsD, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+            cuCheck ( 	cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem3, 1, 1, threads, 1, 1, 0, NULL, argsD, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
         }
+                                                                                                    time_point_PrefixSumCellsCUDA[13]	= std::chrono::steady_clock::now();
         void* argsE[3] = { &scan1, &scan2, &numElem1 };		                        // merge scan2 into scan1. output -> scan1      i.e. FAUXSCAN1, FGRIDOFF -> FGRIDOFF
-        cuCheck ( cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
+        cuCheck ( 		cuLaunchKernel ( m_Func[FUNC_FPREFIXFIXUP], numElem2, 1, 1, threads, 1, 1, 0, NULL, argsE, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_PREFIXFIXUP", mbDebug);
     }
-    
+                                                                                                    time_point_PrefixSumCellsCUDA[14]	= std::chrono::steady_clock::now();
+
+
+
     int num_lists = NUM_GENES, length = FDENSE_LIST_LENGTHS, fgridcnt = FGRIDCNT_ACTIVE_GENES, fgridoff = FGRIDOFF_ACTIVE_GENES;
     void* argsF[4] = {&num_lists, &length,&fgridcnt,&fgridoff};
-    cuCheck ( cuLaunchKernel ( m_Func[FUNC_TALLYLISTS], NUM_GENES, 1, 1, NUM_GENES, 1, 1, 0, NULL, argsF, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_TALLYLISTS", mbDebug); //256 threads launched
+    cuCheck ( 			cuLaunchKernel ( m_Func[FUNC_TALLYLISTS], NUM_GENES, 1, 1, NUM_GENES, 1, 1, 0, NULL, argsF, NULL ), "PrefixSumCellsCUDA", "cuLaunch", "FUNC_TALLYLISTS", mbDebug); //256 threads launched
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FDENSE_LIST_LENGTHS), m_Fluid.gpu(FDENSE_LIST_LENGTHS),	sizeof(uint[NUM_GENES]) ), "PrefixSumCellsCUDA", "cuMemcpyDtoH", "FDENSE_LIST_LENGTHS", mbDebug);
                                                                                     //if active particles for gene > existing buff, then enlarge buff.
     uint * densebuff_len = m_Fluid.bufI(FDENSE_BUF_LENGTHS);                    // and only m_Fluid.bufI(FDENSE_LIST_LENGTHS); copied to host.
     uint * denselist_len = m_Fluid.bufI(FDENSE_LIST_LENGTHS);                   // For each gene allocate intial buffer, 
-    
+                                                                                                    time_point_PrefixSumCellsCUDA[15]	= std::chrono::steady_clock::now();
+
+
     for(int gene=0;gene<NUM_GENES;gene++){                                          // Note this calculation could be done by a kernel, 
       //if (m_FParams.debug>1) cout<<"\nPrefixSumCellsCUDA()2:gene="<<gene<<", densebuff_len["<<gene<<"]="<<densebuff_len[gene]<<", denselist_len["<<gene<<"]="<<denselist_len[gene]<<" \t"<<std::flush;
         if (denselist_len[gene] > densebuff_len[gene]) {                            // write pointer and size to FDENSE_LISTS and FDENSE_LIST_LENGTHS 
@@ -355,14 +386,20 @@ void FluidSystem::PrefixSumCellsCUDA ( int zero_offsets ){
             AllocateBufferDenseLists( gene, sizeof(uint), m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene], FDENSE_LISTS );   // NB frees previous buffer &=> clears data
         }
     }
+                                                                                                    time_point_PrefixSumCellsCUDA[16]	= std::chrono::steady_clock::now();
+
     cuCheck( cuMemcpyHtoD(m_Fluid.gpu(FDENSE_LISTS),         m_Fluid.bufC(FDENSE_LISTS),         NUM_GENES * sizeof(CUdeviceptr)),	"PrefixSumCellsCUDA", "cuMemcpyHtoD",  "FDENSE_LISTS",			mbDebug);  // update pointers to lists on device
     cuCheck( cuMemcpyHtoD(m_Fluid.gpu(FDENSE_BUF_LENGTHS),   m_Fluid.bufC(FDENSE_BUF_LENGTHS),   NUM_GENES * sizeof(uint)  		),	"PrefixSumCellsCUDA", "cuMemcpyHtoD",  "FDENSE_BUF_LENGTHS",	mbDebug);
+
+    																								time_point_PrefixSumCellsCUDA[17]	= std::chrono::steady_clock::now();
+
 
     if (m_FParams.debug>1){ 
         std::cout << "\nChk: PrefixSumCellsCUDA 4"<<std::flush;
         for(int gene=0;gene<NUM_GENES;gene++){    std::cout<<"\ngene list_length["<<gene<<"]="<<m_Fluid.bufI(FDENSE_LIST_LENGTHS)[gene]<<"\t"<<std::flush;}
         }
 //#endif
+    																								time_point_PrefixSumCellsCUDA[18]	= std::chrono::steady_clock::now();
 }
 
 void FluidSystem::PrefixSumChangesCUDA ( int zero_offsets ){
@@ -455,22 +492,29 @@ void FluidSystem::PrefixSumChangesCUDA ( int zero_offsets ){
 }
 
 void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
-    if (m_FParams.debug>1) std::cout << "\nCountingSortFullCUDA()1: mMaxPoints="<<mMaxPoints<<", mNumPoints="<<mNumPoints<<",\tmActivePoints="<<mActivePoints<<".\n"<<std::flush;
-    // get number of active particles & set short lists for later kernels
-    int grid_ScanMax = (m_FParams.gridScanMax.y * m_FParams.gridRes.z + m_FParams.gridScanMax.z) * m_FParams.gridRes.x + m_FParams.gridScanMax.x;
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+
+                                                                                                    			if (m_FParams.debug>1) std::cout << "\nCountingSortFullCUDA()1: mMaxPoints="<<mMaxPoints<<", mNumPoints="<<mNumPoints<<",\tmActivePoints="<<mActivePoints<<".\n"<<std::flush;
+    																											// get number of active particles & set short lists for later kernels
+
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+	int grid_ScanMax = (m_FParams.gridScanMax.y * m_FParams.gridRes.z + m_FParams.gridScanMax.z) * m_FParams.gridRes.x + m_FParams.gridScanMax.x;
     
     cuCheck( cuMemcpyDtoH ( &mNumPoints,  m_Fluid.gpu(FGRIDOFF)+(m_GridTotal-1/*grid_ScanMax+1*/)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA1", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
     
     cuCheck( cuMemcpyDtoH ( &mActivePoints,  m_Fluid.gpu(FGRIDOFF)+(grid_ScanMax/*-1*/)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA2", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
-    /*
-    int totalPoints = 0;
-    cuCheck( cuMemcpyDtoH ( &totalPoints,  m_Fluid.gpu(FGRIDOFF)+(m_GridTotal)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA3", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
-    std::cout<<"\nCountingSortFullCUDA(): totalPoints="<<totalPoints<<std::flush;
-    */
-    m_FParams.pnumActive = mActivePoints;                                     // TODO eliminate duplication of information & variables between fluid.h and fluid_system.h                               
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+    																											/*
+    																												int totalPoints = 0;
+    																												cuCheck( cuMemcpyDtoH ( &totalPoints,  m_Fluid.gpu(FGRIDOFF)+(m_GridTotal)*sizeof(int), sizeof(int) ), "CountingSortFullCUDA3", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
+                                                                                                                    std::cout<<"\nCountingSortFullCUDA(): totalPoints="<<totalPoints<<std::flush;
+                                                                                                                */
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+    m_FParams.pnumActive = mActivePoints;                                     									// TODO eliminate duplication of information & variables between fluid.h and fluid_system.h
     cuCheck ( cuMemcpyHtoD ( cuFParams,	&m_FParams, sizeof(FParams) ), "CountingSortFullCUDA3", "cuMemcpyHtoD", "cuFParams", mbDebug); // seems the safest way to update fparam.pnumActive on device.
-    
-    if (m_FParams.debug>1) std::cout<<"\nCountingSortFullCUDA()2: mMaxPoints="<<mMaxPoints<<" mNumPoints="<<mNumPoints<<",\tmActivePoints="<<mActivePoints<<",  m_GridTotal="<<m_GridTotal<<", grid_ScanMax="<<grid_ScanMax<<"\n"<<std::flush;
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+
+    																											if (m_FParams.debug>1) std::cout<<"\nCountingSortFullCUDA()2: mMaxPoints="<<mMaxPoints<<" mNumPoints="<<mNumPoints<<",\tmActivePoints="<<mActivePoints<<",  m_GridTotal="<<m_GridTotal<<", grid_ScanMax="<<grid_ScanMax<<"\n"<<std::flush;
 
     // Transfer particle data to temp buffers
     //  (gpu-to-gpu copy, no sync needed)
@@ -494,20 +538,21 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     TransferToTempCUDA ( FCONC,		    mMaxPoints *sizeof(float[NUM_TF]) );
     TransferToTempCUDA ( FEPIGEN,	    mMaxPoints *sizeof(uint[NUM_GENES]) );
 
-    // debug chk
-    //cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN), m_FluidTemp.gpu(FEPIGEN),	mMaxPoints *sizeof(uint[NUM_GENES]) ), "CountingSortFullCUDA4", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-    //SaveUintArray_2D( m_Fluid.bufI(FEPIGEN), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_FluidTemp.bufI(FEPIGEN)2.csv" );
+                                                                                                                    // debug chk
+    																												//cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN), m_FluidTemp.gpu(FEPIGEN),	mMaxPoints *sizeof(uint[NUM_GENES]) ), "CountingSortFullCUDA4", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
+    																												//SaveUintArray_2D( m_Fluid.bufI(FEPIGEN), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_FluidTemp.bufI(FEPIGEN)2.csv" );
     
-    // reset bonds and forces in fbuf FELASTIDX, FPARTICLEIDX and FFORCE, required to prevent interference between time steps, 
-    // because these are not necessarily overwritten by the FUNC_COUNTING_SORT kernel.
-    cuCtxSynchronize ();    // needed to prevent colision with previous operations
-    
+    																												// reset bonds and forces in fbuf FELASTIDX, FPARTICLEIDX and FFORCE, required to prevent interference between time steps,
+    																												// because these are not necessarily overwritten by the FUNC_COUNTING_SORT kernel.
+    cuCtxSynchronize ();    																						// needed to prevent colision with previous operations
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+
     float max_pos = max(max(m_Vec[PVOLMAX].x, m_Vec[PVOLMAX].y), m_Vec[PVOLMAX].z);
     uint * uint_max_pos = (uint*)&max_pos;
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPOS), *uint_max_pos, mMaxPoints * 3 ),  "CountingSortFullCUDA", "cuMemsetD32", "FELASTIDX",   mbDebug);
     
-    //cout<<"\nCountingSortFullCUDA: m_Vec[PVOLMAX]=("<<m_Vec[PVOLMAX].x<<", "<<m_Vec[PVOLMAX].y<<", "<<m_Vec[PVOLMAX].z<<"),  max_pos = "<< max_pos <<std::flush;
-    // NB resetting  m_Fluid.gpu(FPOS)  ensures no zombie particles. ?hopefully?
+    																												//cout<<"\nCountingSortFullCUDA: m_Vec[PVOLMAX]=("<<m_Vec[PVOLMAX].x<<", "<<m_Vec[PVOLMAX].y<<", "<<m_Vec[PVOLMAX].z<<"),  max_pos = "<< max_pos <<std::flush;
+    																												// NB resetting  m_Fluid.gpu(FPOS)  ensures no zombie particles. ?hopefully?
     
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FELASTIDX),    UINT_MAX,  mMaxPoints * BOND_DATA              ),  "CountingSortFullCUDA", "cuMemsetD32", "FELASTIDX",    mbDebug);
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPARTICLEIDX), UINT_MAX,  mMaxPoints * BONDS_PER_PARTICLE *2  ),  "CountingSortFullCUDA", "cuMemsetD32", "FPARTICLEIDX", mbDebug);
@@ -516,48 +561,53 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FCONC),             0.0,  mMaxPoints * NUM_TF                 ),  "CountingSortFullCUDA", "cuMemsetD32", "FCONC",        mbDebug);
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FEPIGEN),     (uint)0.0,  mMaxPoints * NUM_GENES              ),  "CountingSortFullCUDA", "cuMemsetD32", "FEPIGEN",      mbDebug);
     cuCtxSynchronize ();    // needed to prevent colision with previous operations
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
 
-    // Reset grid cell IDs
-    // cuCheck(cuMemsetD32(m_Fluid.gpu(FGCELL), GRID_UNDEF, numPoints ), "cuMemsetD32(Sort)");
+    																												// Reset grid cell IDs
+    																												// cuCheck(cuMemsetD32(m_Fluid.gpu(FGCELL), GRID_UNDEF, numPoints ), "cuMemsetD32(Sort)");
     void* args[1] = { &mMaxPoints };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COUNTING_SORT], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),
               "CountingSortFullCUDA5", "cuLaunch", "FUNC_COUNTING_SORT", mbDebug );
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
 
-    // Having sorted the particle data, we can start using a shortened list of particles.
-    // NB have to reset to long list at start of time step. 
-    computeNumBlocks ( m_FParams.pnumActive, m_FParams.threadsPerBlock, m_FParams.numBlocks, m_FParams.numThreads);				// particles
-    
-    if (m_FParams.debug>1) std::cout<<"\n CountingSortFullCUDA : FUNC_COUNT_SORT_LISTS\n"<<std::flush;
-    // countingSortDenseLists ( int pnum ) // NB launch on bins not particles.
+    																												// Having sorted the particle data, we can start using a shortened list of particles.
+    																												// NB have to reset to long list at start of time step.
+    computeNumBlocks ( m_FParams.pnumActive, m_FParams.threadsPerBlock, m_FParams.numBlocks, m_FParams.numThreads);	// particles
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+
+    																												if (m_FParams.debug>1) std::cout<<"\n CountingSortFullCUDA : FUNC_COUNT_SORT_LISTS\n"<<std::flush;
+    																												// countingSortDenseLists ( int pnum ) // NB launch on bins not particles.
     int blockSize = SCAN_BLOCKSIZE/2 << 1; 
     int numElem1 = m_GridTotal;  
     int numElem2 = 2*  int( numElem1 / blockSize ) + 1;  
     int threads = SCAN_BLOCKSIZE/2;
     cuCtxSynchronize ();
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COUNT_SORT_LISTS], /*m_FParams.numBlocks*/ numElem2, 1, 1, /*m_FParams.numThreads/2*/ threads , 1, 1, 0, NULL, args, NULL),
               "CountingSortFullCUDA7", "cuLaunch", "FUNC_COUNT_SORT_LISTS", mbDebug );                                   // NB threads/2 required on GTX970m
     cuCtxSynchronize ();
+                                                                                                	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+
+    																												if(m_FParams.debug>3){//debug chk
+        																												std::cout<<"\n### Saving UintArray .csv files."<<std::flush;
+        
+                                                                                                                        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN), m_FluidTemp.gpu(FEPIGEN),	mMaxPoints *sizeof(uint[NUM_GENES]) ), "CountingSortFullCUDA8", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
+        																												SaveUintArray_2D( m_Fluid.bufI(FEPIGEN), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_FluidTemp.bufI(FEPIGEN)3.csv" );
+        
+        																												cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN), m_Fluid.gpu(FEPIGEN),	/*mMaxPoints*/mNumPoints *sizeof(uint[NUM_GENES]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
+        																												SaveUintArray_2D( m_Fluid.bufI(FEPIGEN), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_Fluid.bufI(FEPIGEN)3.csv" );
+        
+        																												cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGRIDCNT), m_Fluid.gpu(FGRIDCNT),	sizeof(uint[m_GridTotal]) ), "CountingSortFullCUDA9", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
+        																												SaveUintArray( m_Fluid.bufI(FGRIDCNT), m_GridTotal, "CountingSortFullCUDA__m_Fluid.bufI(FGRIDCNT).csv" );
+        
+        																												cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGRIDOFF), m_Fluid.gpu(FGRIDOFF),	sizeof(uint[m_GridTotal]) ), "CountingSortFullCUDA10", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
+        																												SaveUintArray( m_Fluid.bufI(FGRIDOFF), m_GridTotal, "CountingSortFullCUDA__m_Fluid.bufI(FGRIDOFF).csv" );
     
-    if(m_FParams.debug>3){//debug chk
-        std::cout<<"\n### Saving UintArray .csv files."<<std::flush;
-        
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN), m_FluidTemp.gpu(FEPIGEN),	mMaxPoints *sizeof(uint[NUM_GENES]) ), "CountingSortFullCUDA8", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-        SaveUintArray_2D( m_Fluid.bufI(FEPIGEN), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_FluidTemp.bufI(FEPIGEN)3.csv" );
-        
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN), m_Fluid.gpu(FEPIGEN),	/*mMaxPoints*/mNumPoints *sizeof(uint[NUM_GENES]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-        SaveUintArray_2D( m_Fluid.bufI(FEPIGEN), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_Fluid.bufI(FEPIGEN)3.csv" );
-        
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGRIDCNT), m_Fluid.gpu(FGRIDCNT),	sizeof(uint[m_GridTotal]) ), "CountingSortFullCUDA9", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-        SaveUintArray( m_Fluid.bufI(FGRIDCNT), m_GridTotal, "CountingSortFullCUDA__m_Fluid.bufI(FGRIDCNT).csv" );
-        
-        cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGRIDOFF), m_Fluid.gpu(FGRIDOFF),	sizeof(uint[m_GridTotal]) ), "CountingSortFullCUDA10", "cuMemcpyDtoH", "FGRIDOFF", mbDebug);
-        SaveUintArray( m_Fluid.bufI(FGRIDOFF), m_GridTotal, "CountingSortFullCUDA__m_Fluid.bufI(FGRIDOFF).csv" );
-    
-       // uint fDenseList2[100000];
-       // CUdeviceptr*  _list2pointer = (CUdeviceptr*) &m_Fluid.bufC(FDENSE_LISTS)[2 * sizeof(CUdeviceptr)];
-       // cuCheck( cuMemcpyDtoH ( fDenseList2, *_list2pointer,	sizeof(uint[ m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2] ])/*sizeof(uint[2000])*/ ), "CountingSortFullCUDA11", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-       // SaveUintArray( fDenseList2, m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2], "CountingSortFullCUDA__m_Fluid.bufII(FDENSE_LISTS)[2].csv" );
-    }
+       																													// uint fDenseList2[100000];
+       																													// CUdeviceptr*  _list2pointer = (CUdeviceptr*) &m_Fluid.bufC(FDENSE_LISTS)[2 * sizeof(CUdeviceptr)];
+       																													// cuCheck( cuMemcpyDtoH ( fDenseList2, *_list2pointer,	sizeof(uint[ m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2] ])/*sizeof(uint[2000])*/ ), "CountingSortFullCUDA11", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
+       																													// SaveUintArray( fDenseList2, m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2], "CountingSortFullCUDA__m_Fluid.bufII(FDENSE_LISTS)[2].csv" );
+                                                                                                                    }
 }
 
 void FluidSystem::CountingSortChangesCUDA ( ){

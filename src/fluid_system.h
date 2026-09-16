@@ -204,6 +204,24 @@
         float* getConc(int tf)          { return &m_Fluid.bufF(FCONC)[tf*mMaxPoints];}       //note #define FCONC       16    //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
         uint* getEpiGen(int gene)       { return &m_Fluid.bufI(FEPIGEN)[gene*mMaxPoints];}   //note #define FEPIGEN     17    //# uint[NUM_GENES] // used in savePoints... 
                                                                                              //NB int mMaxPoints is set even if FluidSetupCUDA(..) isn't called, e.g. in makedemo ..
+
+		// Timers
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_Run3_[30];
+
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_Run2PhysicalSort[10];
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_Run2InnerPhysicalLoop[10];
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_Run2GeneAction[10];
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_Run2Remodelling[10];
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_Freeze[10];
+
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_InsertParticlesCUDA[10];
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_PrefixSumCellsCUDA[20];
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_CountingSortFullCUDA[10];
+
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_PrefixSumChangesCUDA[10];
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_ComputeGenesCUDA[10];
+		std::chrono::time_point<std::chrono::steady_clock>  time_point_SpecialParticlesCUDA[10];
+
 		// Setup
 		void SetupSPH_Kernels ();
 		void SetupDefaultParams ();
@@ -280,6 +298,8 @@
 		void EmitParticlesCUDA ( float time, int cnt );
         
 		// I/O Files
+		void save_stdout(std::filesystem::path 	out_path,  std::string outfile);
+
         void SaveUintArray( uint* array, int numElem1, const char * relativePath );
         void SaveUintArray_2Columns( uint* array, int numElem1, int buff_len, const char * relativePath ); /// Used to save DESNSE_LIST_CHANGES (particle,bondIdx) arrays to .csv for debugging.
         void SaveUintArray_2D ( uint* array, int numElem1, int numElem2, const char * relativePath );

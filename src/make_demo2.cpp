@@ -59,10 +59,11 @@ int main ( int argc, const char** argv )
     
     if(mkdir(output_folder, 0755) == -1) 								cerr << "\nError :  failed to create output_folder.\n" << strerror(errno) << endl;
     																					else cout << "output_folder created\n"; // NB 0755 = rwx owner, rx for others.
-    
+
 																						std::cout<<"\n\nmake_demo2 chk7, fluid.launchParams.debug="			<<fluid.launchParams.debug
 																													<<", fluid.launchParams.genomePath=" 	<<fluid.launchParams.genomePath
 																													<< ",  fluid.launchParams.spacing="		<<fluid.launchParams.spacing<<std::flush;
+	//fluid.save_stdout(std::filesystem::path( output_folder),  std::string( "stdout.txt") );
 
     fluid.WriteDemoSimParams(           // Generates the simulation from data previously loaded from SpecificationFile.txt .
         fluid.launchParams.paramsPath,
@@ -82,17 +83,21 @@ int main ( int argc, const char** argv )
     
     fluid.TransferToCUDA (); 
     fluid.Run3Simulation ();															// ###  Using benchmarking edits, instead of Run2Simulation()
-                                                                                    	std::cout<<"\n\nmake_demo2 chk7 "<<std::flush;
+                                                                                    	std::cout<<"\n\nmake_demo2 chk8 "<<std::flush;
+                                                                                        std::cerr<<"\n\nmake_demo2 chk8 "<<std::flush;
+
     fluid.WriteResultsCSV(input_folder, output_folder, num_particles_start);			// NB post-slurm script to (i) cat results.csv files, (ii)tar-gzip and ftp folders to recipient.
     
     size_t   free1, free2, total;
     cudaMemGetInfo(&free1, &total);
-    																					printf("\n\nmake_demo2 chk8: Cuda Memory, before cuCtxDestroy(cuContext): free=%lu, total=%lu.\t",free1,total);
+    																					printf("\n\nmake_demo2 chk9: Cuda Memory, before cuCtxDestroy(cuContext): free=%lu, total=%lu.\t",free1,total);
     CUresult cuResult = cuCtxDestroy ( cuContext ) ;
     if ( cuResult!=0 ) {printf ( "error closing, cuResult = %i \n",cuResult );}
     
     cudaMemGetInfo(&free2, &total);
-    																					printf("\nmake_demo2 chk9: After cuCtxDestroy(cuContext): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
+    																					printf("\nmake_demo2 chk10: After cuCtxDestroy(cuContext): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
     																					printf ( "\nClosed make_demo2.\n" );
+                                                                                        std::cerr<<"\n\nClosed make_demo2 \n"<<std::flush;
+	//std::fclose(stdout);
     return 0;
 }

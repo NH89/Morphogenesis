@@ -1,5 +1,17 @@
 #include "fluid_system.h"
 
+void FluidSystem::save_stdout(std::filesystem::path 	out_path,  std::string outfile){
+	//std::filesystem::path 	out_path( val["out_path"].asString() );
+	out_path += "/";
+    out_path += outfile;
+																				cerr << "\nOutfile = " << out_path.string() << endl << std::flush;
+	fflush (stdout);
+	freopen (out_path.string().c_str(), "w", stdout);							// NB ignores return value. Also stdout is reset at end of main().
+																				cout<<"\n\nFluidSystem::save_stdout()	cout"<<std::flush;
+                                                                                cerr<<"\n\nFluidSystem::save_stdout()	cerr"<<std::flush;
+                                                                                printf("\n\nFluidSystem::save_stdout()	printf()");
+}
+
 void FluidSystem::ReadGenome( const char * relativePath){
     // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
     const char * genes_file_path = relativePath;
