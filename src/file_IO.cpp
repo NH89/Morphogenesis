@@ -1042,16 +1042,16 @@ void FluidSystem::WriteDemoSimParams ( const char * relativePath, int gpu_mode, 
 
     if (m_FParams.debug>1)std::cout<<"\nWriteDemoSimParams chk1, num_particles="<<num_particles<<", m_FParams.debug="<<m_FParams.debug <<", launchParams.genomePath="<< launchParams.genomePath  <<std::flush;
     
-    m_Param[PEXAMPLE] = simSpace;          // simSpace==2 : wave pool example.
-    m_Param[PGRID_DENSITY] = 2.0;   // gives gridsize = 2*smoothradius/griddensity = smoothradius. 
-    m_Param[PNUM] = num_particles;  // 1000000;    //1000 = minimal simulation, 1000000 = large simulation
+    m_Param[PEXAMPLE]          = simSpace;          // simSpace==2 : wave pool example.
+    m_Param[PGRID_DENSITY]     = 2.0;               // gives gridsize = 2*smoothradius/griddensity = smoothradius.
+    m_Param[PNUM]              = num_particles;     // 1000000;    //1000 = minimal simulation, 1000000 = large simulation
     AllocateBuffer ( FPARAMS, sizeof(FParams), 1,0, GPU_OFF, CPU_YES ); 
-    m_Time = 0;
-    mNumPoints = 0;			        // reset count
+    m_Time                     = 0;
+    mNumPoints                 = 0;                 // reset count
     
     if (m_FParams.debug>1)std::cout<<"\nWriteDemoSimParams chk2, launchParams.genomePath="<< launchParams.genomePath  <<std::flush;
     
-    SetupDefaultParams();           // set up the standard demo
+    SetupDefaultParams();                           // set up the standard demo
     std::cout <<"\nFluidSystem::WriteDemoSimParams : launchParams.read_genome = " << launchParams.read_genome <<",\t  launchParams.genomePath = "<<  launchParams.genomePath<<std::endl<<std::flush;
     
     SetupExampleParams(spacing);
@@ -1227,6 +1227,7 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     ret += std::fscanf ( SpecFile, "steps_per_InnerPhysicalLoop = %u\n ", &launchParams.steps_per_InnerPhysicalLoop );
     ret += std::fscanf ( SpecFile, "steps_per_file = %u\n ", &launchParams.steps_per_file );
     ret += std::fscanf ( SpecFile, "freeze_steps = %u\n ", &launchParams.freeze_steps );
+    ret += std::fscanf ( SpecFile, "motion = %u\n ", &launchParams.motion );
     ret += std::fscanf ( SpecFile, "\n");
     
     ret += std::fscanf ( SpecFile, "debug = %u\n ", &launchParams.debug );
@@ -1247,7 +1248,10 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     ret += std::fscanf ( SpecFile, "actuation_period = %f\n ", &launchParams.actuation_period );
     
     ret += std::fscanf ( SpecFile, "\n");
- 
+
+    if(launchParams.motion>0){	m_FParams.motion = true;}
+    else {						m_FParams.motion = false;};
+
     m_FParams.debug = launchParams.debug ;
     if (m_FParams.debug>1)std::cout<<"\n\n   launchParams.debug="<<launchParams.debug<<",  m_FParams.debug="<<m_FParams.debug <<" .\t"<<std::flush;
     if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadSpecificationFile(..),  ret = " << ret << std::flush;
@@ -1346,6 +1350,7 @@ void FluidSystem::WriteExampleSpecificationFile ( const char * relativePath ){ /
     ret += std::fprintf ( SpecFile, "steps_per_InnerPhysicalLoop = %u\n ", launchParams.steps_per_InnerPhysicalLoop );
     ret += std::fprintf ( SpecFile, "steps_per_file = %u\n ", launchParams.steps_per_file );
     ret += std::fprintf ( SpecFile, "freeze_steps = %u\n ", launchParams.freeze_steps );
+    ret += std::fprintf ( SpecFile, "motion = %u\n ", launchParams.freeze_steps );
     ret += std::fprintf ( SpecFile, "\n");
     
     ret += std::fprintf ( SpecFile, "debug = %u\n ", launchParams.debug );
@@ -1363,7 +1368,7 @@ void FluidSystem::WriteExampleSpecificationFile ( const char * relativePath ){ /
     ret += std::fprintf ( SpecFile, "\n");
     
     ret += std::fprintf ( SpecFile, "actuation_factor = %f\n ", m_Param[PACTUATION_FACTOR] );//  launchParams.actuation_factor );
-    ret += std::fprintf ( SpecFile, "actuation_period = %f\n ", m_Param[PACTUATION_PERIOD] );// launchParams.actuation_period );
+    ret += std::fprintf ( SpecFile, "actuation_period = %f\n ", m_Param[PACTUATION_PERIOD] );//  launchParams.actuation_period );
     
     ret += std::fprintf ( SpecFile, "\n");
     fflush(SpecFile); fclose(SpecFile);
@@ -1461,6 +1466,7 @@ void FluidSystem::WriteSpecificationFile_fromLaunchParams ( const char * relativ
     ret += std::fprintf ( SpecFile, "steps_per_InnerPhysicalLoop = %u\n ", launchParams.steps_per_InnerPhysicalLoop );
     ret += std::fprintf ( SpecFile, "steps_per_file = %u\n ", launchParams.steps_per_file );
     ret += std::fprintf ( SpecFile, "freeze_steps = %u\n ", launchParams.freeze_steps );
+    ret += std::fprintf ( SpecFile, "motion = %u\n ", launchParams.motion );
     ret += std::fprintf ( SpecFile, "\n");
     
     ret += std::fprintf ( SpecFile, "debug = %u\n ", launchParams.debug );
@@ -1475,7 +1481,11 @@ void FluidSystem::WriteSpecificationFile_fromLaunchParams ( const char * relativ
     ret += std::fprintf ( SpecFile, "gene_activity = %c\n ", launchParams.gene_activity );
     ret += std::fprintf ( SpecFile, "remodelling = %c\n ", launchParams.remodelling );
     ret += std::fprintf ( SpecFile, "read_genome = %c\n ", launchParams.read_genome );
-    
+    ret += std::fprintf ( SpecFile, "\n");
+
+    ret += std::fprintf ( SpecFile, "actuation_factor = %f\n ", m_Param[PACTUATION_FACTOR] );//  launchParams.actuation_factor );
+    ret += std::fprintf ( SpecFile, "actuation_period = %f\n ", m_Param[PACTUATION_PERIOD] );// launchParams.actuation_period );
+
     ret += std::fprintf ( SpecFile, "\n");
     fflush(SpecFile); fclose(SpecFile);
     return;

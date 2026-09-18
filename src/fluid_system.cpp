@@ -343,11 +343,48 @@ void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucn
             rtn = cuCheck( cuMemAlloc(m_FluidTemp.gpuptr(buf_id), stride*gpucnt), "AllocateBuffer", "cuMemAlloc", "FluidTemp.gpu", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
             if(rtn == false)FluidSystem::Exit();
         }
+/*
+  //       // buffers for "float4[64] InRange" and "uint InRangeCount"
+  //       // float4 InRange  ###
+  //       if ( m_Fluid.InRange_ptr != 0x0) cuCheck(cuMemFree( m_Fluid.InRange ), "AllocateBuffer", "cuMemFree", "&InRange", mbDebug);
+  //       rtn = cuCheck( cuMemAlloc( m_Fluid.InRange_ptr, stride*gpucnt), "AllocateBuffer", "cuMemAlloc", "&InRange", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
+  //       if(rtn == false)FluidSystem::Exit();
+  //
+		// // uint InRangeCount ###
+  //       if (  m_Fluid.InRangeCount_ptr != 0x0) cuCheck(cuMemFree( m_Fluid.InRangeCount ), "AllocateBuffer", "cuMemFree", "FluidTemp.gpu", mbDebug);
+  //       rtn = cuCheck( cuMemAlloc( m_Fluid.InRangeCount_ptr, stride*gpucnt), "AllocateBuffer", "cuMemAlloc", "FluidTemp.gpu", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
+  //       if(rtn == false)FluidSystem::Exit();
+*/
         cuCheck(cuCtxSynchronize(), "AllocateBuffer ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);  
         cudaMemGetInfo(&free2, &total);
         if (m_FParams.debug>1)printf("\nAfter allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
     }
 }
+
+
+void FluidSystem::AllocateInRangeBuffers ( int gpucnt ){   // mallocs a buffer - called by FluidSystem::Initialize(), AllocateParticles, and AllocateGrid()
+//also called by WriteDemoSimParams(..)
+    bool rtn = true;
+    if (m_FParams.debug>1)std::cout<<"\nAllocateBuffer ( int gpucnt="<<gpucnt<<" )\t"<<std::flush;
+	size_t   free1, free2, total;
+	cudaMemGetInfo(&free1, &total);
+
+    // buffers for "float4[INRANGE_ARRAY_SIZE=64] InRange" and "uint InRangeCount"
+    // float4 InRange
+	if ( m_Fluid.InRange_ptr != 0x0) cuCheck(cuMemFree(  m_Fluid.InRange ),								 				 "AllocateBuffer", "cuMemFree",  "InRange", mbDebug);
+	rtn = 							 cuCheck(cuMemAlloc( m_Fluid.InRange_ptr, sizeof(float4)*INRANGE_ARRAY_SIZE*gpucnt), "AllocateBuffer", "cuMemAlloc", "InRange", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
+	if(rtn == false)FluidSystem::Exit();
+
+    // uint InRangeCount
+	if (  m_Fluid.InRangeCount_ptr != 0x0)	cuCheck(cuMemFree(  m_Fluid.InRangeCount ),							"AllocateBuffer", "cuMemFree",  "InRangeCount", mbDebug);
+	rtn =									cuCheck(cuMemAlloc( m_Fluid.InRangeCount_ptr, sizeof(uint)*gpucnt), "AllocateBuffer", "cuMemAlloc", "InRangeCount", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
+	if(rtn == false)FluidSystem::Exit();
+
+	cuCheck(cuCtxSynchronize(),    "AllocateInRangeBuffers ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);
+	cudaMemGetInfo(&free2, &total);
+	if (m_FParams.debug>1)printf("\nAllocateInRangeBuffers, after allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
+}
+
 
 // Allocate particle memory
 void FluidSystem::AllocateParticles ( int cnt, int gpu_mode, int cpu_mode ){ // calls AllocateBuffer(..) for each buffer.  
@@ -380,6 +417,8 @@ if (m_FParams.debug>1)std::cout<<"\tGPU_OFF=0, GPU_SINGLE=1, GPU_TEMP=2, GPU_DUA
     AllocateBuffer ( FEPIGEN,	    sizeof(uint[NUM_GENES]),	         cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FCURAND_STATE,	sizeof(curandState_t),	             cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FCURAND_SEED,	sizeof(unsigned long long),	         cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
+
+    AllocateInRangeBuffers ( m_FParams.szPnts );
     
     // Update GPU access pointers
     if (gpu_mode != GPU_OFF ) {
@@ -910,8 +949,10 @@ void FluidSystem::Run (const char * relativePath, int frame, bool debug, bool ge
         SavePointsCSV2 (  relativePath, frame+13 );
         std::cout << "\n\nRun(relativePath,frame) Chk13, saved "<< frame+13 <<".csv  After  TransferPosVelVeval.  mMaxPoints="<<mMaxPoints<<"\n"<<std::flush;
     }
-    AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);
+    if(m_FParams.motion==true){
+    	AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
+    	cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);
+    }
     if(debug){
         TransferFromCUDA ();
         SavePointsCSV2 (  relativePath, frame+14 );
@@ -988,10 +1029,12 @@ void FluidSystem::Run2PhysicalSort(){
 void FluidSystem::Run2InnerPhysicalLoop(){
     																										if(m_FParams.debug>0)std::cout<<"\n####\nRun2InnerPhysicalLoop()start";
     																								time_point_Run2InnerPhysicalLoop[0]	= std::chrono::steady_clock::now();
-    if(m_FParams.freeze==true){
-        InitializeBondsCUDA ();
-        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InitializeBondsCUDA ", mbDebug);
-    }
+
+    // cout<<"\n(m_FParams.freeze==true)="<<(m_FParams.freeze==true)<<std::flush;  // ### debug
+    // if(m_FParams.freeze==true){
+    //     InitializeBondsCUDA ();
+    //     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InitializeBondsCUDA ", mbDebug);
+    // }
     																								time_point_Run2InnerPhysicalLoop[1]	= std::chrono::steady_clock::now();
     ComputePressureCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputePressureCUDA", mbDebug);
@@ -1009,8 +1052,10 @@ void FluidSystem::Run2InnerPhysicalLoop(){
     TransferPosVelVeval ();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval ", mbDebug);
     																								time_point_Run2InnerPhysicalLoop[5]	= std::chrono::steady_clock::now();
-    AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);
+    if(m_FParams.motion==true){
+    	AdvanceCUDA ( m_Time, m_DT, m_Param[PSIMSCALE] );
+    	cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After AdvanceCUDA", mbDebug);
+    }
     
     SpecialParticlesCUDA ( m_Time, m_DT, m_Param[PSIMSCALE]);
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After SpecialParticlesCUDA", mbDebug);
@@ -1086,9 +1131,9 @@ void FluidSystem::Run2Remodelling(uint steps_per_InnerPhysicalLoop){
 }
 
 
-
 void FluidSystem::setFreeze(bool freeze){
     m_FParams.freeze = freeze;
+    cout<<"\nvoid FluidSystem::setFreeze(bool freeze),  (m_FParams.freeze==true)="<<(m_FParams.freeze==true)<<",   freeze="<<freeze<<std::flush;  // ### debug
     cuCheck ( cuMemcpyHtoD ( cuFParams,	&m_FParams,		sizeof(FParams) ), "FluidParamCUDA", "cuMemcpyHtoD", "cuFParams", mbDebug);
 }
 
@@ -1153,11 +1198,11 @@ void FluidSystem::SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, flo
 ///////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
 void FluidSystem::SetupSPH_Kernels (){
-    m_Param [ PDIST ] = pow ( (float) m_Param[PMASS] / m_Param[PRESTDENSITY], 1.0f/3.0f );
-    m_R2 = m_Param [PSMOOTHRADIUS] * m_Param[PSMOOTHRADIUS];
-    m_Poly6Kern = 315.0f / (64.0f * 3.141592f * pow( m_Param[PSMOOTHRADIUS], 9.0f) );	// Wpoly6 kernel (denominator part) - 2003 Muller, p.4
-    m_SpikyKern = -45.0f / (3.141592f * pow( m_Param[PSMOOTHRADIUS], 6.0f) );			// Laplacian of viscocity (denominator): PI h^6
-    m_LapKern = 45.0f / (3.141592f * pow( m_Param[PSMOOTHRADIUS], 6.0f) );
+    m_Param [ PDIST ] 	= pow ( (float) m_Param[PMASS] / m_Param[PRESTDENSITY], 1.0f/3.0f );
+    m_R2 				= m_Param [PSMOOTHRADIUS]      *      m_Param[PSMOOTHRADIUS];
+    m_Poly6Kern 		= 315.0f / (64.0f * 3.141592f  * pow( m_Param[PSMOOTHRADIUS], 9.0f) );	// Wpoly6 kernel (denominator part) - 2003 Muller, p.4
+    m_SpikyKern 		= -45.0f / (        3.141592f  * pow( m_Param[PSMOOTHRADIUS], 6.0f) );			// Laplacian of viscocity (denominator): PI h^6
+    m_LapKern 			=  45.0f / (        3.141592f  * pow( m_Param[PSMOOTHRADIUS], 6.0f) );
 }
 
 void FluidSystem::SetupDefaultParams (){
@@ -1174,12 +1219,12 @@ void FluidSystem::SetupDefaultParams (){
     //  Rest Distance (Pd) =			   0.0059		m
     //
     //  Given: D, Pm, N
-    //    Pv = Pm / D			0.00020543 kg / 1000 kg/m^3 = 2.054e-7 m^3
-    //    Pv = 4/3*pi*Pr^3    cuberoot( 2.054e-7 m^3 * 3/(4pi) ) = 0.00366 m
-    //     M = Pm * N			0.00020543 kg * 4000.0 = 0.821 kg
-    //     V =  M / D              0.821 kg / 1000 kg/m^3 = 0.000821 m^3
-    //     V = Pv * N			 2.054e-7 m^3 * 4000 = 0.000821 m^3
-    //    Pd = cuberoot(Pm/D)    cuberoot(0.00020543/1000) = 0.0059 m
+    //    Pv = Pm / D			0.00020543 kg / 1000 kg/m^3        = 2.054e-7 m^3
+    //    Pv = 4/3*pi*Pr^3      cuberoot( 2.054e-7 m^3 * 3/(4pi) ) = 0.00366 m
+    //     M = Pm * N			0.00020543 kg * 4000.0             = 0.821 kg
+    //     V =  M / D           0.821 kg / 1000 kg/m^3             = 0.000821 m^3
+    //     V = Pv * N			2.054e-7 m^3 * 4000                = 0.000821 m^3
+    //    Pd = cuberoot(Pm/D)   cuberoot(0.00020543/1000)          = 0.0059 m
     //
     // Ideal grid cell size (gs) = 2 * smoothing radius = 0.02*2 = 0.04
     // Ideal domain size = k*gs/d = k*0.02*2/0.005 = k*8 = {8, 16, 24, 32, 40, 48, ..}
@@ -1208,20 +1253,20 @@ void FluidSystem::SetupDefaultParams (){
     m_Param [ PDIST ] =			0.0059f;			// m
     m_Param [ PSMOOTHRADIUS ] =	0.015f;			// m
     m_Param [ PINTSTIFF ] =		1.0f;
-    m_Param [ PEXTSTIFF ] =		50000.0f;
-    m_Param [ PEXTDAMP ] =		100.0f;
-    m_Param [ PACCEL_LIMIT ] =	150.0f;			// m / s^2
-    m_Param [ PVEL_LIMIT ] =	3.0f;			// m / s
-    m_Param [ PGRAV ] =			1.0f;
+    m_Param [ PEXTSTIFF ]     = 50000.0f;
+    m_Param [ PEXTDAMP ]      = 100.0f;
+    m_Param [ PACCEL_LIMIT ]  = 150.0f;			// m / s^2
+    m_Param [ PVEL_LIMIT ]    =   3.0f;			// m / s
+    m_Param [ PGRAV ]         =   1.0f;
 
-    m_Param [ PGROUND_SLOPE ] = 0.0f;
-    m_Param [ PFORCE_MIN ] =	0.0f;
-    m_Param [ PFORCE_MAX ] =	0.0f;
-    m_Param [ PFORCE_FREQ ] =	16.0f;
+    m_Param [ PGROUND_SLOPE ] =  0.0f;
+    m_Param [ PFORCE_MIN ]    =  0.0f;
+    m_Param [ PFORCE_MAX ]    =  0.0f;
+    m_Param [ PFORCE_FREQ ]   = 16.0f;
     m_Vec [ PPLANE_GRAV_DIR ].Set ( 0, -9.8f, 0 );
 
     // Default sim config
-    m_Param [PGRIDSIZE] = m_Param[PSMOOTHRADIUS] * 2;
+    m_Param [PGRIDSIZE]           = m_Param[PSMOOTHRADIUS] * 2;
     
     m_Param [ PACTUATION_FACTOR ] = 0;
     m_Param [ PACTUATION_PERIOD ] = 1;
@@ -1524,32 +1569,32 @@ void FluidSystem::SetupExampleGenome()  {   // need to set up a demo genome
 
 //////////////////////////////////////////////////////
 void FluidSystem::SetupSpacing (){
-    m_Param [ PSIMSIZE ] = m_Param [ PSIMSCALE ] * (m_Vec[PVOLMAX].z - m_Vec[PVOLMIN].z);
+    m_Param [ PSIMSIZE ]         = m_Param [ PSIMSCALE ] * (m_Vec[PVOLMAX].z - m_Vec[PVOLMIN].z);
 
     if ( m_Param[PSPACING] == 0 ) {
         // Determine spacing from density
-        m_Param [PDIST] = pow ( (float) m_Param[PMASS] / m_Param[PRESTDENSITY], 1/3.0f );
-        m_Param [PSPACING] = m_Param [ PDIST ]*0.87f / m_Param[ PSIMSCALE ];
+        m_Param [PDIST]          = pow ( (float) m_Param[PMASS]           / m_Param[PRESTDENSITY], 1/3.0f );
+        m_Param [PSPACING]       = m_Param [ PDIST ]*0.87f                / m_Param[ PSIMSCALE ];
     } else {
         // Determine density from spacing
-        m_Param [PDIST] = m_Param[PSPACING] * m_Param[PSIMSCALE] / 0.87f;
-        m_Param [PRESTDENSITY] = m_Param[PMASS] / pow ( (float) m_Param[PDIST], 3.0f );
+        m_Param [PDIST]          = m_Param[PSPACING] * m_Param[PSIMSCALE] / 0.87f;
+        m_Param [PRESTDENSITY]   = m_Param[PMASS]                         / pow ( (float) m_Param[PDIST], 3.0f );
     }
     if (m_FParams.debug>0)printf ( "\nSetupSpacing: Density=,%f, Spacing=,%f, PDist=,%f\n", m_Param[PRESTDENSITY], m_Param[PSPACING], m_Param[PDIST] );
 
     // Particle Boundaries
-    m_Vec[PBOUNDMIN] = m_Vec[PVOLMIN];
-    m_Vec[PBOUNDMIN] += 2.0*(m_Param[PGRIDSIZE] / m_Param[PSIMSCALE]);
-    m_Vec[PBOUNDMAX] = m_Vec[PVOLMAX];
-    m_Vec[PBOUNDMAX] -= 2.0*(m_Param[PGRIDSIZE] / m_Param[PSIMSCALE]);
+    m_Vec[PBOUNDMIN]             =      m_Vec[PVOLMIN];
+    m_Vec[PBOUNDMIN]            += 2.0*(m_Param[PGRIDSIZE] / m_Param[PSIMSCALE]);
+    m_Vec[PBOUNDMAX]             =      m_Vec[PVOLMAX];
+    m_Vec[PBOUNDMAX]            -= 2.0*(m_Param[PGRIDSIZE] / m_Param[PSIMSCALE]);
 }
 
 void FluidSystem::SetupSimulation(int gpu_mode, int cpu_mode){ // const char * relativePath, int gpu_mode, int cpu_mode
      // Allocate buffers for points
     //std::cout<<"\nSetupSimulation chk1, m_FParams.debug="<<m_FParams.debug<<std::flush;
-    m_Param [PNUM] = launchParams.num_particles;                             // NB there is a line of text above the particles, hence -1.
-    mMaxPoints = m_Param [PNUM];
-    m_Param [PGRIDSIZE] = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
+    m_Param [PNUM]               = launchParams.num_particles;                             // NB there is a line of text above the particles, hence -1.
+    mMaxPoints                   =   m_Param[PNUM];
+    m_Param [PGRIDSIZE]          = 2*m_Param[PSMOOTHRADIUS] / m_Param[PGRID_DENSITY];
     //std::cout<<"\nSetupSimulation chk2, m_FParams.debug="<<m_FParams.debug<<std::flush;
     
     SetupSPH_Kernels ();

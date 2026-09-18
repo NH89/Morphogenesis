@@ -20,13 +20,15 @@ void FluidSystem::Run3Simulation(){
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After TransferPosVelVeval, before 1st timestep", 1/*mbDebug*/);
     																								time_point_Run3_[2]	= std::chrono::steady_clock::now();
     setFreeze(true);
+	//cout<<"\nvoid FluidSystem::Run3Simulation(),   (m_FParams.freeze==true)="<<(m_FParams.freeze==true)<<std::flush;  // ### debug
     																								time_point_Run3_[3]	= std::chrono::steady_clock::now();
     m_Debug_file=0;
     																									if (m_FParams.debug>0)std::cout<<"\n\nFreeze()"<<-1<<"\n"<<std::flush;
     Run2PhysicalSort();
     																								time_point_Run3_[4]	= std::chrono::steady_clock::now();
-    InitializeBondsCUDA();		// ### prevent bond formation
-    																								time_point_Run3_[5]	= std::chrono::steady_clock::now();
+	if(m_FParams.freeze==true){
+	    InitializeBondsCUDA();		// ### prevent bond formation  // also called by Run2InnerPysical loop if(freeze==true)
+	}    																								time_point_Run3_[5]	= std::chrono::steady_clock::now();
 
     																									if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
     																									cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
@@ -41,7 +43,7 @@ void FluidSystem::Run3Simulation(){
 
 																											std::cerr<<"\n\nFreeze steps:  freeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
         																									std::cout<<"\n\nFreeze steps:  freeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
-    for ( ; launchParams.file_num<launchParams.freeze_steps; launchParams.file_num+=100 ) {
+    for ( ; launchParams.file_num<(launchParams.freeze_steps*100); launchParams.file_num+=100 ) {
 																											std::cerr<<"\n\nfreeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
         																									std::cout<<"\n\nfreeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
         m_Debug_file=0;

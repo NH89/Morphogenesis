@@ -80,11 +80,11 @@ void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, flo
     m_FParams.VL2 = vl * vl;
     //m_FParams.pemit = emit;
                                                                             
-    m_FParams.pdist = pow ( m_FParams.pmass / m_FParams.prest_dens, 1/3.0f );
-                                                                                // Normalization constants.
-    m_FParams.poly6kern = 315.0f / (64.0f * 3.141592f * pow( sr, 9.0f) );
-    m_FParams.wendlandC2kern = 21 / (2 * 3.141592f );   // This is the value calculated in SymPy as per Wendland C2 as per (Dehnen & Aly 2012)
-    // 16   // The  WC2 kernel in DualSPHysics assumes  values of 0<=q<=2 , hence the divisor 16pi in the normalisation constant for 3D. 
+    m_FParams.pdist             = pow ( m_FParams.pmass / m_FParams.prest_dens, 1/3.0f );
+                                                                                             // Normalization constants.
+    m_FParams.poly6kern         = 315.0f / (64.0f * 3.141592f * pow( sr, 9.0f) );
+    m_FParams.wendlandC2kern    =  21    / (2 * 3.141592f );                                 // This is the value calculated in SymPy as per Wendland C2 as per (Dehnen & Aly 2012)
+                                                                                             // 16   // The  WC2 kernel in DualSPHysics assumes  values of 0<=q<=2 , hence the divisor 16pi in the normalisation constant for 3D.
     /* My notes from Sympy my notebook. 
     Where Wendland C2 kernel:
     
@@ -100,8 +100,8 @@ void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, flo
     // NB using W(r,h)=alpha_D (1-q/2)**4 *(2*q +1), 0<=q<=2, as per DualSPHysics Wiki. Where alpha_D is the normaliation constant.
     // * m_FParams.pmass * m_FParams.psimscale
     */
-    m_FParams.spikykern = -45.0f / (3.141592f * pow( sr, 6.0f) );            // spikykern used for force due to pressure.
-    m_FParams.lapkern = 45.0f / (3.141592f * pow( sr, 6.0f) );               
+    m_FParams.spikykern         = -45.0f / (3.141592f * pow( sr, 6.0f) );                                  // spikykern used for force due to pressure.
+    m_FParams.lapkern           =  45.0f / (3.141592f * pow( sr, 6.0f) );
     // NB Viscosity uses a different kernel, this is the constant portion of its Laplacian.
     // NB Laplacian is a scalar 2nd order differential, "The divergence of the gradient" 
     // This Laplacian comes from Muller et al 2003, NB The kernel is defined by the properties of  its Laplacian, gradient and value at the basis (outer limit) of the kernel. The Laplacian is the form used in the code. The equation of the kernel in Muller et al seems to be wrong, but this does not matter.
@@ -114,12 +114,12 @@ void FluidSystem::FluidParamCUDA ( float ss, float sr, float pr, float mass, flo
 //(r**2*(h/r**3 + 2/h**2 - 3*r/h**3) + 2*r*(-h/(2*r**2) + 2*r/h**2 - 3*r**2/(2*h**3) ) )/r**2
 */
     
-    m_FParams.gausskern = 1.0f / pow(3.141592f * 2.0f*sr*sr, 3.0f/2.0f);     // Gaussian not currently used.
+    m_FParams.gausskern        = 1.0f                    / pow( 3.141592f * 2.0f*sr*sr,   3.0f/2.0f );     // Gaussian not currently used.
 
-    m_FParams.H = m_FParams.psmoothradius / m_FParams.psimscale;
-    m_FParams.d2 = m_FParams.psimscale * m_FParams.psimscale;
-    m_FParams.rd2 = m_FParams.r2 / m_FParams.d2;
-    m_FParams.vterm = m_FParams.lapkern * m_FParams.pvisc;
+    m_FParams.H                = m_FParams.psmoothradius / m_FParams.psimscale;
+    m_FParams.d2               = m_FParams.psimscale     * m_FParams.psimscale;
+    m_FParams.rd2              = m_FParams.r2            / m_FParams.d2;
+    m_FParams.vterm            = m_FParams.lapkern       * m_FParams.pvisc;
     
     m_FParams.actuation_factor = a_f;
     m_FParams.actuation_period = a_p;
@@ -664,7 +664,7 @@ void FluidSystem::InitializeBondsCUDA (){
     int numBlocks, numThreads;
     computeNumBlocks (list_length, m_FParams.threadsPerBlock, numBlocks, numThreads);
     
-    if (m_FParams.debug>1)cout << "\nInitializeBondsCUDA (): list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<" \t args{m_FParams.pnumActive="<<m_FParams.pnumActive<<", list_length="<<list_length<<", gene="<<gene<<"}"<<std::flush;
+    /*if (m_FParams.debug>1)*/cout << "\nInitializeBondsCUDA (): list_length="<<list_length<<", m_FParams.threadsPerBlock="<<m_FParams.threadsPerBlock<<", numBlocks="<<numBlocks<<", numThreads="<<numThreads<<" \t args{m_FParams.pnumActive="<<m_FParams.pnumActive<<", list_length="<<list_length<<", gene="<<gene<<"}"<<std::flush;
     
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_INITIALIZE_BONDS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputePressureCUDA", "cuLaunch", "FUNC_COMPUTE_PRESS", mbDebug);
 }

@@ -175,7 +175,8 @@
         void InitializeCuda ();                             // used for load_sim
 
 		// Particle Utilities
-		void AllocateBuffer(int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode);		
+		void AllocateBuffer(int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode);
+		void AllocateInRangeBuffers ( int gpucnt );
         void AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt, int lists );
         void AllocateParticles ( int cnt, int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES );
         void AddNullPoints ();
@@ -352,7 +353,7 @@
             char pointsPath[256];
             char genomePath[256];
             char outPath[256];
-            uint num_files=1, steps_per_file=1, freeze_steps=0, debug=0, steps_per_InnerPhysicalLoop=3;
+            uint num_files=1, steps_per_file=1, freeze_steps=0, motion=1, debug=0, steps_per_InnerPhysicalLoop=3;
             int file_num=0, file_increment=0;
             char save_ply='n', save_csv='n', save_vtp='n',  gene_activity='n', remodelling='n', read_genome='n';
             

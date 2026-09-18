@@ -182,6 +182,7 @@ _deps
 /Debug/
 ./old-*
 *.kdev4
+*.kate-swp
 src/build/*
 
 old-build*

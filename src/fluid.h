@@ -193,23 +193,28 @@
 		#define CALLFUNC
 	#endif		
 
+//	enum {/*0*/current_index, /*1*/elastic_limit, /*2*/rest_length, /*3*/modulus, /*4*/damping_coeff, /*5*/particle_ID, /*6 bond_index*/ strain_sq_integrator, /*7*/strain_integrator, /*8*/change_type};//FELASTIDX
+
 	struct Bond {
-        int		j;						//0
-        float	restlength;
-        float	elastic_limit;
-        float	modulus;
-        float	damping_coeff;
-        uint	other_particle_ID;
-        uint	bondIndex;
-        float	strain_sq_integrator_;
-        float	strain_integrator_;
+        int		j;							//0
+        float	elastic_limit;				//1
+        float	restlength;					//2
+        float	modulus;					//3
+        float	damping_coeff;				//4
+        uint	other_particle_ID;			//5
+        uint	bondIndex;					//6
+        float	strain_integrator_;			//7
+        float	change_type;				//8
     };
 
     struct Bonds{
         Bond	b[BONDS_PER_PARTICLE];
     };
 
-
+    #define INRANGE_ARRAY_SIZE	64
+    struct Range{
+        float4	In[INRANGE_ARRAY_SIZE];
+    };
 	
 	// Particle & Grid Buffers
 	struct FBufs {       // holds an array of pointers, and functions to access them.    // used to declare "fbuf" at top of fluid_system_cuda.cu
@@ -218,6 +223,8 @@
         // short int 16bit, int 32bit, long int 64bit, float 32bit, double 64bit, 
 		#ifdef CUDA_KERNEL
 			// on device, access data via gpu pointers 
+			inline CALLFUNC Range*  bufR (int n)		{ return (Range*)  mgpu[n]; }
+
 			inline CALLFUNC Bonds*  bufB (int n)		{ return (Bonds*)  mgpu[n]; }
 			inline CALLFUNC Vector3DF* bufV3(int n)		{ return (Vector3DF*) mgpu[n]; }
 			inline CALLFUNC float3* bufF3(int n)		{ return (float3*) mgpu[n]; }
@@ -247,13 +254,22 @@
 
 		#ifdef CUDA_KERNEL
 			char*			mgpu[ MAX_BUF ];		// on device, pointer is local.
+			char*			InRange;				// [num_particles * 64]
+			char*			InRangeCount;			// [num_particles]
 		#else			
 			CUdeviceptr		mgpu[ MAX_BUF ];		// on host, gpu is a device pointer // an array of pointers, filled by cuMemAlloc
 			CUdeviceptr		gpu    (int n )	{ return mgpu[n];  }
-			CUdeviceptr*	gpuptr (int n )	{ return &mgpu[n]; }		
+			CUdeviceptr*	gpuptr (int n )	{ return &mgpu[n]; }
+
+			CUdeviceptr		InRange;
+			CUdeviceptr		InRangeCount;
+
+			CUdeviceptr*	InRange_ptr			=	&InRange;
+			CUdeviceptr*	InRangeCount_ptr	=	&InRangeCount;
 		#endif			
 
 	};
+
 
 /*			float3*			mpos;			// particle buffers
 		float3*			mvel;
@@ -308,7 +324,7 @@
 		int				gridThreads, gridBlocks;	
 		int				szPnts, szGrid;
 		int				stride, pnum, pnumActive, maxPoints;
-        bool            freeze;
+        bool            freeze, motion;
         uint            frame;
 		int				chk;
 		float			pdist, pmass, prest_dens;
