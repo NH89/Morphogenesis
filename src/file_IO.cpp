@@ -645,10 +645,10 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
                                                                                                     <<"\n"<<std::flush;
 
 	writer->Write();
-if (m_FParams.debug>1)cout << "\nFinished writing vtp file " << buf << "." << endl;
-if (m_FParams.debug>1)cout << "\tnum_active_points: " << num_active_points << endl;    
-	//if (m_FParams.debug>1)cout << "\nFinished writing vtp file " << buf << "." << endl;
-	//if (m_FParams.debug>1)cout << "\tnum_active_points: " << num_active_points << endl;
+																								if (m_FParams.debug>1)cout << "\nFinished writing vtp file " << buf << "." << endl;
+                                                                                                if (m_FParams.debug>1)cout << "\tnum_active_points: " << num_active_points << endl;
+																								//if (m_FParams.debug>1)cout << "\nFinished writing vtp file " << buf << "." << endl;
+																								//if (m_FParams.debug>1)cout << "\tnum_active_points: " << num_active_points << endl;
 }
 
 void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){

@@ -72,7 +72,7 @@ void FluidSystem::Run3Simulation(){
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
         																									if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
         																									if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
-        																									if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+                                                                                                            if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
     }
     																								time_point_Run3_[15]	= std::chrono::steady_clock::now();
     setFreeze(false);                                                                                       // freeze=false => bonds can be broken now.
@@ -105,13 +105,13 @@ void FluidSystem::Run3Simulation(){
             Run2PhysicalSort();                                                                             // Run2PhysicalSort();                // sort required for SavePointsVTP2
         }
     																								time_point_Run3_[22]	= std::chrono::steady_clock::now();
-/*        																			// 						auto begin = std::chrono::steady_clock::now();
-																											// if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
-        																			// 						cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
-        																			// 						if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
-        																			// 						if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
-        																			// 						if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
-                           //
+        																			// 						auto begin = std::chrono::steady_clock::now();
+																											if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+        																									cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
+        																									if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
+        																									if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
+        																									if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+/*                           //
         																			// 						auto end = std::chrono::steady_clock::now();
         																			// 						std::chrono::duration<double> time = end - begin;
         																			// 						std::chrono::duration<double> begin_dbl = begin - old_begin;

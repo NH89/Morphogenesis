@@ -581,7 +581,7 @@ extern "C" __global__ void countingSortChanges ( int pnum )
  }
 }
 
-extern "C" __device__ float contributePressure ( int i, float3 p, int cell, float &sum_p6k )  
+extern "C" __device__ float contributePressure ( int i, float3 p, int cell, float &sum_p6k )  // not currently in use
 // pressure due to particles in 'cell'. NB for each particle there are 27 cells in which interacting particles might be.
 {			
 	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return 0.0;                       // If the cell is empty, skip it.
@@ -634,7 +634,7 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell, floa
 	return sum;                                                             // NB a scalar value for pressure contribution, at the current particle, due to particles in this cell.
 }
 			
-extern "C" __global__ void computePressure ( int pnum )
+extern "C" __global__ void computePressure_ ( int pnum )	// old, not currentlyin use
 {
 	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                 // particle index
 	if ( i >= pnum ) return;
@@ -676,7 +676,7 @@ extern "C" __global__ void computePressure ( int pnum )
     */
 }
 
-extern "C" __global__ void computePressure_ ( int pnum )						// new computePressure_and_InRange() kernel. Based on Fluids5.0
+extern "C" __global__ void computePressure ( int pnum )						// new computePressure_and_InRange() kernel. Based on Fluids5.0
 {
 	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;						// particle index
 	if ( i >= pnum ) return;
@@ -703,6 +703,7 @@ extern "C" __global__ void computePressure_ ( int pnum )						// new computePres
 	if ( gc == GRID_UNDEF ) return;												// IF particle not in the simulation
 	gc			-= nadj;
 
+    bool break_	= false;
 	// fill particle inrange list here //##############################################
 	for (int c=0; c < fparam.gridAdjCnt; c++) {
 		int cell		= gc + fparam.gridAdj[c];
@@ -714,14 +715,27 @@ extern "C" __global__ void computePressure_ ( int pnum )						// new computePres
 			dist		= pos - fbuf.bufF3(FPOS) [pndx];						// float3 distance between this particle, and the particle for which the loop has been called.
 			dsq			= (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);		// scalar distance squared
 
+            if(pndx>= pnum){/*printf("\n## computePressure(..) (pndx%i>= pnum%i)", pndx, pnum);*/ break;}
 			if ( dsq < r2 && dsq > 0.0) {										// if(in-range && not the same particle) ie unused particles can be stored at one point.	//nb dsq=0 -> sum+=1
-				float4		dist4			= { dist.x, dist.y, dist.z, dsq };
-				pvt_Range[		pvt_RangeCount]		= dsq;	//dist4;
-				pvt_RangeIdx[	pvt_RangeCount]		= pndx;
-				pvt_RangeCount++;
-				if(pvt_RangeCount>=INRANGE_ARRAY_SIZE-1)		break;
+				if(pvt_RangeCount<INRANGE_ARRAY_SIZE-1){
+                    pvt_Range[		pvt_RangeCount]		= dsq;
+					pvt_RangeIdx[	pvt_RangeCount]		= pndx;
+					pvt_RangeCount++;
+                }/*else{															// If (InRange array is already full), then replace the furthest particle.
+                    int furthest_idx	= 0;
+                    float furthest_dsq	= 0.0f;
+                    for(int idx=0;idx<pvt_RangeCount; idx++){
+                    	if( pvt_Range[idx] > furthest_dsq){
+                            furthest_idx	= idx;
+                            furthest_dsq	= pvt_Range[idx];
+                        }
+                    }
+                    pvt_Range[		furthest_idx]		= dsq;
+                    pvt_RangeIdx[	furthest_idx]		= pndx;
+                }*/
 			}
 		}
+		//if(break_==true)break;
 	}
 	// save inRange to global buffer //#################################################
 	Range 		inRange_							= fbuf.bufR()[i];
@@ -733,7 +747,7 @@ extern "C" __global__ void computePressure_ ( int pnum )						// new computePres
 	fbuf.bufRx()[i].In[	INRANGE_ARRAY_SIZE-1]		= pvt_RangeCount;
 
 	// Compute pressure from list here //###################################################
-	for( int idx=0; idx<=pvt_RangeCount; idx++){
+	for( int idx=0; idx<pvt_RangeCount; idx++){
 		/*
          * From https://github.com/DualSPHysics/DualSPHysics/wiki/3.-SPH-formulation#31-smoothing-kernel
          *
@@ -2082,7 +2096,7 @@ extern "C" __global__ void initialize_bonds (int ActivePoints, uint list_length,
         if(bondToIdx[bond]<ActivePoints){ 
             uintptr [bond*DATA_PER_BOND +0] = bondToIdx[bond];
             floatptr[bond*DATA_PER_BOND +1] = fgenome.param[bond_type[bond]][fgenome.elastLim];
-            floatptr[bond*DATA_PER_BOND +2] = fgenome.param[bond_type[bond]][fgenome.default_rest_length]; // sqrt(bond_dsq); // set restlen = initial length
+            floatptr[bond*DATA_PER_BOND +2] = bond_dsq;//fgenome.param[bond_type[bond]][fgenome.default_rest_length]; // sqrt(bond_dsq); // set restlen = initial length
             floatptr[bond*DATA_PER_BOND +3] = fgenome.param[bond_type[bond]][fgenome.default_modulus];
             floatptr[bond*DATA_PER_BOND +4] = fgenome.param[bond_type[bond]][fgenome.default_damping];
             uintptr [bond*DATA_PER_BOND +5] = fbuf.bufI(FPARTICLE_ID)[bondToIdx[bond]];
@@ -3215,7 +3229,7 @@ Hessian                      H      := del^2 = del.del^T
 Tensor derivative                   := del circle_cross v
     
 */
-extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell)
+extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 iveleval, float ipress, float idens, int cell) // not currently used
 {			
 	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return make_float3(0,0,0);                                        // If the cell is empty, skip it.
 	float  dsq, sdist, c, r, sr=fparam.psmoothradius;//1.0;//
@@ -3288,7 +3302,7 @@ extern "C" __device__ float3 contributeForce ( int i, float3 ipos, float3 ivelev
     return force;                                                                                           // return fluid force && list of potential bonds fron this cell
 }
 
-extern "C" __device__ float3 contributeForce_simple ( int i, float3 ipos, float3 iveleval, float di, float pi, int cell) // from fluids5.0
+extern "C" __device__ float3 contributeForce_simple ( int i, float3 ipos, float3 iveleval, float di, float pi, int cell) // not currently used  // from fluids5.0
 {
 	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return make_float3(0,0,0);
 
@@ -3702,24 +3716,25 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	// Get particle vars
 	register float3 accel, norm;
 	register float diff, adj, speed;
-	register float3 pos = fbuf.bufF3(FPOS)[i];
-	register float3 veval = fbuf.bufF3(FVEVAL)[i];
+	register float3 pos		= fbuf.bufF3(FPOS)[i];
+	register float3 vel		= fbuf.bufF3(FVEL)[i];
+	register float3 veval	= fbuf.bufF3(FVEVAL)[i];
 
 	// Leapfrog integration						
-	accel = fbuf.bufF3(FFORCE)[i];
+	accel = fbuf.bufF3(FFORCE)[i] * fparam.pmass;;
 	//accel *= fparam.pmass;	// Moved to computeForce() where fluid_force is added to FFORCE.      
                                 // f=ma, a=f/m, but f=m_a*m_b*{(P_a/rho_a)+(P_b/rho_b)} * smoothing kernel,  where f=m_a*fbuf.bufF3(FFORCE)[i]
                                 // ? compatability of elastic eterm with pterm and vterm in computeForce() ?
 	// Boundaries
 	// Y-axis
-	diff = fparam.pradius - (pos.y - (fparam.pboundmin.y + (pos.x-fparam.pboundmin.x)*fparam.pground_slope )) ; // * ss;
+	diff = fparam.pradius - (pos.y - (fparam.pboundmin.y + (pos.x-fparam.pboundmin.x)*fparam.pground_slope ))  * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3( -fparam.pground_slope, 1.0 - fparam.pground_slope, 0);
 		adj = fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
 		norm *= adj; accel += norm;
 	}
 
-	diff = fparam.pradius - ( fparam.pboundmax.y - pos.y ) ; // * ss;
+	diff = fparam.pradius - ( fparam.pboundmax.y - pos.y )  * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3(0, -1, 0);
 		adj = fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
@@ -3728,14 +3743,14 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 
 	// X-axis
 	//diff = fparam.pradius - (pos.x - (fparam.pboundmin.x + (sin(time*fparam.pforce_freq)+1)*0.5 * fparam.pforce_min))*ss;  //wave machine NB fparam.pforce_freq
-	diff = fparam.pradius - (pos.x - fparam.pboundmin.x ) ; // * ss;
+	diff = fparam.pradius - (pos.x - fparam.pboundmin.x )  * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3( 1, 0, 0);
 		adj = (fparam.pforce_min+1) * fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
 		norm *= adj; accel += norm;
 	}
 	//diff = fparam.pradius - ( (fparam.pboundmax.x - (sin(time*fparam.pforce_freq)+1)*0.5*fparam.pforce_max) - pos.x)*ss;  //wave machine
-	diff = fparam.pradius - ( fparam.pboundmax.x - pos.x ) ; // * ss;
+	diff = fparam.pradius - ( fparam.pboundmax.x - pos.x )  * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3(-1, 0, 0);
 		adj = (fparam.pforce_max+1) * fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
@@ -3743,13 +3758,13 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	}
 
 	// Z-axis
-	diff = fparam.pradius - (pos.z - fparam.pboundmin.z ) ; // * ss;
+	diff = fparam.pradius - (pos.z - fparam.pboundmin.z )  * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3( 0, 0, 1 );
 		adj = fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
 		norm *= adj; accel += norm;
 	}
-	diff = fparam.pradius - ( fparam.pboundmax.z - pos.z ) ; // * ss;
+	diff = fparam.pradius - ( fparam.pboundmax.z - pos.z )  * ss;
 	if ( diff > EPSILON ) {
 		norm = make_float3( 0, 0, -1 );
 		adj = fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
@@ -3758,7 +3773,7 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	
 	// Shield for particle store at fparam.pboundmax . ? does this exist implicitly due to the other boundaries ? 
 	float3 dist = fparam.pboundmax - pos;
-	diff = 2*fparam.pradius - (dist.x + dist.y + dist.z) ; // * ss;                  // use Manhatan norm for speed & 2*pradius for safety
+	diff = 2*fparam.pradius - (dist.x + dist.y + dist.z)  * ss;                  // use Manhatan norm for speed & 2*pradius for safety
 	if ( diff > EPSILON ) {
         norm = make_float3( 1, 1, 1 );                                          // NB planar norm for speed, not spherical
         adj = fparam.pextstiff * diff - fparam.pdamp * dot(norm, veval );
@@ -3781,14 +3796,12 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
     */
 	if ( speed > fparam.AL2 ) {
 		accel *= fparam.AL / sqrt(speed);     // reduces accel to fparam.AL, while preserving direction. 
-        /*if(i==uint(numPnts/2))*/if(fparam.debug>1)printf("\nadvanceParticles() Accel Limit: i=,%u,  mass=,%f,  accel=(,%f,%f,%f,),\t  accel^2=,%f,\t fparam.AL2=,%f,\t  fparam.pgravity=,(,%f,%f,%f,) ",
-        i, fparam.pmass, accel.x,accel.y,accel.z, speed, fparam.AL2, fparam.pgravity.x, fparam.pgravity.y, fparam.pgravity.z
-        );
+        										/*if(i==uint(numPnts/2))*/if(fparam.debug>1)printf("\nadvanceParticles() Accel Limit: i=,%u,  mass=,%f,  accel=(,%f,%f,%f,),\t  accel^2=,%f,\t fparam.AL2=,%f,\t  fparam.pgravity=,(,%f,%f,%f,) ",
+                                                                                                                                    i, fparam.pmass, accel.x,accel.y,accel.z, speed, fparam.AL2, fparam.pgravity.x, fparam.pgravity.y, fparam.pgravity.z
+                                                                                                );
 	}
 
 	// Velocity Limit
-	float3 vel = fbuf.bufF3(FVEL)[i];
-    
 	speed = vel.x*vel.x + vel.y*vel.y + vel.z*vel.z;
     /*
     if(fparam.debug>2 && i<10)printf("\nadvanceParticles()2: i=,%u, accel=(,%f,%f,%f,),  vel=(,%f,%f,%f,),  vel^2=,%f,  fparam.VL2=,%f, ",
@@ -3798,9 +3811,9 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	if ( speed > fparam.VL2 ) {
 		speed = fparam.VL2;
 		vel *= fparam.VL / sqrt(speed);       // reduces vel to fparam.VL , while preserving direction.
-        if(fparam.debug>1)printf("\nadvanceParticles() Velocity Limit: i=,%u,  mass=,%f,  accel=(,%f,%f,%f,),\t  speed=,%f,\t fparam.VL2=,%f,\t  fparam.pgravity=,(,%f,%f,%f,) ",
-        i, fparam.pmass, accel.x,accel.y,accel.z, speed, fparam.VL2, fparam.pgravity.x, fparam.pgravity.y, fparam.pgravity.z
-        );
+        										if(fparam.debug>1)printf("\nadvanceParticles() Velocity Limit: i=,%u,  mass=,%f,  accel=(,%f,%f,%f,),\t  speed=,%f,\t fparam.VL2=,%f,\t  fparam.pgravity=,(,%f,%f,%f,) ",
+        																										i, fparam.pmass, accel.x,accel.y,accel.z, speed, fparam.VL2, fparam.pgravity.x, fparam.pgravity.y, fparam.pgravity.z
+       																	 );
 	}
 	
 	/*
@@ -3817,7 +3830,7 @@ extern "C" __global__ void advanceParticles ( float time, float dt, float ss, in
 	float3 vnext           = accel*dt + vel;                                    // v(t+1/2) = v(t-1/2) + a(t) dt		
 	ftemp.bufF3(FVEVAL)[i] = (vel + vnext) * 0.5;                               // v(t+1) = [v(t-1/2) + v(t+1/2)] * 0.5			
 	ftemp.bufF3(FVEL)[i]   = vnext;
-	ftemp.bufF3(FPOS)[i]   += (vnext * dt); /*(dt/ss)) + bmotion*/              // p(t+1) = p(t) + v(t+1/2) dt		
+	ftemp.bufF3(FPOS)[i]   += (vnext * (dt/ss)); /*(dt/ss)) + bmotion*/      //dt);        // p(t+1) = p(t) + v(t+1/2) dt
     
     
     if (fparam.debug>2 && i<10 ){  // fparam.debug>2 && i==0
