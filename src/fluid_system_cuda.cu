@@ -587,10 +587,10 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell, floa
 	if ( fbuf.bufI(FGRIDCNT)[cell] == 0 ) return 0.0;                       // If the cell is empty, skip it.
 
 	float3 dist;
-	float dsq, r, q, b, c, sum = 0.0;//, sum_p6k = 0.0;
+	float dsq, r, q, b, sum = 0.0;//, sum_p6k = 0.0;  c,
 	//register float d2 = fparam.psimscale * fparam.psimscale;                // max length in simulation space
 	register float r2 = fparam.r2; // / d2;                                     // = m_FParams.psmoothradius^2 / m_FParams.psimscale^2
-    register float H  = fparam.H;                                           // = m_FParams.psmoothradius / m_FParams.psimscale;
+    //register float H  = fparam.H;                                           // = m_FParams.psmoothradius / m_FParams.psimscale;
     register float sr = fparam.psmoothradius;
 	
 	int clast = fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];      // off set of this cell in the list of particles,  PLUS  the count of particles in this cell.
@@ -676,45 +676,88 @@ extern "C" __global__ void computePressure ( int pnum )
     */
 }
 
-extern "C" __global__ void computePressure_ ( int pnum )	// new computePressure_and_InRange() kernel.
+extern "C" __global__ void computePressure_ ( int pnum )						// new computePressure_and_InRange() kernel. Based on Fluids5.0
 {
-	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                 // particle index
+	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;						// particle index
 	if ( i >= pnum ) return;
+	// Distance and pressure variables
+	float3 dist;
+	float dsq, r, q, b, c, sum = 0.0, sum_p6k = 0.0;
+	float3 pos = fbuf.bufF3(FPOS) [i];
+
+	// inRange variables
+	float3	inRangeDist						={0.0f};								//	#define INRANGE_ARRAY_SIZE	64, in fluid.h
+//	uint	inRangeIdx						= 0;
+	float/*4*/	pvt_Range[		INRANGE_ARRAY_SIZE]	={0.0f};
+    uint	pvt_RangeIdx[	INRANGE_ARRAY_SIZE]	={0};
+	uint	pvt_RangeCount						= 0;
+																				// max length in simulation space							//register float d2 = fparam.psimscale * fparam.psimscale;
+	// Get simulation parameters
+	register float r2 = fparam.r2;												// = m_FParams.psmoothradius^2 / m_FParams.psimscale^2		// / d2;
+	register float H  = fparam.H;												// = m_FParams.psmoothradius / m_FParams.psimscale;
+	register float sr = fparam.psmoothradius;
 
 	// Get search cell
-	int nadj = (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
-	uint gc = fbuf.bufI(FGCELL) [i];                                        // get grid cell of the current particle.
-	if ( gc == GRID_UNDEF ) return;                                         // IF particle not in the simulation
-	gc -= nadj;
+	int nadj	= (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
+	uint gc		= fbuf.bufI(FGCELL) [i];										// get grid cell of the current particle.
+	if ( gc == GRID_UNDEF ) return;												// IF particle not in the simulation
+	gc			-= nadj;
 
-    float inRangeDist[INRANGE_ARRAY_SIZE]	={0};							//	#define INRANGE_ARRAY_SIZE	64, in fluid.h
-    uint  inRangeIdx[ INRANGE_ARRAY_SIZE]	={0};
-    uint  index								= 0;
+	// fill particle inrange list here //##############################################
 	for (int c=0; c < fparam.gridAdjCnt; c++) {
-		//sum += contributePressure ( i, pos, gc + fparam.gridAdj[c], sum_p6k );
-    	// fill particle inrange list here //###########################################
+		int cell		= gc + fparam.gridAdj[c];
+		if ( fbuf.bufI(FGRIDCNT)[cell] == 0 )				continue;			// If the cell is empty, skip it.
+		int clast		= fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell];// off set of this cell in the list of particles,  PLUS  the count of particles in this cell.
 
+		for ( int cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < clast; cndx++ ) {	// For particles in this cell.
+			int pndx	= fbuf.bufI(FGRID) [cndx];								// index of this particle
+			dist		= pos - fbuf.bufF3(FPOS) [pndx];						// float3 distance between this particle, and the particle for which the loop has been called.
+			dsq			= (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);		// scalar distance squared
 
-        if(index>=INRANGE_ARRAY_SIZE)break;
-    }
-    // comp pressure from list here //
-	// Sum Pressures
-	float3 pos = fbuf.bufF3(FPOS) [i];
-	float sum = 0.0, sum_p6k = 0.0;
-    for( int idx=0; idx<=index; idx++){
+			if ( dsq < r2 && dsq > 0.0) {										// if(in-range && not the same particle) ie unused particles can be stored at one point.	//nb dsq=0 -> sum+=1
+				float4		dist4			= { dist.x, dist.y, dist.z, dsq };
+				pvt_Range[		pvt_RangeCount]		= dsq;	//dist4;
+				pvt_RangeIdx[	pvt_RangeCount]		= pndx;
+				pvt_RangeCount++;
+				if(pvt_RangeCount>=INRANGE_ARRAY_SIZE-1)		break;
+			}
+		}
+	}
+	// save inRange to global buffer //#################################################
+	Range 		inRange_							= fbuf.bufR()[i];
+	//RangeIndex* inRangeIndex						= fbuf.bufRx(i);
+	for (uint index=0;  index<pvt_RangeCount; index++){
+				fbuf.bufR()[i].In[		index]		= pvt_Range[	index];
+				fbuf.bufRx()[i].In[		index]		= pvt_RangeIdx[	index];
+	}
+	fbuf.bufRx()[i].In[	INRANGE_ARRAY_SIZE-1]		= pvt_RangeCount;
 
-
-
-
-
-
-    }
-
-
-
-
-
-
+	// Compute pressure from list here //###################################################
+	for( int idx=0; idx<=pvt_RangeCount; idx++){
+		/*
+         * From https://github.com/DualSPHysics/DualSPHysics/wiki/3.-SPH-formulation#31-smoothing-kernel
+         *
+         * q=r/h, where r=dist between particles, h=smoothing length
+         *
+         * W(r,h) = alpha_D(1-q/2)**4 *(2q+1) for 0<=q<=2
+         *
+         * where alpha_D = 21/(16*Pi*h**3)  , the normalization kernel in 3D,
+         * i.e. 1/integral_(0,2){kernel * area of a sphere}dr
+		*//*
+		r=sqrt(dsq);
+		q=r/sr;																	//r/H; i.e ss:=1
+		b=(1-q);																// corrected to my SymPy version. Wendland C2 as per (Dehnen & Aly 2012) NB Version in DualSPHysics seems wrong i.e. b=(1-q/2)^4*(2*q+1).
+		b*=b;
+		b*=b;																	//  1 >= b >= 0.0, smaller for larger distance, inverted x^4 curve.
+		sum  += b*(4*q +1);//(H+4*r); 											// Wendland C^2 quintic kernel for 3 dimensions.
+		*/
+		dsq = (fparam.rd2 - pvt_Range[idx]/*.w*/) * fparam.d2;
+		sum += dsq * dsq * dsq;
+	}
+	// Save Pressure to buffer
+	sum 						= sum * fparam.pmass * fparam.poly6kern;
+	if ( sum == 0.0 ) sum		= 1.0;
+	fbuf.bufF(FPRESS)  [ i ] 	= ( sum - fparam.prest_dens ) * fparam.pintstiff;
 }
 
 
@@ -3274,7 +3317,7 @@ extern "C" __device__ float3 contributeForce_simple ( int i, float3 ipos, float3
 	return force;
 }
 
-
+/*
 // extern "C" __device__ float3 contributeForce_5 ( int i, float3 ipos, float3 iveleval, float di, float pi, int cell) // from fluids5.0
 // {
 // 	if ( FAccel.bufI(AGRIDCNT)[cell] == 0 ) return make_float3(0,0,0);
@@ -3302,6 +3345,7 @@ extern "C" __device__ float3 contributeForce_simple ( int i, float3 ipos, float3
 // 	}
 // 	return force;
 // }
+*/
 
 extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
 {			
@@ -3311,11 +3355,12 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
 	if ( gc == GRID_UNDEF ) return;                                                 // particle out-of-range
 
 	gc -= (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
-	register float3 force, eterm, dist;                                             // request to compiler to store in a register for speed.
+	register float3		force, eterm, dist;                                         // request to compiler to store in a register for speed.
+	register float		dsq, abs_dist,  pi, pj, pterm;                              // elastic force // new version computes here using particle index rather than ID.
+
 	force = make_float3(0,0,0);    eterm = make_float3(0,0,0);     dist  = make_float3(0,0,0);
-    float 	dsq, abs_dist;                                                          // elastic force // new version computes here using particle index rather than ID.
-    uint 	bondsToFill = 0;
-    /*
+	uint 	bondsToFill = 0;
+	/*
     // uint 	bonds[		BONDS_PER_PARTICLE][2];                                     // [0] = index of other particle, [1] = bond_index
     // float 	bond_dsq[	BONDS_PER_PARTICLE];                                        // length of bond, for potential new bonds
     // for (int a=0; a<BONDS_PER_PARTICLE;a++) {
@@ -3323,23 +3368,20 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
     //     bonds[a][1]= UINT_MAX;
     //     bond_dsq[a]= fparam.rd2;                                                    // NB if ( dsq < fparam.rd2 && dsq > 0) is the cut off for fluid interaction range
     // }
-    */
-    uint i_ID = fbuf.bufI(FPARTICLE_ID)[i];
-    /*
-    //if(fbuf.bufI(FPARTICLE_ID)[i]<10) printf("\ncomputeForce() chk2: ParticleID=%u  ",fbuf.bufI(FPARTICLE_ID)[i] );  
-    //__syncthreads();
-    */
-    float3  pvel =  {fbuf.bufF3(FVEVAL)[ i ].x,  fbuf.bufF3(FVEVAL)[ i ].y,  fbuf.bufF3(FVEVAL)[ i ].z}; // copy i's FEVAL to thread memory
-    bool hide;
-    // bool long_bonds = false;
-    //
-     Bonds bonds	;//				= fbuf.bufB(FELASTIDX)[i];
-    Bonds* bond_ptr				= &fbuf.bufB(FELASTIDX)[i];
+	*/
+	uint i_ID = fbuf.bufI(FPARTICLE_ID)[i];
+	/*
+	//if(fbuf.bufI(FPARTICLE_ID)[i]<10) printf("\ncomputeForce() chk2: ParticleID=%u  ",fbuf.bufI(FPARTICLE_ID)[i] );
+	//__syncthreads();
+	*/
+	float3  pvel =  {fbuf.bufF3(FVEVAL)[ i ].x,  fbuf.bufF3(FVEVAL)[ i ].y,  fbuf.bufF3(FVEVAL)[ i ].z}; // copy i's FEVAL to thread memory
+	bool hide;
+	// bool long_bonds = false;
 
-    // if (i<500 && i<pnum){
+	Bonds bonds	;//				= fbuf.bufB(FELASTIDX)[i];
+	Bonds* bond_ptr				= &fbuf.bufB(FELASTIDX)[i];
 	bonds						= *bond_ptr;
-    // }
-
+/*
     // if  (i==10){// (i<4 || i==pnum-1){
     //
     //     Bonds* bond_ptr				= &fbuf.bufB(FELASTIDX)[i];
@@ -3348,7 +3390,6 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
     //
     //     float* flt_ptr				= &fbuf.bufF(FELASTIDX)[i*BOND_DATA ];
     //
-    //
     //     Bonds	bonds_				= *bond_ptr;
     //
     //     printf("\n\ncomputeForce , i=%u,  bond_ptr=%p,   char_ptr=%p,    flt_ptr=%p,   BOND_DATA=%u,   bonds.b[3].strain_integrator_=%p  ",\
@@ -3356,11 +3397,13 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
     //
     // 	// &bonds_=%p,   &bonds_,
     // }
-
-
+*/
     for (int a=0;a<BONDS_PER_PARTICLE;a++){                                         // compute elastic force due to bonds /////////////////////////////////////////////////////////
+/*
         // reading FELASTIDX item by item   repeated skip reading. Rather read a float8, then cast those elements that I must.
+*/
         uint bond               = i*BOND_DATA + a*DATA_PER_BOND;                	// bond's index within i's FELASTIDX
+/*
         // uint j                  = fbuf.bufI(FELASTIDX)[bond];                   	// particle IDs   i*BOND_DATA + a
         // float restlength        = fbuf.bufF(FELASTIDX)[bond + 2];                   // NB fbuf.bufF() for floats, fbuf.bufI for uints.
         // if(j>=pnum || restlength<0.000000001){hide = true; continue;} else hide = false; // ensures masking printf below.
@@ -3371,7 +3414,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
         // uint  other_particle_ID = fbuf.bufI(FELASTIDX)[bond + 5];
         // uint  bondIndex         = fbuf.bufI(FELASTIDX)[bond + 6];
         //////////////////////////////////////////////////////////////////////////
-
+*/
         uint	j					= bonds.b[a].j;
         float	elastic_limit     	= bonds.b[a].elastic_limit;               	// [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping_coeff, [5]particle ID, [6]bond index
         float	restlength			= bonds.b[a].restlength;
@@ -3381,11 +3424,10 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
         uint	bondIndex         	= bonds.b[a].bondIndex;
 
         if(j>=pnum || restlength<0.000000001){hide = true; continue;} else hide = false; // ensures masking printf below.
-
+/*
         //float3 j_pos = make_float3(fbuf.bufF3(FPOS)[ j ].x,  fbuf.bufF3(FPOS)[ j ].y,  fbuf.bufF3(FPOS)[ j ].z); // copy j's FPOS to thread memory
-
         //float3 j_pos	= fbuf.bufF3(FPOS)[ j ];
-
+*/
         dist            = ( fbuf.bufF3(FPOS)[ i ] - fbuf.bufF3(FPOS)[ j ] ); 		//j_pos  );                   // dist in cm (Rama's comment)  /*fbuf.bufF3(FPOS)[ j ]*/
         dsq             = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);      	// scalar distance squared
         abs_dist        = sqrt(dsq) + FLT_MIN;                                  	// FLT_MIN adds minimum +ve float, to prevent division by abs_dist=zero
@@ -3393,20 +3435,20 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
                                                                                     // where k is the spring stiffness.
                                                                                     // eterm = (bool within elastic limit) * (spring force + damping)
         float spring_strain = fmaxf(0.0, (abs_dist-restlength)/restlength);     	// NB _count_only_tension_ not compression or slack. ? What about bone? and collagen ?
+/*
         //#define DECAY_FACTOR 0.8                                              	// could be a gene.
-        //fbuf.bufF(FELASTIDX)[bond + /*6*/strain_sq_integrator] 	= (fbuf.bufF(FELASTIDX)[bond + /*6*/strain_sq_integrator] + spring_strain*spring_strain);	// * DECAY_FACTOR;
-        //fbuf.bufF(FELASTIDX)[bond + /*7*/strain_integrator] 	= (fbuf.bufF(FELASTIDX)[bond + /*7*/strain_integrator] + spring_strain);					// * DECAY_FACTOR; // spring strain integrator
-
-
-		bonds.b[a].strain_integrator_			+= spring_strain;						// * DECAY_FACTOR; // spring strain integrator
-
-        //bonds.b[a].strain_sq_integrator_ 		+= spring_strain*spring_strain;			// * DECAY_FACTOR;
+        //fbuf.bufF(FELASTIDX)[bond + / *6* /strain_sq_integrator]		= (fbuf.bufF(FELASTIDX)[bond + / *6* /strain_sq_integrator] + spring_strain*spring_strain);	// * DECAY_FACTOR;
+        //fbuf.bufF(FELASTIDX)[bond + / *7* /strain_integrator] 		= (fbuf.bufF(FELASTIDX)[bond + / *7* /strain_integrator] + spring_strain);					// * DECAY_FACTOR; // spring strain integrator
+*/
+		bonds.b[a].strain_integrator_								+= spring_strain;// * DECAY_FACTOR; // spring strain integrator
+/*
+        //bonds.b[a].strain_sq_integrator_ 		+= spring_strain*spring_strain;		// * DECAY_FACTOR;
         //bond_ptr->b[a].strain_sq_integrator_	= bonds.b[a].strain_sq_integrator_ ;
 		// ### TODO separate buff for strain integrators AND another for _bond_force_  to be summed by another kernel, AND for uint	j	the other particle's ID.
 		// ### TODO write bond_force and integrators to buffers...
 
                                                                                     // NB must divide by iterations when reading integrators, then re-zero integrators.
-/*
+*//*
      //     if(abs_dist > 2) printf("\ncomputeForce(): long bond, parent=%u, other_particle=%u, bond_idx=%u, abs_dist=%f  ", i, j, a, abs_dist);
 
           //if(fbuf.bufI(FPARTICLE_ID)[i]<10) printf("\ncomputeForce() chk3: ParticleID=%u, bond=%u, restlength=%f, modulus=%f , abs_dist=%f , spring_strain=%f , strain_integrator=%f  ",fbuf.bufI(FPARTICLE_ID)[i], a, restlength , modulus , abs_dist , spring_strain , fbuf.bufF(FELASTIDX)[bond + 7]  );
@@ -3423,7 +3465,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
 */
         eterm = ((float)(abs_dist < elastic_limit)) * ( ((dist/abs_dist) * spring_strain * modulus) - damping_coeff*rel_vel) /(fparam.pmass); //Accel due to elastic bond. NB equal masses particles
 
-        if(eterm.x!=eterm.x||eterm.y!=eterm.y||eterm.z!=eterm.z){               // "isnan()" by IEEE 754 rule, NaN is not equal to NaN
+        if(eterm.x!=eterm.x||eterm.y!=eterm.y||eterm.z!=eterm.z){               	// "isnan()" by IEEE 754 rule, NaN is not equal to NaN
                 /*
                 // if(!hide ){
                 // printf("\n#### i=,%i, j=,%i, bond=,%i, eterm.x=%f, eterm.y=%f, eterm.z=%f  \t####",i,j,a,  eterm.x,eterm.y,eterm.z);
@@ -3431,19 +3473,16 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
                 // }
                 */
         }else{
-            force -= eterm;                                                     // elastic force towards other particle, if (rest_len -abs_dist) is -ve
-            atomicAdd( &fbuf.bufF3(FFORCE)[ j ].x, eterm.x);                    // NB Must send equal and opposite force to the other particle
+            force -= eterm;                                                     	// elastic force towards other particle, if (rest_len -abs_dist) is -ve
+            atomicAdd( &fbuf.bufF3(FFORCE)[ j ].x, eterm.x);                    	// NB Must send equal and opposite force to the other particle
             atomicAdd( &fbuf.bufF3(FFORCE)[ j ].y, eterm.y);
-            atomicAdd( &fbuf.bufF3(FFORCE)[ j ].z, eterm.z);                    // temporary hack, ? better to write a float3 attomicAdd using atomicCAS  #########
+            atomicAdd( &fbuf.bufF3(FFORCE)[ j ].z, eterm.z);                    	// temporary hack, ? better to write a float3 attomicAdd using atomicCAS  #########
             //atomicAdd( &fbuf.bufF3(FFORCE)[ j ], eterm);
         }
-        if (abs_dist >= elastic_limit  && freeze==false){                       // If (out going bond broken)  nb 'freeze'=> initializing bonds
-            fbuf.bufF(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +2]=0.0;         // remove broken bond by setting rest length to zero.
-            //fbuf.bufF(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +3]=0;         // set modulus to zero
-
-            uint bondIndex_ = fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +6];
-			//bond_ptr->b[a].strain_integrator_		= abs_dist;
-            bonds.b[a].strain_integrator_			= -abs_dist;				// ### debug data
+        if (abs_dist >= elastic_limit  && freeze==false){                       	// If (out going bond broken)  nb 'freeze'=> initializing bonds
+            fbuf.bufF(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +2]	=0.0;			// remove broken bond by setting rest length to zero.
+            uint bondIndex_ 										= fbuf.bufI(FELASTIDX)[i*BOND_DATA + a*DATA_PER_BOND +6];
+            bonds.b[a].strain_integrator_							= -abs_dist;	// ### debug data
 /*
                 //fbuf.bufI(FPARTICLEIDX)[j*BONDS_PER_PARTICLE*2 + bondIndex_+1] = UINT_MAX ;// set the reciprocal bond index to UINT_MAX, but leave the old particle ID for bond direction.
                 //fbuf.bufI(FELASTIDX)[bond] = UINT_MAX;
@@ -3451,28 +3490,71 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
 */
             bondsToFill++;
         }
-		bond_ptr->b[a].strain_integrator_		= bonds.b[a].strain_integrator_ ;
-        //__syncthreads();    // when is this needed ? ############
-    }
+		bond_ptr->b[a].strain_integrator_							= bonds.b[a].strain_integrator_ ;
+	}
 /*
     //if (fparam.debug>2)printf("\nComputeForce chk4: i=%u, bondsToFill=%u,  gc=%u,  fparam.gridTotal=%u", i, bondsToFill, gc, fparam.gridTotal);  // was always zero . why ?
     //__syncthreads();
     
     //if(i<10) printf("\n computeForce()1: i=,%u, elastic force=(,%f,%f,%f,) ",i, force.x,force.y,force.z);
+*//*
+//     bondsToFill=BONDS_PER_PARTICLE; // remove and use result from loop above ? ############
+//     float3 fluid_force_sum = make_float3(0,0,0);
+//
+//     for (int c=0; c < fparam.gridAdjCnt; c++) {                                     // Call contributeForce(..) for fluid forces AND potential new bonds /////////////////////////
+// / *
+//         //float3 fluid_force = make_float3(0,0,0);
+//         //fluid_force = contributeForce ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FPRESS)[ i ], fbuf.bufF(FDENSITY)[ i ], gc + fparam.gridAdj[c]);
+// * /
+//         fluid_force_sum += contributeForce_simple ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FDENSITY)[ i ], fbuf.bufF(FPRESS)[ i ],  gc + fparam.gridAdj[c]);
+// / *
+//         ////if (freeze==true) fluid_force *=0.1;                                      // slow fluid movement while forming bonds
+//         //fluid_force_sum += fluid_force;
+// * /
+//     }
+//     force += fluid_force_sum * fparam.pmass ; // now  force is accel....
 */
-    bondsToFill=BONDS_PER_PARTICLE; // remove and use result from loop above ? ############
-    float3 fluid_force_sum = make_float3(0,0,0);
-    for (int c=0; c < fparam.gridAdjCnt; c++) {                                     // Call contributeForce(..) for fluid forces AND potential new bonds /////////////////////////
-        
-        //float3 fluid_force = make_float3(0,0,0);
-        //fluid_force = contributeForce ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FPRESS)[ i ], fbuf.bufF(FDENSITY)[ i ], gc + fparam.gridAdj[c]);
+////////////////////////////////
+	//  use inRange
+	Range*		inRange			= fbuf.bufR();
+	RangeIndex* inRangeIndex	= fbuf.bufRx();
+	uint		RangeCount		= inRangeIndex[i].In[INRANGE_ARRAY_SIZE-1];
 
-        fluid_force_sum += contributeForce_simple ( i, fbuf.bufF3(FPOS)[ i ], fbuf.bufF3(FVEVAL)[ i ], fbuf.bufF(FDENSITY)[ i ], fbuf.bufF(FPRESS)[ i ],  gc + fparam.gridAdj[c]);
-        ////if (freeze==true) fluid_force *=0.1;                                      // slow fluid movement while forming bonds
-        //fluid_force_sum += fluid_force;
-    }
-    force += fluid_force_sum * fparam.pmass ; // now  force is accel.... 
+    float3		pos				= fbuf.bufF3(FPOS)[i];
+    //dist = ( FPnts.bufF3(FPOS)[i] - FPnts.bufF3(FPOS)[ j ] );
+
+	for (uint index=0;  index<RangeCount; index++){									// For particles in range, compute fluid force.
+		float/*4*/	range			= inRange[i].In[		index];
+		uint	j				= inRangeIndex[i].In[	index];
+		dist					= pos - fbuf.bufF3(FPOS)[ j ]; //{range.x,range.y,range.z};
+		dsq						= sqrt(range/*.w*/ * fparam.d2);
+
+		pi						= (fbuf.bufF(FPRESS)[i] - fparam.prest_dens ) * fparam.pintstiff;
+		pj						= (fbuf.bufF(FPRESS)[j] - fparam.prest_dens ) * fparam.pintstiff;
+		pterm					= fparam.sim_scale * -0.5f * (fparam.psmoothradius-dsq) * fparam.spikykern * ( pi + pj ) / dsq;
+
+		force					+= ( pterm * dist + fparam.vterm * ( fbuf.bufF3(FVEVAL)[ j ]		-	fbuf.bufF3(FVEVAL)[i] )) * (fparam.psmoothradius-dsq) / (fbuf.bufF(FPRESS)[i] * fbuf.bufF(FPRESS)[ j ] );
+	}
 /*
+// 	for ( c=0; c < FParams.gridAdjCnt; c++) {
+// 		cell = gc + FParams.gridAdj[c];
+//
+// 		for ( cndx = FAccel.bufI(AGRIDOFF)[cell]; cndx < FAccel.bufI(AGRIDOFF)[cell] + FAccel.bufI(AGRIDCNT)[cell]; cndx++ ) {
+//
+// 			j = FAccel.bufI(AGRID)[ cndx ];
+// 			dist = ( FPnts.bufF3(FPOS)[i] - FPnts.bufF3(FPOS)[ j ] );		// dist in cm
+// 			dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);
+//
+// 			if ( dsq < FParams.rd2 && dsq > 0) {
+// 				dsq = sqrt(dsq * FParams.d2);
+// 				pi = (FPnts.bufF(FPRESS)[i] - FParams.prest_dens ) * FParams.pintstiff;
+// 				pj = (FPnts.bufF(FPRESS)[j] - FParams.prest_dens ) * FParams.pintstiff;
+// 				pterm = FParams.sim_scale * -0.5f * (FParams.psmoothradius-dsq) * FParams.spikykern * ( pi + pj ) / dsq;
+// 				force += ( pterm * dist + FParams.vterm * ( FPnts.bufF3(FVEVAL)[ j ] - FPnts.bufF3(FVEVAL)[i] )) * (FParams.psmoothradius-dsq) / (FPnts.bufF(FPRESS)[i] * FPnts.bufF(FPRESS)[ j ] );
+// 			}
+// 		}
+// 	}
+*//*
     // if(fparam.debug >0  && long_bonds==true / * i==uint(pnum/2) * / / * && fbuf.bufF(FEPIGEN)[i +  12*fparam.maxPoints] * / ) {                              // if "external actuation" particle
     //     fluid_force_sum *= fparam.pmass;
     //     printf("\nComputeForce 2: i=,%u,   fluid_force_sum=(,\t%f,\t%f,\t%f,\t) \n\t\t\t force=(,\t%f,\t%f,\t%f,\t) ",
@@ -3481,14 +3563,20 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
     //printf(".\n");
     //__syncthreads();
     //if (fparam.debug>2)printf("\ni=%u, bond_dsq=(%f,%f,%f,%f,%f,%f),",i,bond_dsq[0],bond_dsq[1],bond_dsq[2],bond_dsq[3],bond_dsq[4],bond_dsq[5]);
-*/
+*//*
 	//__syncthreads();   // when is this needed ? ############						// ### TODO this is what makes mine slow ! Need a better way, eg.save bond forces and have another kernel to sum them.
     //atomicAdd(&fbuf.bufF3(FFORCE)[ i ].x, force.x);                                 // atomicAdd req due to other particles contributing forces via incomming bonds.
     //atomicAdd(&fbuf.bufF3(FFORCE)[ i ].y, force.y);                                 // NB need to reset FFORCE to zero in  CountingSortFull(..)
     //atomicAdd(&fbuf.bufF3(FFORCE)[ i ].z, force.z);                                 // temporary hack, ? better to write a float3 atomicAdd using atomicCAS ?  ########
 	//atomicAdd(&fbuf.bufF3(FFORCE)[ i ], force);
+*/
     fbuf.bufF3(FFORCE)[ i ]	+=	force;
 }                                                                                   // end computeForce (..)
+
+
+
+
+
 
 extern "C" __global__ void randomInit ( int seed, int numPnts )                                                                 // NB not currently used
 {

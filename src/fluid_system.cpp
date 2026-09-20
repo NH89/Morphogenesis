@@ -340,24 +340,15 @@ void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucn
         }
         if (gpumode == GPU_TEMP || gpumode == GPU_DUAL ) {
             if (m_FluidTemp.gpuptr(buf_id) != 0x0) cuCheck(cuMemFree(m_FluidTemp.gpu(buf_id)), "AllocateBuffer", "cuMemFree", "FluidTemp.gpu", mbDebug);
+
             rtn = cuCheck( cuMemAlloc(m_FluidTemp.gpuptr(buf_id), stride*gpucnt), "AllocateBuffer", "cuMemAlloc", "FluidTemp.gpu", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
+
             if(rtn == false)FluidSystem::Exit();
         }
-/*
-  //       // buffers for "float4[64] InRange" and "uint InRangeCount"
-  //       // float4 InRange  ###
-  //       if ( m_Fluid.InRange_ptr != 0x0) cuCheck(cuMemFree( m_Fluid.InRange ), "AllocateBuffer", "cuMemFree", "&InRange", mbDebug);
-  //       rtn = cuCheck( cuMemAlloc( m_Fluid.InRange_ptr, stride*gpucnt), "AllocateBuffer", "cuMemAlloc", "&InRange", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
-  //       if(rtn == false)FluidSystem::Exit();
-  //
-		// // uint InRangeCount ###
-  //       if (  m_Fluid.InRangeCount_ptr != 0x0) cuCheck(cuMemFree( m_Fluid.InRangeCount ), "AllocateBuffer", "cuMemFree", "FluidTemp.gpu", mbDebug);
-  //       rtn = cuCheck( cuMemAlloc( m_Fluid.InRangeCount_ptr, stride*gpucnt), "AllocateBuffer", "cuMemAlloc", "FluidTemp.gpu", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
-  //       if(rtn == false)FluidSystem::Exit();
-*/
+
         cuCheck(cuCtxSynchronize(), "AllocateBuffer ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);  
         cudaMemGetInfo(&free2, &total);
-        if (m_FParams.debug>1)printf("\nAfter allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
+        /*if (m_FParams.debug>1)*/printf("\nAfter allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
     }
 }
 
@@ -371,18 +362,18 @@ void FluidSystem::AllocateInRangeBuffers ( int gpucnt ){   // mallocs a buffer -
 
     // buffers for "float4[INRANGE_ARRAY_SIZE=64] InRange" and "uint InRangeCount"
     // float4 InRange
-	if ( m_Fluid.InRange_ptr != 0x0) cuCheck(cuMemFree(  m_Fluid.InRange ),								 				 "AllocateBuffer", "cuMemFree",  "InRange", mbDebug);
-	rtn = 							 cuCheck(cuMemAlloc( m_Fluid.InRange_ptr, sizeof(float4)*INRANGE_ARRAY_SIZE*gpucnt), "AllocateBuffer", "cuMemAlloc", "InRange", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
-	if(rtn == false)FluidSystem::Exit();
+	if ( m_Fluid.InRange != 0x0) 		cuCheck(cuMemFree(   m_Fluid.InRange ),										"AllocateBuffer", "cuMemFree",  "InRange", mbDebug);
+    rtn = 							 	cuCheck(cuMemAlloc( &m_Fluid.InRange,		sizeof(Range)*gpucnt),			"AllocateBuffer", "cuMemAlloc", "InRange", mbDebug);		//  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
+    if(rtn == false)FluidSystem::Exit();
 
     // uint InRangeCount
-	if (  m_Fluid.InRangeCount_ptr != 0x0)	cuCheck(cuMemFree(  m_Fluid.InRangeCount ),							"AllocateBuffer", "cuMemFree",  "InRangeCount", mbDebug);
-	rtn =									cuCheck(cuMemAlloc( m_Fluid.InRangeCount_ptr, sizeof(uint)*gpucnt), "AllocateBuffer", "cuMemAlloc", "InRangeCount", mbDebug); //  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
+	if (  m_Fluid.InRangeIndex != 0x0)	cuCheck(cuMemFree(   m_Fluid.InRangeIndex ),								"AllocateBuffer", "cuMemFree",  "InRangeCount", mbDebug);
+	rtn =								cuCheck(cuMemAlloc( &m_Fluid.InRangeIndex,	sizeof(RangeIndex)*gpucnt),		"AllocateBuffer", "cuMemAlloc", "InRangeCount", mbDebug);	//  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
 	if(rtn == false)FluidSystem::Exit();
 
 	cuCheck(cuCtxSynchronize(),    "AllocateInRangeBuffers ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);
 	cudaMemGetInfo(&free2, &total);
-	if (m_FParams.debug>1)printf("\nAllocateInRangeBuffers, after allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
+	/*if (m_FParams.debug>1)*/printf("\nAllocateInRangeBuffers, after allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
 }
 
 

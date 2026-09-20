@@ -11,7 +11,7 @@
 
 
 void FluidSystem::Run3Simulation(){
-    printf("\n\n### Run2Simulation(), m_FParams.debug=%i.   launchParams.save_csv==%c,   launchParams.save_vtp==%c ##############################################\n", m_FParams.debug,   launchParams.save_csv,  launchParams.save_vtp );
+    printf("\n\n### Run3Simulation(), m_FParams.debug=%i.   launchParams.save_csv==%c,   launchParams.save_vtp==%c ##############################################\n", m_FParams.debug,   launchParams.save_csv,  launchParams.save_vtp );
     																								time_point_Run3_[0]	= std::chrono::steady_clock::now();
     Init_FCURAND_STATE_CUDA ();
     																								time_point_Run3_[1]	= std::chrono::steady_clock::now();
@@ -105,71 +105,72 @@ void FluidSystem::Run3Simulation(){
             Run2PhysicalSort();                                                                             // Run2PhysicalSort();                // sort required for SavePointsVTP2
         }
     																								time_point_Run3_[22]	= std::chrono::steady_clock::now();
-        																									auto begin = std::chrono::steady_clock::now();
-																											if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
-        																									cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
-        																									if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
-        																									if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
-        																									if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
-/*
-        																									// auto end = std::chrono::steady_clock::now();
-        																									// std::chrono::duration<double> time = end - begin;
-        																									// std::chrono::duration<double> begin_dbl = begin - old_begin;
-        																									// /_*if(launchParams.debug>0)*_/ std::cout	<<"\nOuter loop duration : " 			<< begin_dbl.count() 		<<" seconds. "
-        																									//                                         <<"\nTime taken to write files for "	<< NumPoints() 				<<" particles : " 	<< time.count() << " seconds. "
-        																									//                                         <<"\nlaunchParams.num_files="			<< launchParams.num_files 	<< "\n" 			<< std::endl;
-        																									// old_begin = begin;
-                                 //
-                                 //                                                                    // timing Run3Simulation
-                                 //                                                                            std::cout	<<"\n\ntiming Run3Simulation, nanoseconds"
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run3_[0]	- time_point_Run3_[1]	).count()
-                                 //                                                                            			<<"\n setFreeze(true)			= "		<<	( time_point_Run3_[1]	- time_point_Run3_[2]	).count()
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run3_[2]	- time_point_Run3_[3]	).count()
-                                 //                                                                            			<<"\n Run2PhysicalSort()		= "		<<	( time_point_Run3_[3]	- time_point_Run3_[4]	).count()
-                                 //                                                                            			<<"\n InitializeBondsCUDA()		= "		<<	( time_point_Run3_[4]	- time_point_Run3_[5]	).count()
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run3_[5]	- time_point_Run3_[6]	).count()
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run3_[6]	- time_point_Run3_[7]	).count()
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run3_[7]	- time_point_Run3_[8]	).count()
-                                 //                                                                            			<<"\n Run2InnerPhysicalLoop()= "		<<	( time_point_Run3_[8]	- time_point_Run3_[9]	).count()
-                                 //                                                                            			<<"\n Run2GeneAction()			= "		<<	( time_point_Run3_[9]	- time_point_Run3_[10]	).count()
-                                 //                                                                            			<<"\n Run2Remodelling			= "		<<	( time_point_Run3_[10]	- time_point_Run3_[11]	).count()
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run3_[11]	- time_point_Run3_[12]	).count()
-                                 //                                                                            			<<"\n Run2PhysicalSort()		= "		<<	( time_point_Run3_[12]	- time_point_Run3_[13]	).count()
-                                 //                                                                            			<<"\n ZeroVelCUDA ()			= "		<<	( time_point_Run3_[13]	- time_point_Run3_[14]	).count()
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run3_[14]	- time_point_Run3_[15]	).count()
-                                 //                                                                            			<<"\n setFreeze(false)			= "		<<	( time_point_Run3_[15]	- time_point_Run3_[16]	).count()
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run3_[16]	- time_point_Run3_[17]	).count()
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run3_[17]	- time_point_Run3_[18]	).count()
-                                 //                                                                            			<<"\n Run2InnerPhysicalLoop()	= "		<<	( time_point_Run3_[18]	- time_point_Run3_[19]	).count()
-                                 //                                                                            			<<"\n Run2GeneAction()			= "		<<	( time_point_Run3_[19]	- time_point_Run3_[20]	).count()
-                                 //                                                                            			<<"\n Run2Remodelling 			= "		<<	( time_point_Run3_[20]	- time_point_Run3_[21]	).count()
-                                 //                                                                            			<<"\n Run2PhysicalSort()		= "		<<	( time_point_Run3_[21]	- time_point_Run3_[22]	).count()
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run3_[22]	- time_point_Run3_[23]	).count()
-                                 //                                                                                        <<std::flush;
-                                 //
-                                 //                                                                    // timing Run2PhysicalSort
-                                 //                                                                            std::cout	<<"\n\ntiming Run2PhysicalSort, nanoseconds"
-                                 //                                                                            			<<"\n InsertParticlesCUDA 		= "		<<	( time_point_Run2PhysicalSort[0]	- time_point_Run2PhysicalSort[1]	).count()
-                                 //                                                                            			<<"\n cuCtxSynchronize()		= "		<<	( time_point_Run2PhysicalSort[1]	- time_point_Run2PhysicalSort[2]	).count()
-                                 //                                                                            			<<"\n PrefixSumCellsCUDA ( 1 )	= "		<<	( time_point_Run2PhysicalSort[2]	- time_point_Run2PhysicalSort[3]	).count()
-                                 //                                                                            			<<"\n cuCtxSynchronize()		= "		<<	( time_point_Run2PhysicalSort[3]	- time_point_Run2PhysicalSort[4]	).count()
-                                 //                                                                            			<<"\n CountingSortFullCUDA 		= "		<<	( time_point_Run2PhysicalSort[4]	- time_point_Run2PhysicalSort[5]	).count()
-                                 //                                                                            			<<"\n cuCtxSynchronize()		= "		<<	( time_point_Run2PhysicalSort[6]	- time_point_Run2PhysicalSort[6]	).count()
-                                 //                                                                                        <<std::flush;
-                                 //
-                                 //                                                                    // timing Run2InnerPhysicalLoop
-                                 //                                                                            std::cout	<<"\n\ntiming Run2InnerPhysicalLoop, nanoseconds"
-                                 //                                                                            			<<"\n InitializeBondsCUDA ()	= "		<<	( time_point_Run2InnerPhysicalLoop[0]	- time_point_Run2InnerPhysicalLoop[1]	).count()
-                                 //                                                                            			<<"\n ComputePressureCUDA()		= "		<<	( time_point_Run2InnerPhysicalLoop[1]	- time_point_Run2InnerPhysicalLoop[2]	).count()
-                                 //                                                                            			<<"\n ComputeForceCUDA ()		= "		<<	( time_point_Run2InnerPhysicalLoop[2]	- time_point_Run2InnerPhysicalLoop[3]	).count()
-                                 //                                                                            			<<"\n TransferPosVelVeval ()	= "		<<	( time_point_Run2InnerPhysicalLoop[3]	- time_point_Run2InnerPhysicalLoop[4]	).count()
-                                 //                                                                            			<<"\n AdvanceCUDA				= "		<<	( time_point_Run2InnerPhysicalLoop[4]	- time_point_Run2InnerPhysicalLoop[5]	).count()
-                                 //                                                                            			<<"\n SpecialParticlesCUDA		= "		<<	( time_point_Run2InnerPhysicalLoop[5]	- time_point_Run2InnerPhysicalLoop[6]	).count()
-                                 //                                                                            			<<"\n TransferPosVelVevalFromTemp = "		<<	( time_point_Run2InnerPhysicalLoop[6]	- time_point_Run2InnerPhysicalLoop[7]	).count()
-                                 //                                                                            			<<"\n = "		<<	( time_point_Run2InnerPhysicalLoop[7]	- time_point_Run2InnerPhysicalLoop[8]	).count()
-                                 //                                                                            			<<"\n AdvanceTime ()			= "		<<	( time_point_Run2InnerPhysicalLoop[8]	- time_point_Run2InnerPhysicalLoop[9]	).count()
-                                 //                                                                                        <<std::flush;
-                                 //
+/*        																			// 						auto begin = std::chrono::steady_clock::now();
+																											// if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+        																			// 						cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
+        																			// 						if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
+        																			// 						if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
+        																			// 						if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+                           //
+        																			// 						auto end = std::chrono::steady_clock::now();
+        																			// 						std::chrono::duration<double> time = end - begin;
+        																			// 						std::chrono::duration<double> begin_dbl = begin - old_begin;
+                           //                                                                                  // /_*if(launchParams.debug>0)*_/
+        																			// 						 std::cout	<<"\nOuter loop duration : " 			<< begin_dbl.count() 		<<" seconds. "
+        																			// 						                                        <<"\nTime taken to write files for "	<< NumPoints() 				<<" particles : " 	<< time.count() << " seconds. "
+        																			// 						                                        <<"\nlaunchParams.num_files="			<< launchParams.num_files 	<< "\n" 			<< std::endl;
+        																			// 						old_begin = begin;
+                           //
+                           //                                                                          // timing Run3Simulation
+                           //                                                                                  std::cout	<<"\n\ntiming Run3Simulation, nanoseconds"
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run3_[0]	- time_point_Run3_[1]	).count()
+                           //                                                                                  			<<"\n setFreeze(true)			= "		<<	( time_point_Run3_[1]	- time_point_Run3_[2]	).count()
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run3_[2]	- time_point_Run3_[3]	).count()
+                           //                                                                                  			<<"\n Run2PhysicalSort()		= "		<<	( time_point_Run3_[3]	- time_point_Run3_[4]	).count()
+                           //                                                                                  			<<"\n InitializeBondsCUDA()		= "		<<	( time_point_Run3_[4]	- time_point_Run3_[5]	).count()
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run3_[5]	- time_point_Run3_[6]	).count()
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run3_[6]	- time_point_Run3_[7]	).count()
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run3_[7]	- time_point_Run3_[8]	).count()
+                           //                                                                                  			<<"\n Run2InnerPhysicalLoop()= "		<<	( time_point_Run3_[8]	- time_point_Run3_[9]	).count()
+                           //                                                                                  			<<"\n Run2GeneAction()			= "		<<	( time_point_Run3_[9]	- time_point_Run3_[10]	).count()
+                           //                                                                                  			<<"\n Run2Remodelling			= "		<<	( time_point_Run3_[10]	- time_point_Run3_[11]	).count()
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run3_[11]	- time_point_Run3_[12]	).count()
+                           //                                                                                  			<<"\n Run2PhysicalSort()		= "		<<	( time_point_Run3_[12]	- time_point_Run3_[13]	).count()
+                           //                                                                                  			<<"\n ZeroVelCUDA ()			= "		<<	( time_point_Run3_[13]	- time_point_Run3_[14]	).count()
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run3_[14]	- time_point_Run3_[15]	).count()
+                           //                                                                                  			<<"\n setFreeze(false)			= "		<<	( time_point_Run3_[15]	- time_point_Run3_[16]	).count()
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run3_[16]	- time_point_Run3_[17]	).count()
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run3_[17]	- time_point_Run3_[18]	).count()
+                           //                                                                                  			<<"\n Run2InnerPhysicalLoop()	= "		<<	( time_point_Run3_[18]	- time_point_Run3_[19]	).count()
+                           //                                                                                  			<<"\n Run2GeneAction()			= "		<<	( time_point_Run3_[19]	- time_point_Run3_[20]	).count()
+                           //                                                                                  			<<"\n Run2Remodelling 			= "		<<	( time_point_Run3_[20]	- time_point_Run3_[21]	).count()
+                           //                                                                                  			<<"\n Run2PhysicalSort()		= "		<<	( time_point_Run3_[21]	- time_point_Run3_[22]	).count()
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run3_[22]	- time_point_Run3_[23]	).count()
+                           //                                                                                              <<std::flush;
+                           //
+                           //                                                                          // timing Run2PhysicalSort
+                           //                                                                                  std::cout	<<"\n\ntiming Run2PhysicalSort, nanoseconds"
+                           //                                                                                  			<<"\n InsertParticlesCUDA 		= "		<<	( time_point_Run2PhysicalSort[0]	- time_point_Run2PhysicalSort[1]	).count()
+                           //                                                                                  			<<"\n cuCtxSynchronize()		= "		<<	( time_point_Run2PhysicalSort[1]	- time_point_Run2PhysicalSort[2]	).count()
+                           //                                                                                  			<<"\n PrefixSumCellsCUDA ( 1 )	= "		<<	( time_point_Run2PhysicalSort[2]	- time_point_Run2PhysicalSort[3]	).count()
+                           //                                                                                  			<<"\n cuCtxSynchronize()		= "		<<	( time_point_Run2PhysicalSort[3]	- time_point_Run2PhysicalSort[4]	).count()
+                           //                                                                                  			<<"\n CountingSortFullCUDA 		= "		<<	( time_point_Run2PhysicalSort[4]	- time_point_Run2PhysicalSort[5]	).count()
+                           //                                                                                  			<<"\n cuCtxSynchronize()		= "		<<	( time_point_Run2PhysicalSort[6]	- time_point_Run2PhysicalSort[6]	).count()
+                           //                                                                                              <<std::flush;
+                           //
+                           //                                                                          // timing Run2InnerPhysicalLoop
+                           //                                                                                  std::cout	<<"\n\ntiming Run2InnerPhysicalLoop, nanoseconds"
+                           //                                                                                  			<<"\n InitializeBondsCUDA ()	= "		<<	( time_point_Run2InnerPhysicalLoop[0]	- time_point_Run2InnerPhysicalLoop[1]	).count()
+                           //                                                                                  			<<"\n ComputePressureCUDA()		= "		<<	( time_point_Run2InnerPhysicalLoop[1]	- time_point_Run2InnerPhysicalLoop[2]	).count()
+                           //                                                                                  			<<"\n ComputeForceCUDA ()		= "		<<	( time_point_Run2InnerPhysicalLoop[2]	- time_point_Run2InnerPhysicalLoop[3]	).count()
+                           //                                                                                  			<<"\n TransferPosVelVeval ()	= "		<<	( time_point_Run2InnerPhysicalLoop[3]	- time_point_Run2InnerPhysicalLoop[4]	).count()
+                           //                                                                                  			<<"\n AdvanceCUDA				= "		<<	( time_point_Run2InnerPhysicalLoop[4]	- time_point_Run2InnerPhysicalLoop[5]	).count()
+                           //                                                                                  			<<"\n SpecialParticlesCUDA		= "		<<	( time_point_Run2InnerPhysicalLoop[5]	- time_point_Run2InnerPhysicalLoop[6]	).count()
+                           //                                                                                  			<<"\n TransferPosVelVevalFromTemp = "		<<	( time_point_Run2InnerPhysicalLoop[6]	- time_point_Run2InnerPhysicalLoop[7]	).count()
+                           //                                                                                  			<<"\n = "		<<	( time_point_Run2InnerPhysicalLoop[7]	- time_point_Run2InnerPhysicalLoop[8]	).count()
+                           //                                                                                  			<<"\n AdvanceTime ()			= "		<<	( time_point_Run2InnerPhysicalLoop[8]	- time_point_Run2InnerPhysicalLoop[9]	).count()
+                           //                                                                                              <<std::flush;
+
                                  //                                                                    // timing Run2GeneAction
                                  //                                                                            std::cout	<<"\n\ntiming Run2GeneAction, nanoseconds"
                                  //                                                                            			<<"\n ComputeDiffusionCUDA()	= "		<<	( time_point_Run2GeneAction[0]	- time_point_Run2GeneAction[1]	).count()
