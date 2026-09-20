@@ -353,28 +353,28 @@ void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucn
 }
 
 
-void FluidSystem::AllocateInRangeBuffers ( int gpucnt ){   // mallocs a buffer - called by FluidSystem::Initialize(), AllocateParticles, and AllocateGrid()
-//also called by WriteDemoSimParams(..)
-    bool rtn = true;
-    if (m_FParams.debug>1)std::cout<<"\nAllocateBuffer ( int gpucnt="<<gpucnt<<" )\t"<<std::flush;
-	size_t   free1, free2, total;
-	cudaMemGetInfo(&free1, &total);
-
-    // buffers for "float4[INRANGE_ARRAY_SIZE=64] InRange" and "uint InRangeCount"
-    // float4 InRange
-	if ( m_Fluid.InRange != 0x0) 		cuCheck(cuMemFree(   m_Fluid.InRange ),										"AllocateBuffer", "cuMemFree",  "InRange", mbDebug);
-    rtn = 							 	cuCheck(cuMemAlloc( &m_Fluid.InRange,		sizeof(Range)*gpucnt),			"AllocateBuffer", "cuMemAlloc", "InRange", mbDebug);		//  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
-    if(rtn == false)FluidSystem::Exit();
-
-    // uint InRangeCount
-	if (  m_Fluid.InRangeIndex != 0x0)	cuCheck(cuMemFree(   m_Fluid.InRangeIndex ),								"AllocateBuffer", "cuMemFree",  "InRangeCount", mbDebug);
-	rtn =								cuCheck(cuMemAlloc( &m_Fluid.InRangeIndex,	sizeof(RangeIndex)*gpucnt),		"AllocateBuffer", "cuMemAlloc", "InRangeCount", mbDebug);	//  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
-	if(rtn == false)FluidSystem::Exit();
-
-	cuCheck(cuCtxSynchronize(),    "AllocateInRangeBuffers ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);
-	cudaMemGetInfo(&free2, &total);
-	/*if (m_FParams.debug>1)*/printf("\nAllocateInRangeBuffers, after allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
-}
+// void FluidSystem::AllocateInRangeBuffers ( int gpucnt ){   // mallocs a buffer - called by FluidSystem::Initialize(), AllocateParticles, and AllocateGrid()
+// //also called by WriteDemoSimParams(..)
+//     bool rtn = true;
+//     if (m_FParams.debug>1)std::cout<<"\nAllocateBuffer ( int gpucnt="<<gpucnt<<" )\t"<<std::flush;
+// 	size_t   free1, free2, total;
+// 	cudaMemGetInfo(&free1, &total);
+//
+//     // buffers for "float4[INRANGE_ARRAY_SIZE=64] InRange" and "uint InRangeCount"
+//     // float4 InRange
+// 	if ( m_Fluid.InRange != 0x0) 		cuCheck(cuMemFree(   m_Fluid.InRange ),										"AllocateBuffer", "cuMemFree",  "InRange", mbDebug);
+//     rtn = 							 	cuCheck(cuMemAlloc( &m_Fluid.InRange,		sizeof(Range)*gpucnt),			"AllocateBuffer", "cuMemAlloc", "InRange", mbDebug);		//  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
+//     if(rtn == false)FluidSystem::Exit();
+//
+//     // uint InRangeCount
+// 	if (  m_Fluid.InRangeIndex != 0x0)	cuCheck(cuMemFree(   m_Fluid.InRangeIndex ),								"AllocateBuffer", "cuMemFree",  "InRangeCount", mbDebug);
+// 	rtn =								cuCheck(cuMemAlloc( &m_Fluid.InRangeIndex,	sizeof(RangeIndex)*gpucnt),		"AllocateBuffer", "cuMemAlloc", "InRangeCount", mbDebug);	//  ####  cuMemAlloc the buffer, stores pointer to buffer in   m_FluidTemp.mgpu[buf_id]
+// 	if(rtn == false)FluidSystem::Exit();
+//
+// 	cuCheck(cuCtxSynchronize(),    "AllocateInRangeBuffers ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);
+// 	cudaMemGetInfo(&free2, &total);
+// 	/*if (m_FParams.debug>1)*/printf("\nAllocateInRangeBuffers, after allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
+// }
 
 
 // Allocate particle memory
@@ -409,7 +409,7 @@ if (m_FParams.debug>1)std::cout<<"\tGPU_OFF=0, GPU_SINGLE=1, GPU_TEMP=2, GPU_DUA
     AllocateBuffer ( FCURAND_STATE,	sizeof(curandState_t),	             cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
     AllocateBuffer ( FCURAND_SEED,	sizeof(unsigned long long),	         cnt,	m_FParams.szPnts,	gpu_mode, cpu_mode );
 
-    AllocateInRangeBuffers ( m_FParams.szPnts );
+    //AllocateInRangeBuffers ( m_FParams.szPnts );
     
     // Update GPU access pointers
     if (gpu_mode != GPU_OFF ) {

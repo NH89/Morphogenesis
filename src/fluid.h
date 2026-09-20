@@ -211,13 +211,13 @@
         Bond	b[BONDS_PER_PARTICLE];
     };
 
-    #define INRANGE_ARRAY_SIZE	64
-    struct Range{
-        float/*4*/	In[INRANGE_ARRAY_SIZE];
-    };
-    struct RangeIndex{
-        uint	In[INRANGE_ARRAY_SIZE];
-    };
+    // #define INRANGE_ARRAY_SIZE	64
+    // struct Range{
+    //     float/*4*/	In[INRANGE_ARRAY_SIZE];
+    // };
+    // struct RangeIndex{
+    //     uint	In[INRANGE_ARRAY_SIZE];
+    // };
 
 	
 	// Particle & Grid Buffers
@@ -227,8 +227,8 @@
         // short int 16bit, int 32bit, long int 64bit, float 32bit, double 64bit, 
 		#ifdef CUDA_KERNEL
 			// on device, access data via gpu pointers 
-			inline CALLFUNC Range*  	 bufR ()	{ return (Range*)		InRange; }
-			inline CALLFUNC RangeIndex*  bufRx ()	{ return (RangeIndex*)	InRangeIndex; }
+//			inline CALLFUNC Range*  	 bufR ()	{ return (Range*)		InRange; }
+//			inline CALLFUNC RangeIndex*  bufRx ()	{ return (RangeIndex*)	InRangeIndex; }
 
 			inline CALLFUNC Bonds*  bufB (int n)		{ return (Bonds*)  mgpu[n]; }
 			inline CALLFUNC Vector3DF* bufV3(int n)		{ return (Vector3DF*) mgpu[n]; }
@@ -242,8 +242,8 @@
 			//inline CALLFUNC unsigned short* bufS (int n)		{ return (unsigned short*)   mgpu[n]; }
 		#else
 			// on host, access data via cpu pointers
-			inline CALLFUNC Range*  	 bufR ()	{ return (Range*)		InRange_cpu; }
-			inline CALLFUNC RangeIndex*  bufRx ()	{ return (RangeIndex*)	InRangeIndex_cpu; }
+//			inline CALLFUNC Range*  	 bufR ()	{ return (Range*)		InRange_cpu; }
+//			inline CALLFUNC RangeIndex*  bufRx ()	{ return (RangeIndex*)	InRangeIndex_cpu; }
 
 			inline CALLFUNC Vector3DF* bufV3(int n)		{ return (Vector3DF*) mcpu[n]; }
 			inline CALLFUNC float3* bufF3(int n)		{ return (float3*) mcpu[n]; }
@@ -259,20 +259,20 @@
 		inline CALLFUNC void    setBuf (int n, char* buf )	{ mcpu[n] = buf; }			// stores pointer to buffer in mcpu[]
 
 		char*				mcpu[ MAX_BUF ];
-        char*				InRange_cpu;
-		char*				InRangeIndex_cpu;
+//        char*				InRange_cpu;
+//		char*				InRangeIndex_cpu;
 
 		#ifdef CUDA_KERNEL
 			char*			mgpu[ MAX_BUF ];		// on device, pointer is local.
-			char*			InRange;				// [num_particles * 64]
-			char*			InRangeIndex;			// [num_particles]
+//			char*			InRange;				// [num_particles * 64]
+//			char*			InRangeIndex;			// [num_particles]
 		#else			
 			CUdeviceptr		mgpu[ MAX_BUF ];		// on host, gpu is a device pointer // an array of pointers, filled by cuMemAlloc
 			CUdeviceptr		gpu    (int n )	{ return mgpu[n];  }
 			CUdeviceptr*	gpuptr (int n )	{ return &mgpu[n]; }
 
-			CUdeviceptr		InRange;
-			CUdeviceptr		InRangeIndex;
+//			CUdeviceptr		InRange;
+//			CUdeviceptr		InRangeIndex;
 
 			//CUdeviceptr*	InRange_ptr			=	&InRange;
 			//CUdeviceptr*	InRangeIndex_ptr	=	&InRangeIndex;

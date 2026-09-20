@@ -269,7 +269,7 @@ void FluidSystem::Run3Simulation(){
     TransferFromCUDA ();
    // m_FParams.debug = 2; //	### temporary
     SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+99);
-    SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+99);   // save "end condition", even if not saving the series.
+    //SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+99);   // save "end condition", even if not saving the series.
 
 
     WriteSimParams ( launchParams.outPath );

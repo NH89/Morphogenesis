@@ -684,13 +684,14 @@ extern "C" __global__ void computePressure ( int pnum )						// new computePress
 	float3 dist;
 	float dsq, r, q, b, c, sum = 0.0, sum_p6k = 0.0;
 	float3 pos = fbuf.bufF3(FPOS) [i];
-
+/*
 	// inRange variables
-	float3	inRangeDist						={0.0f};								//	#define INRANGE_ARRAY_SIZE	64, in fluid.h
-//	uint	inRangeIdx						= 0;
-	float/*4*/	pvt_Range[		INRANGE_ARRAY_SIZE]	={0.0f};
-    uint	pvt_RangeIdx[	INRANGE_ARRAY_SIZE]	={0};
-	uint	pvt_RangeCount						= 0;
+// 	float3	inRangeDist						={0.0f};								//	#define INRANGE_ARRAY_SIZE	64, in fluid.h
+// //	uint	inRangeIdx						= 0;
+// 	float/ *4* /	pvt_Range[		INRANGE_ARRAY_SIZE]	={0.0f};
+//     uint	pvt_RangeIdx[	INRANGE_ARRAY_SIZE]	={0};
+// 	uint	pvt_RangeCount						= 0;
+*/
 																				// max length in simulation space							//register float d2 = fparam.psimscale * fparam.psimscale;
 	// Get simulation parameters
 	register float r2 = fparam.r2;												// = m_FParams.psmoothradius^2 / m_FParams.psimscale^2		// / d2;
@@ -717,11 +718,15 @@ extern "C" __global__ void computePressure ( int pnum )						// new computePress
 
             if(pndx>= pnum){/*printf("\n## computePressure(..) (pndx%i>= pnum%i)", pndx, pnum);*/ break;}
 			if ( dsq < r2 && dsq > 0.0) {										// if(in-range && not the same particle) ie unused particles can be stored at one point.	//nb dsq=0 -> sum+=1
-				if(pvt_RangeCount<INRANGE_ARRAY_SIZE-1){
+                dsq = (fparam.rd2 - dsq) * fparam.d2;		/*pvt_Range[idx]*//*.w*/
+				sum += dsq * dsq * dsq;
+                /*
+                if(pvt_RangeCount<INRANGE_ARRAY_SIZE-1){
                     pvt_Range[		pvt_RangeCount]		= dsq;
 					pvt_RangeIdx[	pvt_RangeCount]		= pndx;
 					pvt_RangeCount++;
-                }/*else{															// If (InRange array is already full), then replace the furthest particle.
+                }
+                else{															// If (InRange array is already full), then replace the furthest particle.
                     int furthest_idx	= 0;
                     float furthest_dsq	= 0.0f;
                     for(int idx=0;idx<pvt_RangeCount; idx++){
@@ -737,18 +742,19 @@ extern "C" __global__ void computePressure ( int pnum )						// new computePress
 		}
 		//if(break_==true)break;
 	}
-	// save inRange to global buffer //#################################################
-	Range 		inRange_							= fbuf.bufR()[i];
-	//RangeIndex* inRangeIndex						= fbuf.bufRx(i);
-	for (uint index=0;  index<pvt_RangeCount; index++){
-				fbuf.bufR()[i].In[		index]		= pvt_Range[	index];
-				fbuf.bufRx()[i].In[		index]		= pvt_RangeIdx[	index];
-	}
-	fbuf.bufRx()[i].In[	INRANGE_ARRAY_SIZE-1]		= pvt_RangeCount;
-
+/*
+	// // save inRange to global buffer //#################################################
+	// Range 		inRange_							= fbuf.bufR()[i];
+	// //RangeIndex* inRangeIndex						= fbuf.bufRx(i);
+	// for (uint index=0;  index<pvt_RangeCount; index++){
+	// 			fbuf.bufR()[i].In[		index]		= pvt_Range[	index];
+	// 			fbuf.bufRx()[i].In[		index]		= pvt_RangeIdx[	index];
+	// }
+	// fbuf.bufRx()[i].In[	INRANGE_ARRAY_SIZE-1]		= pvt_RangeCount;
+* /
 	// Compute pressure from list here //###################################################
 	for( int idx=0; idx<pvt_RangeCount; idx++){
-		/*
+		/ *
          * From https://github.com/DualSPHysics/DualSPHysics/wiki/3.-SPH-formulation#31-smoothing-kernel
          *
          * q=r/h, where r=dist between particles, h=smoothing length
@@ -757,17 +763,18 @@ extern "C" __global__ void computePressure ( int pnum )						// new computePress
          *
          * where alpha_D = 21/(16*Pi*h**3)  , the normalization kernel in 3D,
          * i.e. 1/integral_(0,2){kernel * area of a sphere}dr
-		*//*
+		* // *
 		r=sqrt(dsq);
 		q=r/sr;																	//r/H; i.e ss:=1
 		b=(1-q);																// corrected to my SymPy version. Wendland C2 as per (Dehnen & Aly 2012) NB Version in DualSPHysics seems wrong i.e. b=(1-q/2)^4*(2*q+1).
 		b*=b;
 		b*=b;																	//  1 >= b >= 0.0, smaller for larger distance, inverted x^4 curve.
 		sum  += b*(4*q +1);//(H+4*r); 											// Wendland C^2 quintic kernel for 3 dimensions.
-		*/
-		dsq = (fparam.rd2 - pvt_Range[idx]/*.w*/) * fparam.d2;
+		* /
+		dsq = (fparam.rd2 - pvt_Range[idx]/ *.w* /) * fparam.d2;
 		sum += dsq * dsq * dsq;
 	}
+*/
 	// Save Pressure to buffer
 	sum 						= sum * fparam.pmass * fparam.poly6kern;
 	if ( sum == 0.0 ) sum		= 1.0;
@@ -3369,7 +3376,8 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
 	if ( gc == GRID_UNDEF ) return;                                                 // particle out-of-range
 
 	gc -= (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
-	register float3		force, eterm, dist;                                         // request to compiler to store in a register for speed.
+	register int cell, c, j, cndx;
+    register float3		force, eterm, dist;                                         // request to compiler to store in a register for speed.
 	register float		dsq, abs_dist,  pi, pj, pterm;                              // elastic force // new version computes here using particle index rather than ID.
 
 	force = make_float3(0,0,0);    eterm = make_float3(0,0,0);     dist  = make_float3(0,0,0);
@@ -3529,6 +3537,7 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
 //     force += fluid_force_sum * fparam.pmass ; // now  force is accel....
 */
 ////////////////////////////////
+/*
 	//  use inRange
 	Range*		inRange			= fbuf.bufR();
 	RangeIndex* inRangeIndex	= fbuf.bufRx();
@@ -3538,10 +3547,10 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
     //dist = ( FPnts.bufF3(FPOS)[i] - FPnts.bufF3(FPOS)[ j ] );
 
 	for (uint index=0;  index<RangeCount; index++){									// For particles in range, compute fluid force.
-		float/*4*/	range			= inRange[i].In[		index];
+		float/ *4* /	range			= inRange[i].In[		index];
 		uint	j				= inRangeIndex[i].In[	index];
 		dist					= pos - fbuf.bufF3(FPOS)[ j ]; //{range.x,range.y,range.z};
-		dsq						= sqrt(range/*.w*/ * fparam.d2);
+		dsq						= sqrt(range/ *.w* / * fparam.d2);
 
 		pi						= (fbuf.bufF(FPRESS)[i] - fparam.prest_dens ) * fparam.pintstiff;
 		pj						= (fbuf.bufF(FPRESS)[j] - fparam.prest_dens ) * fparam.pintstiff;
@@ -3549,26 +3558,27 @@ extern "C" __global__ void computeForce ( int pnum, bool freeze, uint frame)
 
 		force					+= ( pterm * dist + fparam.vterm * ( fbuf.bufF3(FVEVAL)[ j ]		-	fbuf.bufF3(FVEVAL)[i] )) * (fparam.psmoothradius-dsq) / (fbuf.bufF(FPRESS)[i] * fbuf.bufF(FPRESS)[ j ] );
 	}
+*/
+	// use search of 27 neighbourhood bins
+	for (c=0; c < fparam.gridAdjCnt; c++) {
+		cell = gc + fparam.gridAdj[c];
+
+		for ( cndx = fbuf.bufI(FGRIDOFF)[cell]; cndx < fbuf.bufI(FGRIDOFF)[cell] + fbuf.bufI(FGRIDCNT)[cell]; cndx++ ) {
+
+			j = fbuf.bufI(FGRID)[ cndx ];
+			dist = ( fbuf.bufF3(FPOS)[i] - fbuf.bufF3(FPOS)[ j ] );		// dist in cm
+			dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);
+
+			if ( dsq < fparam.rd2 && dsq > 0) {
+				dsq = sqrt(dsq * fparam.d2);
+				pi = (fbuf.bufF(FPRESS)[i] - fparam.prest_dens ) * fparam.pintstiff;
+				pj = (fbuf.bufF(FPRESS)[j] - fparam.prest_dens ) * fparam.pintstiff;
+				pterm = fparam.sim_scale * -0.5f * (fparam.psmoothradius-dsq) * fparam.spikykern * ( pi + pj ) / dsq;
+				force += ( pterm * dist + fparam.vterm * ( fbuf.bufF3(FVEVAL)[ j ] - fbuf.bufF3(FVEVAL)[i] )) * (fparam.psmoothradius-dsq) / (fbuf.bufF(FPRESS)[i] * fbuf.bufF(FPRESS)[ j ] );
+			}
+		}
+	}
 /*
-// 	for ( c=0; c < FParams.gridAdjCnt; c++) {
-// 		cell = gc + FParams.gridAdj[c];
-//
-// 		for ( cndx = FAccel.bufI(AGRIDOFF)[cell]; cndx < FAccel.bufI(AGRIDOFF)[cell] + FAccel.bufI(AGRIDCNT)[cell]; cndx++ ) {
-//
-// 			j = FAccel.bufI(AGRID)[ cndx ];
-// 			dist = ( FPnts.bufF3(FPOS)[i] - FPnts.bufF3(FPOS)[ j ] );		// dist in cm
-// 			dsq = (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z);
-//
-// 			if ( dsq < FParams.rd2 && dsq > 0) {
-// 				dsq = sqrt(dsq * FParams.d2);
-// 				pi = (FPnts.bufF(FPRESS)[i] - FParams.prest_dens ) * FParams.pintstiff;
-// 				pj = (FPnts.bufF(FPRESS)[j] - FParams.prest_dens ) * FParams.pintstiff;
-// 				pterm = FParams.sim_scale * -0.5f * (FParams.psmoothradius-dsq) * FParams.spikykern * ( pi + pj ) / dsq;
-// 				force += ( pterm * dist + FParams.vterm * ( FPnts.bufF3(FVEVAL)[ j ] - FPnts.bufF3(FVEVAL)[i] )) * (FParams.psmoothradius-dsq) / (FPnts.bufF(FPRESS)[i] * FPnts.bufF(FPRESS)[ j ] );
-// 			}
-// 		}
-// 	}
-*//*
     // if(fparam.debug >0  && long_bonds==true / * i==uint(pnum/2) * / / * && fbuf.bufF(FEPIGEN)[i +  12*fparam.maxPoints] * / ) {                              // if "external actuation" particle
     //     fluid_force_sum *= fparam.pmass;
     //     printf("\nComputeForce 2: i=,%u,   fluid_force_sum=(,\t%f,\t%f,\t%f,\t) \n\t\t\t force=(,\t%f,\t%f,\t%f,\t) ",

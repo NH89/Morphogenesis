@@ -176,7 +176,7 @@
 
 		// Particle Utilities
 		void AllocateBuffer(int buf_id, int stride, int cpucnt, int gpucnt, int gpumode, int cpumode);
-		void AllocateInRangeBuffers ( int gpucnt );
+//		void AllocateInRangeBuffers ( int gpucnt );
         void AllocateBufferDenseLists ( int buf_id, int stride, int gpucnt, int lists );
         void AllocateParticles ( int cnt, int gpu_mode = GPU_DUAL, int cpu_mode = CPU_YES );
         void AddNullPoints ();
