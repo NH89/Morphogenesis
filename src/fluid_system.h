@@ -355,7 +355,7 @@
             char outPath[256];
             uint num_files=1, steps_per_file=1, freeze_steps=0, motion=1, debug=0, steps_per_InnerPhysicalLoop=3;
             int file_num=0, file_increment=0;
-            char save_ply='n', save_csv='n', save_vtp='n',  gene_activity='n', remodelling='n', read_genome='n';
+            char loadSim='n', save_ply='n', save_csv='n', save_vtp='n',  gene_activity='n', remodelling='n', read_genome='n';
             
             float m_Time, m_DT, gridsize, spacing, simscale, smoothradius, visc, surface_tension, mass, radius, /*dist,*/ intstiff, extstiff, extdamp, accel_limit, vel_limit, grav, ground_slope, force_min, force_max, force_freq;
             Vector3DF volmin, volmax, initmin, initmax;

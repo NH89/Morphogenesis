@@ -54,6 +54,7 @@ int main ( int argc, const char** argv )
 																												<<", fluid.launchParams.spacing="		<<fluid.launchParams.spacing<<std::flush;
     for(int i=0; i<256; i++){fluid.launchParams.paramsPath[i] = input_folder[i];}		//params	write char input_folder[i]  to  char paramsPath[i]
     for(int i=0; i<256; i++){fluid.launchParams.pointsPath[i] = input_folder[i];}		//points
+
     																					//for(int i=0; i<256; i++){fluid.launchParams.genomePath[i] = input_folder[i];} // obtained from SpecificationFile.txt above.
     if(argc==3)for(int i=0; i<256; i++){fluid.launchParams.outPath[i] = output_folder[i];}//output
     
@@ -64,24 +65,29 @@ int main ( int argc, const char** argv )
 																													<<", fluid.launchParams.genomePath=" 	<<fluid.launchParams.genomePath
 																													<< ",  fluid.launchParams.spacing="		<<fluid.launchParams.spacing<<std::flush;
 	//fluid.save_stdout(std::filesystem::path( output_folder),  std::string( "stdout.txt") );
-
-    fluid.WriteDemoSimParams(           // Generates the simulation from data previously loaded from SpecificationFile.txt .
-        fluid.launchParams.paramsPath,
-        GPU_DUAL,
-        CPU_YES,
-        fluid.launchParams.num_particles,
-        fluid.launchParams.spacing,
-        fluid.launchParams.x_dim,
-        fluid.launchParams.y_dim,
-        fluid.launchParams.z_dim,
-        fluid.launchParams.demoType,
-        fluid.launchParams.simSpace,
-        fluid.launchParams.debug
-    ); 																					/*const char * relativePath*/
+	uint num_particles_start=0;
+    if(fluid.launchParams.loadSim=='y'){
+        fluid.ReadPointsCSV2( fluid.launchParams.pointsPath, GPU_DUAL, CPU_YES);	// int gpu_mode, int cpu_mode
+        num_particles_start=fluid.ActivePoints();
+    }else{
+    	fluid.WriteDemoSimParams(           // Generates the simulation from data previously loaded from SpecificationFile.txt .
+        	fluid.launchParams.paramsPath,
+        	GPU_DUAL,
+        	CPU_YES,
+        	fluid.launchParams.num_particles,
+        	fluid.launchParams.spacing,
+        	fluid.launchParams.x_dim,
+        	fluid.launchParams.y_dim,
+        	fluid.launchParams.z_dim,
+        	fluid.launchParams.demoType,
+        	fluid.launchParams.simSpace,
+        	fluid.launchParams.debug
+    	);																				/*const char * relativePath*/
     																					//std::cout<<"\n\nmake_demo2 chk2 "<<std::flush;
-    uint num_particles_start=fluid.ActivePoints();
+        num_particles_start=fluid.ActivePoints();
+    	fluid.TransferToCUDA ();
+    }
     
-    fluid.TransferToCUDA (); 
     fluid.Run3Simulation ();															// ###  Using benchmarking edits, instead of Run2Simulation()
                                                                                     	std::cout<<"\n\nmake_demo2 chk8 "<<std::flush;
                                                                                         std::cerr<<"\n\nmake_demo2 chk8 "<<std::flush;
