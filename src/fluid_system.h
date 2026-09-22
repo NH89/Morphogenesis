@@ -373,7 +373,7 @@
 		float						m_Time;	
 
 		// CUDA Kernels
-		CUmodule					m_Module;
+		CUmodule					m_Module = NULL;
 		CUfunction					m_Func[ FUNC_MAX ];
         
 		// Simulation Parameters                                //  NB MAX_PARAM = 50 

@@ -72,6 +72,7 @@ int main ( int argc, const char** argv )
     
     uint debug = 2;  // same values as in load_sim and in specification_file.txt .
     FluidSystem fluid;
+    fluid.Initialize();
     
     std::cout <<"\nmake_demo : launchParams.read_genome = " << fluid.launchParams.read_genome <<",\t  launchParams.genomePath = "<<  fluid.launchParams.genomePath<<std::endl<<std::flush;
 
@@ -100,15 +101,19 @@ int main ( int argc, const char** argv )
     }
  
     std::string paramsPath("demo/SimParams.txt");     // Set file paths relative to data/ , where SpecfileBatchGenerator will be run.
-    std::string pointsPath("demo");
+    std::string pointsPath("demo/particles_pos_vel_color100001.csv");
     std::string genomePath("demo/genome.csv");
     std::string outPath("out");
     for(int i=0;i<paramsPath.length();i++)fluid.launchParams.paramsPath[i] = paramsPath[i];
     for(int i=0;i<pointsPath.length();i++)fluid.launchParams.pointsPath[i] = pointsPath[i];
     for(int i=0;i<genomePath.length();i++)fluid.launchParams.genomePath[i] = genomePath[i];
     for(int i=0;i<outPath.length(); i++)  fluid.launchParams.outPath[i]    = outPath[i];
-    
+
     fluid.WriteExampleSpecificationFile("./demo");
+
+    fluid.SavePointsVTP2(  "demo"  /*outPath*/, 1 );
+    fluid.SavePointsCSV2 ( "demo"  /*pointsPath.c_str()*/, 1 );
+
     printf("\nmake_demo finished.\n");
     fluid.Exit_no_CUDA ();	
     return 0;

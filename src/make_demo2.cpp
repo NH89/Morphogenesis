@@ -67,6 +67,7 @@ int main ( int argc, const char** argv )
 	//fluid.save_stdout(std::filesystem::path( output_folder),  std::string( "stdout.txt") );
 	uint num_particles_start=0;
     if(fluid.launchParams.loadSim=='y'){
+        fluid.ReadSimParams( fluid.launchParams.paramsPath );
         fluid.ReadPointsCSV2( fluid.launchParams.pointsPath, GPU_DUAL, CPU_YES);	// int gpu_mode, int cpu_mode
         num_particles_start=fluid.ActivePoints();
     }else{

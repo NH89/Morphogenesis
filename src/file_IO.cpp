@@ -743,12 +743,13 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
 }
 
 void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode){ // NB allocates buffers as well.
-    //if (m_FParams.debug>1) std::cout << "\n  ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);  started \n" << std::flush;
+    /*//if (m_FParams.debug>1)*/ std::cout << "\n  ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);  started \n" << std::flush;
     const char * points_file_path = relativePath;
-    if (m_FParams.debug>1)printf("\n## opening file %s ", points_file_path);
+    /*if (m_FParams.debug>1)*/printf("\n## opening file %s ", points_file_path);
     FILE * points_file = fopen(points_file_path, "rb");
     if (points_file == NULL) {
         assert(0);
+        Exit();
     }
     // find number of lines = number of particles
     int ch, number_of_lines = 0;
@@ -821,28 +822,28 @@ if (m_FParams.debug>1) std::cout<<"\n\n ReadPointsCSV2() starting loop: number_o
         // transcribe particle data from file to Pos, Vel and Clr
         ret=0;
         ret += std::fscanf(points_file, "%u,,%f,%f,%f,\t%f,%f,%f,\t %u, %u,, \t",&index, &Pos.x, &Pos.y, &Pos.z, &Vel.x, &Vel.y, &Vel.z, &Age, &Clr );
-																																										//if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() row="<< i <<", (line 1259, ret="<<ret<<"),\t"<<std::flush;
+																																										if (m_FParams.debug>1) std::cout<<"\n\n ReadPointsCSV2() row="<< i <<", (line 1259, ret="<<ret<<"),\t"<<std::flush;
         for(int j=0; j<BOND_DATA; j+=DATA_PER_BOND) {// BONDS_PER_PARTICLE * DATA_PER_BOND
             ret += std::fscanf(points_file, "%u, %f, %f, %f, %f, %u, %f, %f, %u, ", &ElastIdxU[j+0], &ElastIdxF[j+1], &ElastIdxF[j+2], &ElastIdxF[j+3], &ElastIdxF[j+4], &ElastIdxU[j+5], &ElastIdxF[j+6], &ElastIdxF[j+7], &ElastIdxU[j+8] );
         }
-																																										//if (m_FParams.debug>1)printf("\t%u\t",ElastIdxU[0]);
-																																										//if (m_FParams.debug>1) std::cout<<"(line 1263, ret="<<ret<<")\t"<<std::flush;
+																																										if (m_FParams.debug>1)printf("\t%u\t",ElastIdxU[0]);
+																																										if (m_FParams.debug>1) std::cout<<"(line 1263, ret="<<ret<<")\t"<<std::flush;
         ret += std::fscanf(points_file, " \t%u, %u, %u, %u, \t\t", &Particle_ID, &mass, &radius, &NerveIdx);
         Mass_Radius = mass + (radius << 16);                                    // pack two 16bit uint  into one 32bit uint.
-																																										//if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1266, ret="<<ret<<"),\t"<<std::flush;
+																																										if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1266, ret="<<ret<<"),\t"<<std::flush;
         for(int j=0; j<(BONDS_PER_PARTICLE*2); j+=2) {
             ret += std::fscanf(points_file, "%u, %u,, ",  &Particle_Idx[j], &Particle_Idx[j+1] );
         }
-																																										//if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1270, ret="<<ret<<"),\t"<<std::flush;
+																																										if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1270, ret="<<ret<<"),\t"<<std::flush;
         for(int j=0; j<(NUM_TF); j++)       {    ret += std::fscanf(points_file, "%f, ",  &Conc[j] );   } ret += std::fscanf(points_file, "\t");
-																																										//if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1272, ret="<<ret<<"),\t"<<std::flush;
+																																										if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1272, ret="<<ret<<"),\t"<<std::flush;
         for(int j=0; j<(NUM_GENES); j++)    {    ret += std::fscanf(points_file, "%u, ",  &EpiGen[j] ); } ret += std::fscanf(points_file, " \n");
-																																										//if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1274, ret="<<ret<<"),\t"<<std::flush;
+																																										if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1274, ret="<<ret<<"),\t"<<std::flush;
 
 if (ret != (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  // 9 + 6*9 + 4 + 6*2 + 16 + 16 = 111
-            if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() fail line 1276, ret="<<ret<<"\n"<<std::flush;// ret=39
+            if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() fail line 1276,  ret="<<ret<<"!= (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES)    Formatting of this .csv file does not match. Try generating a new .csv file with \"make_demo\"\n"<<std::flush;// ret=39
             fflush(points_file); fclose(points_file);
-            return;
+            Exit();
         } // ret=8 ret=32 ret=36 ret=48 ret=64 ret=80 
 
         // check particle is within simulation bounds
@@ -1133,7 +1134,10 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     FILE * SpecFile = fopen(SimParams_file_path, "rb");
     
     const char* env_pwd = std::getenv("PWD");
-    if(SpecFile == NULL)    { std::cout<<"\nCould not read file: "<<relativePath<<", working directory: "<< env_pwd <<" . \n"<<std::flush; }
+    if(SpecFile == NULL)    { std::cout<<"\nCould not read file: "<<SimParams_file_path<<", working directory: "<< env_pwd <<" . \n"
+        								<<"relativePath: "<<relativePath<<"\n"<<std::flush;
+        						Exit_no_CUDA ();
+    }
     
     // find number of lines
     int ch, number_of_lines = 0;
@@ -1144,7 +1148,7 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     // read file
     std::fseek(SpecFile, 0, SEEK_SET);
     int ret =0;
-    
+
     ret += std::fscanf ( SpecFile, "num_particles = %u\n ", &launchParams.num_particles );
     ret += std::fscanf ( SpecFile, "demoType = %u\n ", &launchParams.demoType );
     ret += std::fscanf ( SpecFile, "simSpace = %u\n ", &launchParams.simSpace );

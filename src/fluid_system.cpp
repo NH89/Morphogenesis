@@ -282,6 +282,10 @@ void FluidSystem::SetVec ( int p, Vector3DF v ){
 }
 
 void FluidSystem::Exit (){
+
+    if(m_Module == NULL){
+        Exit_no_CUDA ();
+    }else{
     // Free fluid buffers
     cuCheck(cuCtxSynchronize(), "Exit ", "cuCtxSynchronize", "before cudaDeviceReset()", mbDebug);
     for (int n=0; n < MAX_BUF; n++ ) {
@@ -301,6 +305,7 @@ void FluidSystem::Exit (){
     cudaMemGetInfo(&free2, &total);
     if (m_FParams.debug>0)printf("\nAfter cudaDeviceReset(): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
     exit(0);
+    }
 }
 
 void FluidSystem::Exit_no_CUDA (){

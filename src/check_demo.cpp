@@ -8,6 +8,7 @@
 
 int main ( int argc, const char** argv ) 
 {
+    char specifcationPath[256];
     char paramsPath[256];
     char genomePath[256];
     char pointsPath[256];
@@ -16,11 +17,14 @@ int main ( int argc, const char** argv )
 	    printf("usage: check_demo  simulation_data_folder  output_folder\n");
 	    return 0;
 	}else {
+        sprintf ( specifcationPath, "%s", argv[1] );
+        printf("Specification parameters folder = %s\n", specifcationPath);
+
         sprintf ( paramsPath, "%s/SimParams.txt", argv[1] );
         printf("simulation parameters file = %s\n", paramsPath);
         
         sprintf ( genomePath, "%s/genome.csv", argv[1] );
-        printf("simulation parameters file = %s\n", genomePath);
+        printf("genome file = %s\n", genomePath);
         
         sprintf ( pointsPath, "%s/particles_pos_vel_color100001.csv", argv[1] );  // particles_pos_vel_color100001_test_data.csv
         printf("simulation points file = %s\n", pointsPath);
@@ -34,6 +38,7 @@ int main ( int argc, const char** argv )
     // Clear all buffers
     fluid.Initialize();   // where do the buffers for params and genome get allocated when there is no fluid.InitializeCuda (); ?
 
+    fluid.ReadSpecificationFile ( specifcationPath );
     fluid.ReadSimParams(paramsPath);
     fluid.ReadGenome(genomePath);
     fluid.ReadPointsCSV2(pointsPath, GPU_OFF, CPU_YES);  //fluid.ReadPointsCSV(pointsPath, GPU_OFF, CPU_YES);
@@ -48,6 +53,7 @@ int main ( int argc, const char** argv )
     printf("\nchk3\n");
     fluid.SavePointsCSV2 ( outPath, 1 );
     printf("\nchk4\n");
+    fluid.WriteSpecificationFile_fromLaunchParams ( outPath );
     
     printf("\ncheck_demo finished.\n");
     fluid.Exit_no_CUDA ();	
