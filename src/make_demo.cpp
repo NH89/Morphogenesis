@@ -98,21 +98,27 @@ int main ( int argc, const char** argv )
     fluid.launchParams.save_vtp         = 'y';
     fluid.launchParams.gene_activity    = 'n';
     fluid.launchParams.remodelling      = 'n';
+
     }
  
-    std::string paramsPath("demo/SimParams.txt");     // Set file paths relative to data/ , where SpecfileBatchGenerator will be run.
+    std::string paramsPath("demo");     // Set file paths relative to data/ , where SpecfileBatchGenerator will be run.
     std::string pointsPath("demo/particles_pos_vel_color100001.csv");
-    std::string genomePath("demo/genome.csv");
+    std::string genomePath("demo");
     std::string outPath("out");
-    for(int i=0;i<paramsPath.length();i++)fluid.launchParams.paramsPath[i] = paramsPath[i];
-    for(int i=0;i<pointsPath.length();i++)fluid.launchParams.pointsPath[i] = pointsPath[i];
-    for(int i=0;i<genomePath.length();i++)fluid.launchParams.genomePath[i] = genomePath[i];
-    for(int i=0;i<outPath.length(); i++)  fluid.launchParams.outPath[i]    = outPath[i];
+	sprintf(fluid.launchParams.paramsPath,"%s", paramsPath.c_str() );
+    sprintf(fluid.launchParams.pointsPath,"%s", pointsPath.c_str() );
+    sprintf(fluid.launchParams.genomePath,"%s", genomePath.c_str() );
+    sprintf(fluid.launchParams.outPath,   "%s", outPath.c_str() );
+
+    printf("\nfluid.launchParams.paramsPath :  %s\n", fluid.launchParams.paramsPath );
+	printf("\nfluid.launchParams.pointsPath :  %s\n", fluid.launchParams.pointsPath );
+	printf("\nfluid.launchParams.genomePath :  %s\n", fluid.launchParams.genomePath );
+	printf("\nfluid.launchParams.outPath    :  %s\n", fluid.launchParams.outPath );
 
     fluid.WriteExampleSpecificationFile("./demo");
 
-    fluid.SavePointsVTP2(  "demo"  /*outPath*/, 1 );
-    fluid.SavePointsCSV2 ( "demo"  /*pointsPath.c_str()*/, 1 );
+    fluid.SavePointsVTP2( "demo", 1 );
+    fluid.SavePointsCSV2( "demo", 1 );
 
     printf("\nmake_demo finished.\n");
     fluid.Exit_no_CUDA ();	

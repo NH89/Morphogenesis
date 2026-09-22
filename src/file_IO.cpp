@@ -14,7 +14,9 @@ void FluidSystem::save_stdout(std::filesystem::path 	out_path,  std::string outf
 
 void FluidSystem::ReadGenome( const char * relativePath){
     // NB currently GPU allocation is by Allocate particles, called by ReadPointsCSV.
-    const char * genes_file_path = relativePath;
+    //const char * genes_file_path = relativePath;
+    char genes_file_path[256];
+    sprintf ( genes_file_path, "%s/genome.csv", relativePath );
     /*if (m_FParams.debug>1)*/printf("\nReadGenome: opening file %s \n", genes_file_path);
     FILE * genes_file = fopen(genes_file_path, "rb");
     if (genes_file == NULL) {
@@ -743,7 +745,7 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
 }
 
 void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode){ // NB allocates buffers as well.
-    /*//if (m_FParams.debug>1)*/ std::cout << "\n  ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int cpu_mode);  started \n" << std::flush;
+    /*//if (m_FParams.debug>1)*/ std::cout << "\n  ReadPointsCSV2 ( const char * relativePath, int gpu_mode:"<<gpu_mode<<", int cpu_mode:"<<cpu_mode<<");  started \n" << std::flush;
     const char * points_file_path = relativePath;
     /*if (m_FParams.debug>1)*/printf("\n## opening file %s ", points_file_path);
     FILE * points_file = fopen(points_file_path, "rb");
@@ -876,12 +878,15 @@ if (ret != (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  
 }
 
 void FluidSystem::ReadSimParams ( const char * relativePath ) { // transcribe SimParams from file to fluid_system object.
-    const char * SimParams_file_path = relativePath;
-    if (m_FParams.debug>1)printf ( "\n## opening file %s ", SimParams_file_path );
+    //const char * SimParams_file_path = relativePath;
+    char SimParams_file_path[256];
+    sprintf ( SimParams_file_path, "%s/SimParams.txt", relativePath );
+    if (m_FParams.debug>1)printf ( "\nvoid FluidSystem::ReadSimParams (const char * relativePath ) ## opening file %s ", SimParams_file_path );
     FILE * SimParams_file = fopen ( SimParams_file_path, "rb" );
     if ( SimParams_file == NULL ) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::ReadSimParams (const char * relativePath )  Could not read file "<< SimParams_file_path <<"\n"<< std::flush;
+        /*if (m_FParams.debug>1)*/ std::cout << "\nvoid FluidSystem::ReadSimParams (const char * relativePath )  Could not read file "<< SimParams_file_path <<"\n"<< std::flush;
         assert ( 0 );
+        Exit();
     }
     // find number of lines
     int ch, number_of_lines = 0;
@@ -965,7 +970,7 @@ void FluidSystem::WriteSimParams ( const char * relativePath ){
     // open file to write SimParams to
     char SimParams_file_path[256];
     sprintf ( SimParams_file_path, "%s/SimParams.txt", relativePath );
-    																						if (m_FParams.debug>1)printf("\n## opening file %s ", SimParams_file_path);
+    																						/*if (m_FParams.debug>1)*/printf("\nFluidSystem::WriteSimParams ## opening file %s ", SimParams_file_path);
     FILE* SimParams_file = fopen ( SimParams_file_path, "w" );
     																	if (SimParams_file == NULL) {
         																		std::cout << "\nvoid FluidSystem::WriteSimParams (const char * relativePath )  Could not open file "<< SimParams_file_path <<"\n"<< std::flush;//if (m_FParams.debug>1)
@@ -1224,7 +1229,7 @@ void FluidSystem::ReadSpecificationFile ( const char * relativePath ){
     ret += std::fscanf ( SpecFile, "\n");
     
     ret += std::fscanf ( SpecFile, "paramsPath = %s\n ", launchParams.paramsPath );
-    ret += std::fscanf ( SpecFile, "pointsPath = %s\n ", launchParams.pointsPath );
+    ret += std::fscanf ( SpecFile, "pointsPath = %s\n ", launchParams.pointsPath );						cout<<"\n\nFluidSystem::ReadSpecificationFile   launchParams.pointsPath : "<<launchParams.pointsPath<<"\n"<<std::flush;
     ret += std::fscanf ( SpecFile, "genomePath = %s\n ", launchParams.genomePath );
     ret += std::fscanf ( SpecFile, "outPath = %s\n ", launchParams.outPath );
     ret += std::fscanf ( SpecFile, "loadSim = %c\n ", &launchParams.loadSim );
