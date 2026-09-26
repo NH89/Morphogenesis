@@ -202,8 +202,8 @@
         uint* getParticle_ID(int n )    { return &m_Fluid.bufI(FPARTICLE_ID)[n]; }
         uint* getMass_Radius(int n )    { return &m_Fluid.bufI(FMASS_RADIUS)[n]; }
         uint* getNerveIdx( int n )      { return &m_Fluid.bufI(FNERVEIDX)[n]; }              //#define FNERVEIDX        15    //# uint
-        float* getConc(int tf)          { return &m_Fluid.bufF(FCONC)[tf*mMaxPoints];}       //note #define FCONC       16    //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
-        uint* getEpiGen(int gene)       { return &m_Fluid.bufI(FEPIGEN)[gene*mMaxPoints];}   //note #define FEPIGEN     17    //# uint[NUM_GENES] // used in savePoints... 
+        float*getConc(int tf)           { return &m_Fluid.bufF(FCONC)[  tf   *mMaxPoints];}  //note #define FCONC       16    //# float[NUM_TF]        NUM_TF = num transcription factors & morphogens
+        uint* getEpiGen(int gene)       { return &m_Fluid.bufI(FEPIGEN)[gene *mMaxPoints];}  //note #define FEPIGEN     17    //# uint[NUM_GENES] // used in savePoints...
                                                                                              //NB int mMaxPoints is set even if FluidSetupCUDA(..) isn't called, e.g. in makedemo ..
 
 		// Timers

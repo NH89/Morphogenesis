@@ -58,11 +58,11 @@ extern "C" __global__ void insertParticles ( int pnum )                         
 	// printf ( " pos: %012llx, gcell: %012llx, gndx: %012llx, gridcnt: %012llx\n", fbuf.bufC(FPOS), fbuf.bufC(FGCELL), fbuf.bufC(FGNDX), fbuf.bufC(FGRIDCNT) );
   //  if (fparam.debug>2 && i==0)printf("\ninsertParticles(): pnum=%u\n",pnum);
 
-	register float3 gridMin =	fparam.gridMin;                                  // "register" is a compiler 'hint', to keep this variable in thread register
-	register float3 gridDelta = fparam.gridDelta;                                //  even if other variable have to be moved to slower 'local' memory
-	register int3 gridRes =		fparam.gridRes;                                  //  in the streaming multiprocessor's cache.
-	register int3 gridScan =	fparam.gridScanMax;
-    register int gridTot =      fparam.gridTotal;
+	register float3 gridMin		= fparam.gridMin;                                  // "register" is a compiler 'hint', to keep this variable in thread register
+	register float3 gridDelta	= fparam.gridDelta;                                //  even if other variable have to be moved to slower 'local' memory
+	register int3	gridRes		= fparam.gridRes;                                  //  in the streaming multiprocessor's cache.
+	register int3	gridScan	= fparam.gridScanMax;
+    register int	gridTot		= fparam.gridTotal;
 
 	register int		gs;
 	register float3		gcf;
@@ -247,15 +247,15 @@ extern "C" __global__ void countingSortFull ( int pnum )                        
         fbuf.bufI (FMASS_RADIUS) [sort_ndx] =	ftemp.bufI(FMASS_RADIUS) [i];
         fbuf.bufI (FNERVEIDX)    [sort_ndx] =	ftemp.bufI(FNERVEIDX)    [i];
         
-        uint* fbuf_epigen  = &fbuf.bufI(FEPIGEN)[sort_ndx];
-        uint* ftemp_epigen = &ftemp.bufI(FEPIGEN)[i];
-        for (int a=0;a<NUM_GENES;a++)  fbuf_epigen[pnum*a]  = ftemp_epigen[pnum*a];  // NB launched with pnum=mMaxPoints=fparam.maxPoints
-        
-        float* fbuf_conc  = &fbuf.bufF(FCONC)[sort_ndx * NUM_TF];
-        float* ftemp_conc = &ftemp.bufF(FCONC)[i * NUM_TF];
-        for (int a=0;a<NUM_TF;a++)     fbuf_conc[a] = ftemp_conc[a]; 
-            //fbuf.bufF (FCONC)[sort_ndx * NUM_TF + a] = ftemp.bufF(FCONC)[i * NUM_TF + a];
-            //__syncwarp();
+        float* fbuf_conc	= &fbuf.bufF(FCONC)[sort_ndx];
+        float* ftemp_conc	= &ftemp.bufF(FCONC)[i];
+        for (int a=0;a<NUM_TF;a++)     fbuf_conc[pnum*a]	= ftemp_conc[pnum*a];
+            																					//fbuf.bufF (FCONC)[sort_ndx * NUM_TF + a] = ftemp.bufF(FCONC)[i * NUM_TF + a];
+                                                                                                //__syncwarp();
+        uint* fbuf_epigen	= &fbuf.bufI(FEPIGEN)[sort_ndx];
+        uint* ftemp_epigen	= &ftemp.bufI(FEPIGEN)[i];
+        for (int a=0;a<NUM_GENES;a++)  fbuf_epigen[pnum*a]	= ftemp_epigen[pnum*a];  // NB launched with pnum=mMaxPoints=fparam.maxPoints
+
 	}
 }
 

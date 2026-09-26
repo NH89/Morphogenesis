@@ -30,7 +30,7 @@ int mk_subdir(char* path){
     return 0;
 }
 
-int main ( int argc, const char** argv ) 
+int main ( int argc, const char** argv )		// ### TODO out of date code. e.g now flie paths should be to folder only, except ponts file.
 {
     char folder_path[256];
     char spec_file[256];

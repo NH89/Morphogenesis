@@ -101,21 +101,17 @@ int main ( int argc, const char** argv )
 
     }
  
-    std::string paramsPath("demo");     // Set file paths relative to data/ , where SpecfileBatchGenerator will be run.
-    std::string pointsPath("demo/particles_pos_vel_color100001.csv");
-    std::string genomePath("demo");
-    std::string outPath("out");
-	sprintf(fluid.launchParams.paramsPath,"%s", paramsPath.c_str() );
-    sprintf(fluid.launchParams.pointsPath,"%s", pointsPath.c_str() );
-    sprintf(fluid.launchParams.genomePath,"%s", genomePath.c_str() );
-    sprintf(fluid.launchParams.outPath,   "%s", outPath.c_str() );
+	sprintf(fluid.launchParams.paramsPath,"%s", "demo" );										// specify path only. File is always called "SimParams.txt"
+    sprintf(fluid.launchParams.pointsPath,"%s", "demo/particles_pos_vel_color100001.csv" );
+    sprintf(fluid.launchParams.genomePath,"%s", "demo" );										// specify path only. File is always called "genome.csv"
+    sprintf(fluid.launchParams.outPath,   "%s", "out"  );										// specify path only. All out put files are written to this folder.
 
     printf("\nfluid.launchParams.paramsPath :  %s\n", fluid.launchParams.paramsPath );
 	printf("\nfluid.launchParams.pointsPath :  %s\n", fluid.launchParams.pointsPath );
 	printf("\nfluid.launchParams.genomePath :  %s\n", fluid.launchParams.genomePath );
 	printf("\nfluid.launchParams.outPath    :  %s\n", fluid.launchParams.outPath );
 
-    fluid.WriteExampleSpecificationFile("./demo");
+    fluid.WriteExampleSpecificationFile("./demo");												// specify path only. File is always called "SpecificationFile.txt"
 
     fluid.SavePointsVTP2( "demo", 1 );
     fluid.SavePointsCSV2( "demo", 1 );

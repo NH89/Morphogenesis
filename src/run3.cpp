@@ -13,6 +13,9 @@
 void FluidSystem::Run3Simulation(){
     printf("\n\n### Run3Simulation(), m_FParams.debug=%i.   launchParams.save_csv==%c,   launchParams.save_vtp==%c ##############################################\n", m_FParams.debug,   launchParams.save_csv,  launchParams.save_vtp );
     																								time_point_Run3_[0]	= std::chrono::steady_clock::now();
+                                                                                                    	if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+    																									cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
+    																									if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+70);
     Init_FCURAND_STATE_CUDA ();
     																								time_point_Run3_[1]	= std::chrono::steady_clock::now();
     auto old_begin = std::chrono::steady_clock::now();
@@ -24,6 +27,11 @@ void FluidSystem::Run3Simulation(){
     																								time_point_Run3_[3]	= std::chrono::steady_clock::now();
     m_Debug_file=0;
     																									if (m_FParams.debug>0)std::cout<<"\n\nFreeze()"<<-1<<"\n"<<std::flush;
+
+                                                                                                    	if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+    																									cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
+    																									if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+80);
+
     Run2PhysicalSort();
     																								time_point_Run3_[4]	= std::chrono::steady_clock::now();
 	if(m_FParams.freeze==true){

@@ -6,7 +6,7 @@
 #include <chrono>
 #include "fluid_system.h"
 
-int main ( int argc, const char** argv )
+int main ( int argc, const char** argv )		// ### TODO out of date code. e.g now flie paths should be to folder only, except ponts file.
 {
     char paramsPath[256];
     char pointsPath[256];

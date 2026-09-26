@@ -292,7 +292,8 @@ void FluidSystem::Exit (){
         if (m_FParams.debug>0)std::cout << "\n n = " << n << std::flush;
         if ( m_Fluid.bufC(n) != 0x0 )
             free ( m_Fluid.bufC(n) );
-    }
+    }std::cout << "\n"<<std::flush;
+
     size_t   free1, free2, total;
     cudaMemGetInfo(&free1, &total);
     if (m_FParams.debug>0)printf("\nCuda Memory, before cudaDeviceReset(): free=%lu, total=%lu.\t",free1,total);
@@ -304,6 +305,7 @@ void FluidSystem::Exit (){
     
     cudaMemGetInfo(&free2, &total);
     if (m_FParams.debug>0)printf("\nAfter cudaDeviceReset(): free=%lu, total=%lu, released=%lu.\n",free2,total,(free2-free1) );
+
     exit(0);
     }
 }
@@ -314,7 +316,7 @@ void FluidSystem::Exit_no_CUDA (){
         if (m_FParams.debug>0)std::cout << "\n n = " << n << std::flush;
         if ( m_Fluid.bufC(n) != 0x0 )
             free ( m_Fluid.bufC(n) );
-    }
+    }std::cout << "\n"<<std::flush;
     exit(0);
 }
 
@@ -518,47 +520,47 @@ void FluidSystem::AllocateGrid(int gpu_mode, int cpu_mode){ // NB void FluidSyst
 int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint Age, uint Clr, uint *_ElastIdxU, float *_ElastIdxF, uint *_Particle_Idx, uint Particle_ID, uint Mass_Radius, uint NerveIdx, float* _Conc, uint* _EpiGen ){  // called by :ReadPointsCSV2 (...) where :    uint Particle_Idx[BONDS_PER_PARTICLE * 2];  AND SetupAddVolumeMorphogenesis2(....)
     if ( mNumPoints >= mMaxPoints ) return -1;
     int n = mNumPoints;
-    (m_Fluid.bufV3(FPOS) + n)->Set ( Pos->x,Pos->y,Pos->z );
-    (m_Fluid.bufV3(FVEL) + n)->Set ( Vel->x,Vel->y,Vel->z );
-    (m_Fluid.bufV3(FVEVAL) + n)->Set ( 0,0,0 );
-    (m_Fluid.bufV3(FFORCE) + n)->Set ( 0,0,0 );
-    *(m_Fluid.bufF(FPRESS) + n) = 0;
-    *(m_Fluid.bufF(FDENSITY) + n) = 0;
-    *(m_Fluid.bufI(FGNEXT) + n) = -1;
-    *(m_Fluid.bufI(FCLUSTER)  + n) = -1;
-    *(m_Fluid.bufF(FSTATE) + n ) = (float) rand();
-    *(m_Fluid.bufI(FAGE) + n) = Age;
-    *(m_Fluid.bufI(FCLR) + n) = Clr;
+    (m_Fluid.bufV3(FPOS)		+ n)->Set ( Pos->x,Pos->y,Pos->z );
+    (m_Fluid.bufV3(FVEL)		+ n)->Set ( Vel->x,Vel->y,Vel->z );
+    (m_Fluid.bufV3(FVEVAL)		+ n)->Set ( 0,0,0 );
+    (m_Fluid.bufV3(FFORCE)		+ n)->Set ( 0,0,0 );
+    *(m_Fluid.bufF(FPRESS)		+ n) 	= 0;
+    *(m_Fluid.bufF(FDENSITY)	+ n) 	= 0;
+    *(m_Fluid.bufI(FGNEXT)		+ n) 	= -1;
+    *(m_Fluid.bufI(FCLUSTER)	+ n) 	= -1;
+    *(m_Fluid.bufF(FSTATE)		+ n) 	= (float) rand();
+    *(m_Fluid.bufI(FAGE)		+ n) 	= Age;
+    *(m_Fluid.bufI(FCLR)		+ n) 	= Clr;
   //if (m_FParams.debug>1)printf("m_Fluid.bufV3(FPOS)[n]=(%f,%f,%f), Pos->x=%f, Pos->y=%f, Pos->z=%f,\t",m_Fluid.bufV3(FPOS)[n].x,m_Fluid.bufV3(FPOS)[n].y,m_Fluid.bufV3(FPOS)[n].z,Pos->x,Pos->y,Pos->z);
-    uint* ElastIdx = (m_Fluid.bufI(FELASTIDX) + n * BOND_DATA );
-    float* ElastIdxFlt = (m_Fluid.bufF(FELASTIDX) + n * BOND_DATA );
+    uint*  ElastIdx						= (m_Fluid.bufI(FELASTIDX) + n * BOND_DATA );
+    float* ElastIdxFlt					= (m_Fluid.bufF(FELASTIDX) + n * BOND_DATA );
     for (int i = 0; i<BONDS_PER_PARTICLE;i++){
   //if (m_FParams.debug>1)printf("\t%u",_ElastIdxU[i*DATA_PER_BOND+0]);
-        ElastIdx[i*DATA_PER_BOND+0] = _ElastIdxU[i*DATA_PER_BOND+0] ;
-        ElastIdx[i*DATA_PER_BOND+5] = _ElastIdxU[i*DATA_PER_BOND+5] ;
-        ElastIdx[i*DATA_PER_BOND+6] = _ElastIdxU[i*DATA_PER_BOND+6] ;
-        ElastIdx[i*DATA_PER_BOND+8] = _ElastIdxU[i*DATA_PER_BOND+8] ;
-        ElastIdxFlt[i*DATA_PER_BOND+1] = _ElastIdxF[i*DATA_PER_BOND+1] ;
-        ElastIdxFlt[i*DATA_PER_BOND+2] = _ElastIdxF[i*DATA_PER_BOND+2] ;
-        ElastIdxFlt[i*DATA_PER_BOND+3] = _ElastIdxF[i*DATA_PER_BOND+3] ;
-        ElastIdxFlt[i*DATA_PER_BOND+4] = _ElastIdxF[i*DATA_PER_BOND+4] ;
-        ElastIdxFlt[i*DATA_PER_BOND+7] = _ElastIdxF[i*DATA_PER_BOND+7] ;
+        ElastIdx[i*DATA_PER_BOND+0]		= _ElastIdxU[i*DATA_PER_BOND+0] ;
+        ElastIdx[i*DATA_PER_BOND+5]		= _ElastIdxU[i*DATA_PER_BOND+5] ;
+        ElastIdx[i*DATA_PER_BOND+6]		= _ElastIdxU[i*DATA_PER_BOND+6] ;
+        ElastIdx[i*DATA_PER_BOND+8]		= _ElastIdxU[i*DATA_PER_BOND+8] ;
+        ElastIdxFlt[i*DATA_PER_BOND+1]	= _ElastIdxF[i*DATA_PER_BOND+1] ;
+        ElastIdxFlt[i*DATA_PER_BOND+2]	= _ElastIdxF[i*DATA_PER_BOND+2] ;
+        ElastIdxFlt[i*DATA_PER_BOND+3]	= _ElastIdxF[i*DATA_PER_BOND+3] ;
+        ElastIdxFlt[i*DATA_PER_BOND+4]	= _ElastIdxF[i*DATA_PER_BOND+4] ;
+        ElastIdxFlt[i*DATA_PER_BOND+7]	= _ElastIdxF[i*DATA_PER_BOND+7] ;
     }
-    uint* Particle_Idx = (m_Fluid.bufI(FPARTICLEIDX) + n * BONDS_PER_PARTICLE *2 );     // index of incoming bonds
+    uint* Particle_Idx					= (m_Fluid.bufI(FPARTICLEIDX) + n * BONDS_PER_PARTICLE *2 );     // index of incoming bonds
     for(int j=0; j<(BONDS_PER_PARTICLE *2); j++) {
-        Particle_Idx[j] = _Particle_Idx[j] ;
+        Particle_Idx[j] 				= _Particle_Idx[j] ;
     }
     *(m_Fluid.bufI(FPARTICLE_ID) + n)   = Particle_ID;                                  // permanent ID of particle 
     *(m_Fluid.bufI(FMASS_RADIUS) + n)   = Mass_Radius;
-    *(m_Fluid.bufI(FNERVEIDX) + n)      = NerveIdx;
+    *(m_Fluid.bufI(FNERVEIDX)	 + n)   = NerveIdx;
     
-    for(int j=0; j<(NUM_TF); j++) {
-        float* Conc = getConc(j);
-        Conc[n] = _Conc[j];
+    for(int j=0; j<(NUM_TF); j++) {						// NB this stores each TF in its own array within the buffer.
+        float* Conc 					= getConc(j);	// float*getConc(int tf)     { return &m_Fluid.bufF(FCONC)[  tf  *mMaxPoints];}   //note #define FCONC       16    //# float[NUM_TF]     NUM_TF = num transcription factors & morphogens
+        Conc[n] 						= _Conc[j];
     }
-    for(int j=0; j<(NUM_GENES); j++) {
-        uint* EpiGen = getEpiGen(j);
-        EpiGen[n]    = _EpiGen[j];                                                      // NB 'n' is particle index, from start of this gene. Data order:  FEPIGEN[gene][particle]
+    for(int j=0; j<(NUM_GENES); j++) {					// NB this stores each Epigenetic State in its own array within the buffer.
+        uint* EpiGen 					= getEpiGen(j);	// uint* getEpiGen(int gene) { return &m_Fluid.bufI(FEPIGEN)[gene*mMaxPoints];}   //note #define FEPIGEN     17    //# uint[NUM_GENES]   // used in savePoints...
+        EpiGen[n]    					= _EpiGen[j];                                   // NB 'n' is particle index, from start of this gene. Data order:  FEPIGEN[gene][particle]
     }
     mNumPoints++;
     return n;
@@ -999,7 +1001,7 @@ void FluidSystem::Run2PhysicalSort(){
         																										TransferFromCUDA ();
         																										m_Debug_file++;
         																										std::cout<<"\nchk b: launchParams.outPath="<<launchParams.outPath<<",  m_Frame+m_Debug_file=0;="<<m_Frame+m_Debug_file<<"\t"<<std::flush;
-      																											//  SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+      																											SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
         																										std::cout << "\n\nRun2PhysicalSort() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  InsertParticlesCUDA\n"<<std::flush;
         																										//TransferFromTempCUDA(int buf_id, int sz );
     																										}
@@ -1010,7 +1012,7 @@ void FluidSystem::Run2PhysicalSort(){
     																										if(launchParams.debug>0){
         																										TransferFromCUDA ();
        																											m_Debug_file++;
-      																											//  SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+      																											SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
         																										std::cout << "\n\nRun2PhysicalSort() Chk2, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  PrefixSumCellsCUDA\n"<<std::flush;
         																										//TransferFromTempCUDA(int buf_id, int sz );
     																										}
