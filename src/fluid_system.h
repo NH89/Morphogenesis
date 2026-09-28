@@ -257,6 +257,7 @@
         void Exit_no_CUDA ();
 		void TransferToCUDA ();
 		void TransferFromCUDA ();
+		void TransferFromCUDA_temp ();
 		double GetDT()		{ return m_DT; }
 		
 		// Acceleration Grid

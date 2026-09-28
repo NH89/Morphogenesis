@@ -196,35 +196,43 @@ extern "C" __global__ void countingSortFull ( int pnum )                        
         float3 pos = ftemp.bufF3(FPOS) [i];
         // add extra data for morphogenesis
         // track the sort index of the other particle
-        for (int a=0;a<BONDS_PER_PARTICLE;a++){
+
+        char* fbuf_ptr		= (char*)(&fbuf.bufI  (FELASTIDX) [sort_ndx*BOND_DATA]);	// main transfer of band data.
+        char* ftemp_ptr		= (char*)(&ftemp.bufI (FELASTIDX) [i       *BOND_DATA]);
+        memcpy( fbuf_ptr, ftemp_ptr, BOND_DATA*sizeof(float) );
+		__syncthreads();
+
+        for (int a_=0;a_<BONDS_PER_PARTICLE;a_++){
             // FELASTIDX: [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index, [7]stress integrator, [8]change-type binary indicator
-            uint j = ftemp.bufI(FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND];             // NB i,j are valid only in ftemp.*
-            uint j_sort_ndx = UINT_MAX;
-            uint jcell = GRID_UNDEF;
+            uint j					= ftemp.bufI(FELASTIDX) [i*BOND_DATA + a_*DATA_PER_BOND];             // NB i,j are valid only in ftemp.*
+            uint j_sort_ndx			= UINT_MAX;
+            uint jcell				= GRID_UNDEF;
+            uint jndx				= UINT_MAX;
    
             if (j<pnum){
-                jcell       = ftemp.bufI(FGCELL) [ j ];                                 // jcell is bin into which j is sorted in fbuf.*
-                uint jndx   = UINT_MAX;
-                if ( jcell != GRID_UNDEF ) {                                            // avoid out of bounds array reads
-                    jndx    =  ftemp.bufI(FGNDX)  [ j ];      
+                															jcell		= ftemp.bufI(FGCELL) [ j ];                         // jcell is bin into which j is sorted in fbuf.*
+                if ( jcell != GRID_UNDEF ) {                                            													// avoid out of bounds array reads
+                    														jndx		=  ftemp.bufI(FGNDX)  [ j ];
                     if((fbuf.bufI(FGRIDOFF) [ jcell ] + jndx) <pnum){
-                        j_sort_ndx = fbuf.bufI(FGRIDOFF) [ jcell ] + jndx ;             // new location in the list of the other particle
+                        													j_sort_ndx	= fbuf.bufI(FGRIDOFF) [ jcell ] + jndx ;            // new location in the list of the other particle
                     }
-                }                                                                       // set modulus and length to zero if ( jcell != GRID_UNDEF ) // No longer done.
+                }                                                                       													// set modulus and length to zero if ( jcell != GRID_UNDEF ) // No longer done.
             }
-            fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND]  = j_sort_ndx; // NB if (j>=pnum) j_sort_ndx = UINT_MAX; preserves non-bonds
-            for (int b=1;b<5/*DATA_PER_BOND*/;b++){                                     // copy [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, etc // no longer (iff unbroken)
-                fbuf.bufF (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +b] = ftemp.bufF (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + b]; // uints
-            }                                                                           // old: copy the modulus & length
+            fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a_*DATA_PER_BOND]  				= j_sort_ndx;										// NB if (j>=pnum) j_sort_ndx = UINT_MAX; preserves non-bonds
+        	{
+//            for (int b=1;b<5/*DATA_PER_BOND*/;b++){                                     // copy [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, etc // no longer (iff unbroken)
+//                fbuf.bufF (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +b] = ftemp.bufF (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + b]; // uints
+//            }                                                                           // old: copy the modulus & length
             //if(j>pnum){
             //    fbuf.bufF (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +1] = 0.0;  // if(particle j not in use), set elastic_lim & rest_length to zero.
             //    fbuf.bufF (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +2] = 0.0;   // Not strictly required because computeForce checks if(j<pnum).
             //}                             // NB it would be beter to have separate float and uint buffers, and use memset at the beginig of the timestep
             
-            fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +5] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 5];   //[5]partID, uint
-            fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +6] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 6];   //[6]bond index, uint
-            fbuf.bufF (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +7] = ftemp.bufF (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 7];   //[7]stress integrator, float
-            fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +8] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 8];   //[8]change-type, uint
+//            fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +5] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 5];   //[5]partID, uint
+//            fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +6] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 6];   //[6]bond index, uint
+//            fbuf.bufF (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +7] = ftemp.bufF (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 7];   //[7]stress integrator, float
+//            fbuf.bufI (FELASTIDX) [sort_ndx*BOND_DATA + a*DATA_PER_BOND +8] = ftemp.bufI (FELASTIDX) [i*BOND_DATA + a*DATA_PER_BOND + 8];   //[8]change-type, uint
+            }
         }
         for (int a=0;a<BONDS_PER_PARTICLE;a++){                                         // The list of bonds from other particles 
             uint k = ftemp.bufI(FPARTICLEIDX) [i*BONDS_PER_PARTICLE*2 + a*2];           // NB i,j are valid only in ftemp.*

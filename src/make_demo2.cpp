@@ -83,6 +83,13 @@ int main ( int argc, const char** argv )
         num_particles_start=fluid.ActivePoints();
     	fluid.TransferToCUDA ();
     }
+
+    																					if(fluid.launchParams.save_csv=='y'){
+                                                                                            fluid.SavePointsCSV2 ( fluid.launchParams.outPath, fluid.launchParams.file_num+5);
+                                                                                            fluid.TransferFromCUDA ();
+                                                                                            fluid.cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", fluid.launchParams.debug);
+                                                                                            fluid.SavePointsCSV2 ( fluid.launchParams.outPath, fluid.launchParams.file_num+10);
+                                                                                        }
     																					cout<<"\n\n### make_demo2 chk9 "<<std::flush;
     fluid.Run3Simulation ();															// ###  Using benchmarking edits, instead of Run2Simulation()
 

@@ -158,7 +158,7 @@ void FluidSystem::TransferFromCUDA (){
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FVEL),         m_Fluid.gpu(FVEL),          mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FVEL",         mbDebug);
     
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FVEVAL),       m_Fluid.gpu(FVEVAL),        mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FVELAL",       mbDebug);
-    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FFORCE),       m_FluidTemp.gpu(FFORCE),    mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FFORCE",       mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FFORCE),       m_Fluid.gpu(FFORCE),    	mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FFORCE",       mbDebug);//m_FluidTemp.gpu(FFORCE)
     //NB PhysicalSort zeros m_Fluid.gpu(FFORCE)
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPRESS),       m_Fluid.gpu(FPRESS),        mMaxPoints *sizeof(float) ),                           "TransferFromCUDA", "cuMemcpyDtoH", "FPRESS",       mbDebug);
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FDENSITY),     m_Fluid.gpu(FDENSITY),      mMaxPoints *sizeof(float) ),                           "TransferFromCUDA", "cuMemcpyDtoH", "FDENSITY",     mbDebug);
@@ -175,6 +175,36 @@ void FluidSystem::TransferFromCUDA (){
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufF(FCONC),	    m_Fluid.gpu(FCONC),	        mMaxPoints *sizeof(float[NUM_TF]) ),                   "TransferFromCUDA", "cuMemcpyDtoH", "FCONC",        mbDebug);
     cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN),	    m_Fluid.gpu(FEPIGEN),	    mMaxPoints *sizeof(uint[NUM_GENES]) ),                 "TransferFromCUDA", "cuMemcpyDtoH", "FEPIGEN",      mbDebug);
 }   // NB found FEPIGEN needed bufI and mMaxPoints, otherwise produced garbled files.
+
+void FluidSystem::TransferFromCUDA_temp (){
+//std::cout<<"\nTransferFromCUDA () 1 \n"<<std::flush;
+    // Return particle buffers
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPOS),         m_FluidTemp.gpu(FPOS),          mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FPOS",         mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FVEL),         m_FluidTemp.gpu(FVEL),          mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FVEL",         mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FVEVAL),       m_FluidTemp.gpu(FVEVAL),        mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FVELAL",       mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FFORCE),       m_FluidTemp.gpu(FFORCE),    mMaxPoints *sizeof(float)*3 ),                         "TransferFromCUDA", "cuMemcpyDtoH", "FFORCE",       mbDebug);
+
+//std::cout<<"\nTransferFromCUDA () 2 \n"<<std::flush;
+    //NB PhysicalSort zeros m_Fluid.gpu(FFORCE)
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FPRESS),       m_FluidTemp.gpu(FPRESS),        mMaxPoints *sizeof(float) ),                           "TransferFromCUDA", "cuMemcpyDtoH", "FPRESS",       mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FDENSITY),     m_FluidTemp.gpu(FDENSITY),      mMaxPoints *sizeof(float) ),                           "TransferFromCUDA", "cuMemcpyDtoH", "FDENSITY",     mbDebug);
+
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FAGE),         m_FluidTemp.gpu(FAGE),          mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FAGE",         mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FCLR),         m_FluidTemp.gpu(FCLR),          mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FCLR",         mbDebug);
+
+//std::cout<<"\nTransferFromCUDA () 3 \n"<<std::flush;
+    // add extra data for morphogenesis
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufC(FELASTIDX),	m_FluidTemp.gpu(FELASTIDX),	    mMaxPoints *sizeof(uint[BOND_DATA]) ),                 "TransferFromCUDA", "cuMemcpyDtoH", "FELASTIDX",    mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FPARTICLEIDX),	m_FluidTemp.gpu(FPARTICLEIDX),	mMaxPoints *sizeof(uint[BONDS_PER_PARTICLE *2]) ),     "TransferFromCUDA", "cuMemcpyDtoH", "FPARTICLEIDX", mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FPARTICLE_ID),	m_FluidTemp.gpu(FPARTICLE_ID),	mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FPARTICLE_ID", mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FMASS_RADIUS),	m_FluidTemp.gpu(FMASS_RADIUS),	mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FMASS_RADIUS", mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FNERVEIDX),	m_FluidTemp.gpu(FNERVEIDX),	    mMaxPoints *sizeof(uint) ),                            "TransferFromCUDA", "cuMemcpyDtoH", "FNERVEIDX",    mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufF(FCONC),	    m_FluidTemp.gpu(FCONC),	        mMaxPoints *sizeof(float[NUM_TF]) ),                   "TransferFromCUDA", "cuMemcpyDtoH", "FCONC",        mbDebug);
+    cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FEPIGEN),	    m_FluidTemp.gpu(FEPIGEN),	    mMaxPoints *sizeof(uint[NUM_GENES]) ),                 "TransferFromCUDA", "cuMemcpyDtoH", "FEPIGEN",      mbDebug);
+
+//std::cout<<"\nTransferFromCUDA () 4 \n"<<std::flush;
+}   // NB found FEPIGEN needed bufI and mMaxPoints, otherwise produced garbled files.
+
 
 void FluidSystem::Init_FCURAND_STATE_CUDA (){ // designed to use to bootstrap itself. Set j=0 from host, call kernel repeatedly for 256^n threads, n=0-> to pnum threads.
     unsigned long long  seed=0; // sequence=0, offset=1,
@@ -520,14 +550,15 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     //  (gpu-to-gpu copy, no sync needed)
     //TransferToTempCUDA ( FPOS,		mMaxPoints *sizeof(Vector3DF) );    // NB if some points have been removed, then the existing list is no longer dense,  
     //TransferToTempCUDA ( FVEL,		mMaxPoints *sizeof(Vector3DF) );    // hence must use mMaxPoints, not mNumPoints
-    //TransferToTempCUDA ( FVEVAL,	mMaxPoints *sizeof(Vector3DF) );    // { Could potentially use (old_mNumPoints + mNewPoints) instead of mMaxPoints}
-    TransferToTempCUDA ( FFORCE,	mMaxPoints *sizeof(Vector3DF) );    // NB buffers are declared and initialized on mMaxPoints.
-    TransferToTempCUDA ( FPRESS,	mMaxPoints *sizeof(float) );
-    TransferToTempCUDA ( FDENSITY,	mMaxPoints *sizeof(float) );
-    TransferToTempCUDA ( FCLR,		mMaxPoints *sizeof(uint) );
-    TransferToTempCUDA ( FAGE,		mMaxPoints *sizeof(uint) );
-    TransferToTempCUDA ( FGCELL,	mMaxPoints *sizeof(uint) );
-    TransferToTempCUDA ( FGNDX,		mMaxPoints *sizeof(uint) );
+    //TransferToTempCUDA ( FVEVAL,		mMaxPoints *sizeof(Vector3DF) );    // { Could potentially use (old_mNumPoints + mNewPoints) instead of mMaxPoints}
+
+	TransferToTempCUDA ( FFORCE,		mMaxPoints *sizeof(Vector3DF) );    // NB buffers are declared and initialized on mMaxPoints.
+    TransferToTempCUDA ( FPRESS,		mMaxPoints *sizeof(float) );
+    TransferToTempCUDA ( FDENSITY,		mMaxPoints *sizeof(float) );
+    TransferToTempCUDA ( FCLR,			mMaxPoints *sizeof(uint) );
+    TransferToTempCUDA ( FAGE,			mMaxPoints *sizeof(uint) );
+    TransferToTempCUDA ( FGCELL,		mMaxPoints *sizeof(uint) );
+    TransferToTempCUDA ( FGNDX,			mMaxPoints *sizeof(uint) );
     
     // extra data for morphogenesis
     TransferToTempCUDA ( FELASTIDX,		mMaxPoints *sizeof(uint[BOND_DATA]) );
@@ -539,9 +570,23 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     TransferToTempCUDA ( FEPIGEN,	    mMaxPoints *sizeof(uint[NUM_GENES]) );
 
                                                                                                                     // debug chk
-    																												cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FCONC), m_FluidTemp.gpu(FCONC),	mMaxPoints *sizeof(uint[NUM_GENES]) ), "CountingSortFullCUDA4", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
-    																												SaveUintArray_2D( m_Fluid.bufI(FCONC), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_FluidTemp.bufI(FCONC)2.csv" );
-    
+                                                                                                                    if(launchParams.save_csv=='y') {
+                                                                                                                        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After TransferToTempCUDA ", mbDebug);
+																														TransferFromCUDA_temp ();
+                                                                                                                		cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After cuMemcpyDtoH", mbDebug);
+                                                                                                                        SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+33);
+
+                                                                                                                        TransferFromCUDA ();
+                                                                                                                		cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After cuMemcpyDtoH", mbDebug);
+                                                                                                                        SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+34);
+
+                                                                                                                        cout<<"\nSaving points after CountingSortFullCUDA After cuMemcpyDtoH"<<std::flush;
+                                                                                                                    }
+                                                                                                                    /*
+    																												//cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FCONC), m_FluidTemp.gpu(FCONC),	mMaxPoints *sizeof(uint[NUM_GENES]) ), "CountingSortFullCUDA4", "cuMemcpyDtoH", "FCONC", mbDebug);
+                                                                                                                    //cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After cuMemcpyDtoH", mbDebug);
+    																												//SaveUintArray_2D( m_Fluid.bufI(FCONC), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_FluidTemp.bufI(FCONC)2.csv" );
+    																												*/
     																												// reset bonds and forces in fbuf FELASTIDX, FPARTICLEIDX and FFORCE, required to prevent interference between time steps,
     																												// because these are not necessarily overwritten by the FUNC_COUNTING_SORT kernel.
     cuCtxSynchronize ();    																						// needed to prevent colision with previous operations
@@ -549,11 +594,9 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
 
     float max_pos = max(max(m_Vec[PVOLMAX].x, m_Vec[PVOLMAX].y), m_Vec[PVOLMAX].z);
     uint * uint_max_pos = (uint*)&max_pos;
-    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPOS), *uint_max_pos, mMaxPoints * 3 ),  "CountingSortFullCUDA", "cuMemsetD32", "FELASTIDX",   mbDebug);
-    
+    cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPOS),    *uint_max_pos,  mMaxPoints * 3 					  ),  "CountingSortFullCUDA", "cuMemsetD32", "FELASTIDX",   mbDebug);
     																												//cout<<"\nCountingSortFullCUDA: m_Vec[PVOLMAX]=("<<m_Vec[PVOLMAX].x<<", "<<m_Vec[PVOLMAX].y<<", "<<m_Vec[PVOLMAX].z<<"),  max_pos = "<< max_pos <<std::flush;
     																												// NB resetting  m_Fluid.gpu(FPOS)  ensures no zombie particles. ?hopefully?
-    
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FELASTIDX),    UINT_MAX,  mMaxPoints * BOND_DATA              ),  "CountingSortFullCUDA", "cuMemsetD32", "FELASTIDX",    mbDebug);
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPARTICLEIDX), UINT_MAX,  mMaxPoints * BONDS_PER_PARTICLE *2  ),  "CountingSortFullCUDA", "cuMemsetD32", "FPARTICLEIDX", mbDebug);
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FPARTICLE_ID), UINT_MAX,  mMaxPoints                          ),  "CountingSortFullCUDA", "cuMemsetD32", "FPARTICLEIDX", mbDebug);
@@ -562,6 +605,19 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     cuCheck ( cuMemsetD32 ( m_Fluid.gpu(FEPIGEN),     (uint)0.0,  mMaxPoints * NUM_GENES              ),  "CountingSortFullCUDA", "cuMemsetD32", "FEPIGEN",      mbDebug);
     cuCtxSynchronize ();    // needed to prevent colision with previous operations
                                                                                                 	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+                                                                                                    				// debug chk
+                                                                                                                    if(launchParams.save_csv=='y') {
+                                                                                                                        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After TransferToTempCUDA ", mbDebug);
+																														TransferFromCUDA_temp ();
+                                                                                                                		cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After cuMemcpyDtoH", mbDebug);
+                                                                                                                        SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+35);
+
+                                                                                                                        TransferFromCUDA ();
+                                                                                                                		cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After cuMemcpyDtoH", mbDebug);
+                                                                                                                        SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+36);
+
+                                                                                                                        cout<<"\nSaving points after CountingSortFullCUDA After cuMemsetD32"<<std::flush;
+                                                                                                                    }
 
     																												// Reset grid cell IDs
     																												// cuCheck(cuMemsetD32(m_Fluid.gpu(FGCELL), GRID_UNDEF, numPoints ), "cuMemsetD32(Sort)");
@@ -569,6 +625,21 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COUNTING_SORT], m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL),
               "CountingSortFullCUDA5", "cuLaunch", "FUNC_COUNTING_SORT", mbDebug );
                                                                                                 	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
+                                                                                                    				// debug chk
+                                                                                                                    if(launchParams.save_csv=='y') {
+                                                                                                                        cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After TransferToTempCUDA ", mbDebug);
+																														TransferFromCUDA_temp ();
+                                                                                                                		cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After cuMemcpyDtoH", mbDebug);
+                                                                                                                        SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+37);
+
+                                                                                                                        TransferFromCUDA ();
+                                                                                                                		cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After cuMemcpyDtoH", mbDebug);
+                                                                                                                        SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+38);
+
+                                                                                                                        cout<<"\nSaving points after CountingSortFullCUDA After cuMemsetD32"<<std::flush;
+                                                                                                                    }
+
+
 
     																												// Having sorted the particle data, we can start using a shortened list of particles.
     																												// NB have to reset to long list at start of time step.
@@ -596,7 +667,7 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
         
         																												cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FCONC), m_Fluid.gpu(FCONC),	/*mMaxPoints*/mNumPoints *sizeof(uint[NUM_GENES]) ), "PrefixSumChangesCUDA", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
         																												SaveUintArray_2D( m_Fluid.bufI(FCONC), mMaxPoints, NUM_GENES, "CountingSortFullCUDA__m_Fluid.bufI(FCONC)3.csv" );
-        
+                                                                                                                        {
         																												//cuCheck( cuMemcpyDtoH ( m_Fluid.bufI(FGRIDCNT), m_Fluid.gpu(FGRIDCNT),	sizeof(uint[m_GridTotal]) ), "CountingSortFullCUDA9", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
         																												//SaveUintArray( m_Fluid.bufI(FGRIDCNT), m_GridTotal, "CountingSortFullCUDA__m_Fluid.bufI(FGRIDCNT).csv" );
 
@@ -607,6 +678,7 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
        																													// CUdeviceptr*  _list2pointer = (CUdeviceptr*) &m_Fluid.bufC(FDENSE_LISTS)[2 * sizeof(CUdeviceptr)];
        																													// cuCheck( cuMemcpyDtoH ( fDenseList2, *_list2pointer,	sizeof(uint[ m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2] ])/*sizeof(uint[2000])*/ ), "CountingSortFullCUDA11", "cuMemcpyDtoH", "FGRIDCNT", mbDebug);
        																													// SaveUintArray( fDenseList2, m_Fluid.bufI(FDENSE_LIST_LENGTHS)[2], "CountingSortFullCUDA__m_Fluid.bufII(FDENSE_LISTS)[2].csv" );
+                                                                                                                    	}
                                                                                                                     }
 }
 

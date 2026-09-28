@@ -359,7 +359,7 @@ void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucn
     }
 }
 
-
+/*
 // void FluidSystem::AllocateInRangeBuffers ( int gpucnt ){   // mallocs a buffer - called by FluidSystem::Initialize(), AllocateParticles, and AllocateGrid()
 // //also called by WriteDemoSimParams(..)
 //     bool rtn = true;
@@ -380,9 +380,9 @@ void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucn
 //
 // 	cuCheck(cuCtxSynchronize(),    "AllocateInRangeBuffers ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);
 // 	cudaMemGetInfo(&free2, &total);
-// 	/*if (m_FParams.debug>1)*/printf("\nAllocateInRangeBuffers, after allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
+// 	/_*if (m_FParams.debug>1)*_/printf("\nAllocateInRangeBuffers, after allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
 // }
-
+*/
 
 // Allocate particle memory
 void FluidSystem::AllocateParticles ( int cnt, int gpu_mode, int cpu_mode ){ // calls AllocateBuffer(..) for each buffer.  
@@ -997,29 +997,44 @@ void FluidSystem::Run2PhysicalSort(){
     																								time_point_Run2PhysicalSort[1]	= std::chrono::steady_clock::now();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After InsertParticlesCUDA", mbDebug);
     																										if(launchParams.debug>0){
-        																										std::cout<<"\nchk a"<<std::flush;
-        																										TransferFromCUDA ();
-        																										m_Debug_file++;
-        																										std::cout<<"\nchk b: launchParams.outPath="<<launchParams.outPath<<",  m_Frame+m_Debug_file=0;="<<m_Frame+m_Debug_file<<"\t"<<std::flush;
-      																											SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
-        																										std::cout << "\n\nRun2PhysicalSort() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  InsertParticlesCUDA\n"<<std::flush;
+                                                                                                                if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+    																											cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
+    																											if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+31);
+                                                                                                                /*
+        																									//	std::cout<<"\nchk a"<<std::flush;
+        																									//	TransferFromCUDA ();
+        																									// 	m_Debug_file++;
+        																									// 	std::cout<<"\nchk b: launchParams.outPath="<<launchParams.outPath<<",  m_Frame+m_Debug_file=0;="<<m_Frame+m_Debug_file<<"\t"<<std::flush;
+      																											// SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
+        																									// 	std::cout << "\n\nRun2PhysicalSort() Chk1, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  InsertParticlesCUDA\n"<<std::flush;
         																										//TransferFromTempCUDA(int buf_id, int sz );
+        																										*/
     																										}
     																								time_point_Run2PhysicalSort[2]	= std::chrono::steady_clock::now();
     PrefixSumCellsCUDA ( 1 );
     																								time_point_Run2PhysicalSort[3]	= std::chrono::steady_clock::now();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After PrefixSumCellsCUDA", mbDebug);
     																										if(launchParams.debug>0){
+                                                                                                                if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+    																											cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
+    																											if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+32);
+                                                                                                                /*
         																										TransferFromCUDA ();
        																											m_Debug_file++;
       																											SavePointsCSV2 (  launchParams.outPath, m_Frame+m_Debug_file );
         																										std::cout << "\n\nRun2PhysicalSort() Chk2, saved "<<launchParams.outPath<< m_Frame+m_Debug_file <<".csv  After  PrefixSumCellsCUDA\n"<<std::flush;
         																										//TransferFromTempCUDA(int buf_id, int sz );
+                                                                                                                */
     																										}
     																								time_point_Run2PhysicalSort[4]	= std::chrono::steady_clock::now();
     CountingSortFullCUDA ( 0x0 );
     																								time_point_Run2PhysicalSort[5]	= std::chrono::steady_clock::now();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After CountingSortFullCUDA", mbDebug);
+    																										if(launchParams.debug>0){
+    																											if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
+    																											cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
+    																											if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+31);
+                                                                                                            }
     																								time_point_Run2PhysicalSort[6]	= std::chrono::steady_clock::now();
     																										if(m_FParams.debug>1)std::cout<<"\n####\nRun2PhysicalSort()end";
 }
