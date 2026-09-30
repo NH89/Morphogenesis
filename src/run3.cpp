@@ -26,7 +26,7 @@ void FluidSystem::Run3Simulation(){
 	//cout<<"\nvoid FluidSystem::Run3Simulation(),   (m_FParams.freeze==true)="<<(m_FParams.freeze==true)<<std::flush;  // ### debug
     																								time_point_Run3_[3]	= std::chrono::steady_clock::now();
     m_Debug_file=0;
-    																									if (m_FParams.debug>0)std::cout<<"\n\nFreeze()"<<-1<<"\n"<<std::flush;
+    																									if (m_FParams.debug>0)std::cout<<"\n\nFluidSystem::Run3Simulation() Freeze()"<<-1<<"\n"<<std::flush;
 
                                                                                                     	if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
     																									cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
@@ -34,7 +34,7 @@ void FluidSystem::Run3Simulation(){
 
     Run2PhysicalSort();
     																								time_point_Run3_[4]	= std::chrono::steady_clock::now();
-
+	///////////////////////////////////////// InitializeBondsCUDA(); ////////////////////////////////////
                                                                                                     	if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
     																									cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
     																									if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+39);
@@ -46,18 +46,17 @@ void FluidSystem::Run3Simulation(){
     																									cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
     																									if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+40);
     																									if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+40);
-    																									if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+    																									if (m_FParams.debug>0)cout << "\nFluidSystem::Run3Simulation()  File# " << launchParams.file_num << ". " << std::flush;
     launchParams.file_num+=100;
 
-    /////////
+    ///////////////////////////////////////// launchParams.freeze_steps ////////////////////////////////////
     																								time_point_Run3_[6]	= std::chrono::steady_clock::now();
 
-
-																											std::cerr<<"\n\nFreeze steps:  freeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
-        																									std::cout<<"\n\nFreeze steps:  freeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
+																											std::cerr<<"\n\nFluidSystem::Run3Simulation() Freeze steps:  freeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
+        																									std::cout<<"\n\nFluidSystem::Run3Simulation() Freeze steps:  freeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
     for ( ; launchParams.file_num<(launchParams.freeze_steps*100); launchParams.file_num+=100 ) {
-																											std::cerr<<"\n\nfreeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
-        																									std::cout<<"\n\nfreeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
+																											std::cerr<<"\n\nFluidSystem::Run3Simulation() freeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
+        																									std::cout<<"\n\nFluidSystem::Run3Simulation() freeze file_num="<<launchParams.file_num<<", of "<<launchParams.freeze_steps<<"\n"<<std::flush;
         m_Debug_file=0;
         m_Frame=launchParams.file_num;
         launchParams.file_increment=0;                                                                      // used within Run2InnerPhysicalLoop();
@@ -84,20 +83,20 @@ void FluidSystem::Run3Simulation(){
         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
         																									if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+60);
         																									if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+60);
-                                                                                                            if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+                                                                                                            if (m_FParams.debug>0)cout << "\nFluidSystem::Run3Simulation()  File# " << launchParams.file_num << ". " << std::flush;
     }
     																								time_point_Run3_[15]	= std::chrono::steady_clock::now();
     setFreeze(false);                                                                                       // freeze=false => bonds can be broken now.
     																								time_point_Run3_[16]	= std::chrono::steady_clock::now();
-    																										printf("\n\n### Freeze finished, starting normal Run ##############################################\n\n");
-    //Run2PhysicalSort();
+    																										printf("\n\nFluidSystem::Run3Simulation() ### Freeze finished, starting normal Run ##############################################\n\n");
+    ////////////////////////////////////////// launchParams.num_files ////////////////////////////////////////////
 
-    																										cout<<"\n launchParams.file_num = "<< launchParams.file_num <<"   <launchParams.num_files = "<< launchParams.num_files  << std::flush;
+    																										cout<<"\nFluidSystem::Run3Simulation() launchParams.file_num = "<< launchParams.file_num <<"   <launchParams.num_files = "<< launchParams.num_files  << std::flush;
     																								time_point_Run3_[17]	= std::chrono::steady_clock::now();
 
     for ( ; launchParams.file_num<launchParams.num_files; launchParams.file_num+=100 ) {
-																											std::cerr<<"\n\nfile_num="<<launchParams.file_num<<", of "<<launchParams.num_files<<"\n"<<std::flush;
-        																									std::cout<<"\n\nfile_num="<<launchParams.file_num<<", of "<<launchParams.num_files<<"\n"<<std::flush;
+																											std::cerr<<"\n\nFluidSystem::Run3Simulation() file_num="<<launchParams.file_num<<", of "<<launchParams.num_files<<"\n"<<std::flush;
+        																									std::cout<<"\n\nFluidSystem::Run3Simulation() file_num="<<launchParams.file_num<<", of "<<launchParams.num_files<<"\n"<<std::flush;
         m_Debug_file=0;
         m_Frame=launchParams.file_num;
         launchParams.file_increment=0;                                                                      // used within Run2InnerPhysicalLoop();
@@ -117,12 +116,12 @@ void FluidSystem::Run3Simulation(){
             Run2PhysicalSort();                                                                             // Run2PhysicalSort();                // sort required for SavePointsVTP2
         }
     																								time_point_Run3_[22]	= std::chrono::steady_clock::now();
-        																			// 						auto begin = std::chrono::steady_clock::now();
+                                                                                                    //	auto begin = std::chrono::steady_clock::now();
 																											if(launchParams.save_csv=='y'||launchParams.save_vtp=='y') TransferFromCUDA ();
         																									cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "Run2Simulation After TransferFromCUDA", mbDebug);
         																									if(launchParams.save_csv=='y') SavePointsCSV2 ( launchParams.outPath, launchParams.file_num+90);
         																									if(launchParams.save_vtp=='y') SavePointsVTP2 ( launchParams.outPath, launchParams.file_num+90);
-        																									if (m_FParams.debug>0)cout << "\n File# " << launchParams.file_num << ". " << std::flush;
+        																									if (m_FParams.debug>0)cout << "\nFluidSystem::Run3Simulation()  File# " << launchParams.file_num << ". " << std::flush;
 /*                           //
         																			// 						auto end = std::chrono::steady_clock::now();
         																			// 						std::chrono::duration<double> time = end - begin;
@@ -274,9 +273,11 @@ void FluidSystem::Run3Simulation(){
 
         //if (mActivePoints < 500 ){std::cout<<"\n(mActivePoints < 500) stopping. chk why I am loosing particles?"<<std::flush;  Exit();}        // temp chk for why I am loosing particles.
     }
+    ////////////////////////////////////////// Save results ///////////////////////////////////////////////////
+
     //launchParams.file_num++;
-     																				/*if(launchParams.debug>0)*/ std::cerr << "\nWriting final files \n" << std::endl;
-     																				/*if(launchParams.debug>0)*/ std::cout << "\nWriting final files \n" << std::endl;
+     																				/*if(launchParams.debug>0)*/ std::cerr << "\nFluidSystem::Run3Simulation() Writing final files \n" << std::endl;
+     																				/*if(launchParams.debug>0)*/ std::cout << "\nFluidSystem::Run3Simulation() Writing final files \n" << std::endl;
 
     TransferFromCUDA ();
    // m_FParams.debug = 2; //	### temporary
@@ -287,6 +288,6 @@ void FluidSystem::Run3Simulation(){
     WriteSimParams ( launchParams.outPath );
     WriteGenome( launchParams.outPath );
     WriteSpecificationFile_fromLaunchParams( launchParams.outPath );
-																					/*if(launchParams.debug>0)*/ std::cerr << "\nFluidSystem::run3() finished \n" << std::endl;
-																					/*if(launchParams.debug>0)*/ std::cout << "\nFluidSystem::run3() finished \n" << std::endl;
+																					/*if(launchParams.debug>0)*/ std::cerr << "\nFluidSystem::Run3Simulation()  finished \n" << std::endl;
+																					/*if(launchParams.debug>0)*/ std::cout << "\nFluidSystem::Run3Simulation()  finished \n" << std::endl;
 }

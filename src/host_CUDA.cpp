@@ -570,7 +570,7 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     TransferToTempCUDA ( FEPIGEN,	    mMaxPoints *sizeof(uint[NUM_GENES]) );
 
                                                                                                                     // debug chk
-                                                                                                                    if(launchParams.save_csv=='y') {
+                                                                                                                    if(m_FParams.debug>3 && launchParams.save_csv=='y') {
                                                                                                                         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After TransferToTempCUDA ", mbDebug);
 																														TransferFromCUDA_temp ();
                                                                                                                 		cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After cuMemcpyDtoH", mbDebug);
@@ -606,7 +606,7 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
     cuCtxSynchronize ();    // needed to prevent colision with previous operations
                                                                                                 	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
                                                                                                     				// debug chk
-                                                                                                                    if(launchParams.save_csv=='y') {
+                                                                                                                    if(m_FParams.debug>3 && launchParams.save_csv=='y') {
                                                                                                                         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After TransferToTempCUDA ", mbDebug);
 																														TransferFromCUDA_temp ();
                                                                                                                 		cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After cuMemcpyDtoH", mbDebug);
@@ -626,7 +626,7 @@ void FluidSystem::CountingSortFullCUDA ( Vector3DF* ppos ){
               "CountingSortFullCUDA5", "cuLaunch", "FUNC_COUNTING_SORT", mbDebug );
                                                                                                 	time_point_InsertParticlesCUDA[0]	= std::chrono::steady_clock::now();
                                                                                                     				// debug chk
-                                                                                                                    if(launchParams.save_csv=='y') {
+                                                                                                                    if(m_FParams.debug>3 && launchParams.save_csv=='y') {
                                                                                                                         cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After TransferToTempCUDA ", mbDebug);
 																														TransferFromCUDA_temp ();
                                                                                                                 		cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "CountingSortFullCUDA After cuMemcpyDtoH", mbDebug);
@@ -742,14 +742,21 @@ void FluidSystem::InitializeBondsCUDA (){
 }
 
 void FluidSystem::ComputePressureCUDA (){
-    void* args[1] = { &mActivePoints };
+    uint mMaxPoints_ = 0;
+    if(launchParams.gene_activity=='y')  mMaxPoints_ = mMaxPoints ;
+
+    void* args[2] = { &mActivePoints, &mMaxPoints };
     //cout<<"\nComputePressureCUDA: mActivePoints="<<mActivePoints<<std::flush;
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_PRESS],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputePressureCUDA", "cuLaunch", "FUNC_COMPUTE_PRESS", mbDebug);
 }
 
 void FluidSystem::ComputeDiffusionCUDA(){
-    if (m_FParams.debug>1) std::cout << "\n\nRunning ComputeDiffusionCUDA()" << std::endl;
-    void* args[1] = { &mActivePoints };
+    if (m_FParams.debug>1) std::cout << "\n\nRunning ComputeDiffusionCUDA()  "
+        <<"\n mActivePoints = "<<mActivePoints
+        <<"\n mNumPoints    = "<<mNumPoints
+        <<"\n mMaxPoints    = "<<mMaxPoints
+        << std::endl;
+    void* args[2] = { &mActivePoints, &mMaxPoints };
     cuCheck ( cuLaunchKernel ( m_Func[FUNC_COMPUTE_DIFFUSION],  m_FParams.numBlocks, 1, 1, m_FParams.numThreads, 1, 1, 0, NULL, args, NULL), "ComputeDiffusionCUDA", "cuLaunch", "FUNC_COMPUTE_DIFFUSION", mbDebug);
 }
 

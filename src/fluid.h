@@ -237,7 +237,7 @@
 			inline CALLFUNC uint*   bufI (int n)		{ return (uint*)   mgpu[n]; }
 			inline CALLFUNC char*   bufC (int n)		{ return (char*)   mgpu[n]; }
 			inline CALLFUNC uint**  bufII (int n)       { return (uint**)  mgpu[n]; }        // for elastIdx[][]
-			inline CALLFUNC curandState_t*  bufCuRNDST (int n)       { return (curandState_t*)  mgpu[n]; }
+			inline CALLFUNC curandState_t*  bufCuRNDST (int n)       { return (curandState_t*)  	 mgpu[n]; }
 			inline CALLFUNC unsigned long long*  bufULL (int n)      { return (unsigned long long*)  mgpu[n]; }
 			//inline CALLFUNC unsigned short* bufS (int n)		{ return (unsigned short*)   mgpu[n]; }
 		#else
@@ -251,7 +251,7 @@
 			inline CALLFUNC uint*   bufI (int n)		{ return (uint*)   mcpu[n]; }
 			inline CALLFUNC char*   bufC (int n)		{ return (char*)   mcpu[n]; }
 			inline CALLFUNC uint**  bufII (int n)       { return (uint**)  mcpu[n]; }        // for elastIdx[][]
-			inline CALLFUNC curandState_t*  bufCuRNDST (int n)       { return (curandState_t*)  mcpu[n]; }
+			inline CALLFUNC curandState_t*  bufCuRNDST (int n)       { return (curandState_t*)  	 mcpu[n]; }
 			inline CALLFUNC unsigned long long*  bufULL (int n)      { return (unsigned long long*)  mcpu[n]; }
 			
 			//inline CALLFUNC unsigned short* bufS (int n)		{ return (unsigned short*)   mgpu[n]; }

@@ -83,6 +83,7 @@ int main ( int argc, const char** argv )
         num_particles_start=fluid.ActivePoints();
     	fluid.TransferToCUDA ();
     }
+	fluid.GetGenome();
 
     																					if(fluid.launchParams.save_csv=='y'){
                                                                                             fluid.SavePointsCSV2 ( fluid.launchParams.outPath, fluid.launchParams.file_num+5);

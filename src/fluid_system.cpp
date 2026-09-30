@@ -242,6 +242,13 @@ cout << "\nFluidSystem::InitializeCuda : chk_4 "<<std::flush;
 /////////////////////////////////////////////////////////////////
 void FluidSystem::UpdateGenome (){              // Update Genome on GPU
     cuCheck ( cuMemcpyHtoD ( cuFGenome,	&m_FGenome,		sizeof(FGenome) ), "FluidGenomeCUDA", "cuMemcpyHtoD", "cuFGenome", mbDebug);
+    																											if(m_debug>0){
+    																												cout<<"\nFluidSystem::UpdateGenome () &m_FGenome.tf_diffusability[i]=(";
+    																												for(int j=0; j<NUM_TF; j++){
+        																												cout<<" "<<m_FGenome.tf_diffusability[j]<<",";
+                                                                                                                    }
+    																												cout<<")"<<std::flush;
+                                                                                                                }
 }
 
 FGenome	FluidSystem::GetGenome(){
@@ -257,7 +264,10 @@ FGenome	FluidSystem::GetGenome(){
             for (int i=0; i<NUM_GENES; i++)for (int j=0; j<2*NUM_GENES+1; j++)tempGenome.activate[i][j]=m_FGenome.activate[i][j];
             
             for (int i=0; i<3;i++)for(int j=0; j<12; j++)tempGenome.param[i][j]=m_FGenome.param[i][j];
-            std::cout<<"\nGetGenome(): m_FGenome.delay[0]="<<m_FGenome.delay[0]<<"\ttempGenome.delay[0]="<<tempGenome.delay[0]<<std::flush;
+            for (int i=0; i<NUM_GENES; i++){
+            	std::cout<<"\nGetGenome(): m_FGenome.delay["           <<i<<"]="<<m_FGenome.delay[i]           <<"\ttempGenome.delay["            <<i<<"]="<<tempGenome.delay[i]            <<std::flush;
+                std::cout<<"\tGetGenome(): m_FGenome.tf_diffusability["<<i<<"]="<<m_FGenome.tf_diffusability[i]<<"\ttempGenome.tf_breakdown_rate["<<i<<"]="<<tempGenome.tf_breakdown_rate[i]<<std::flush;
+            }
             return tempGenome;
         }
 
@@ -355,7 +365,7 @@ void FluidSystem::AllocateBuffer ( int buf_id, int stride, int cpucnt, int gpucn
 
         cuCheck(cuCtxSynchronize(), "AllocateBuffer ", "cuCtxSynchronize", "before 2nd cudaMemGetInfo(&free2, &total)", mbDebug);  
         cudaMemGetInfo(&free2, &total);
-        /*if (m_FParams.debug>1)*/printf("\nAfter allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
+        if (m_FParams.debug>1)printf("\nAfter allocation: free=%lu, total=%lu, this buffer=%lu.\n",free2,total,(free1-free2) );
     }
 }
 
@@ -420,10 +430,10 @@ if (m_FParams.debug>1)std::cout<<"\tGPU_OFF=0, GPU_SINGLE=1, GPU_TEMP=2, GPU_DUA
     
     // Update GPU access pointers
     if (gpu_mode != GPU_OFF ) {
-        cuCheck( cuMemcpyHtoD(cuFBuf, &m_Fluid, sizeof(FBufs)),			"AllocateParticles", "cuMemcpyHtoD", "cuFBuf", mbDebug);
-        cuCheck( cuMemcpyHtoD(cuFTemp, &m_FluidTemp, sizeof(FBufs)),	"AllocateParticles", "cuMemcpyHtoD", "cuFTemp", mbDebug);
-        cuCheck( cuMemcpyHtoD(cuFParams, &m_FParams, sizeof(FParams)),  "AllocateParticles", "cuMemcpyHtoD", "cuFParams", mbDebug);
-        cuCheck( cuMemcpyHtoD(cuFGenome, &m_FGenome, sizeof(FGenome)),  "AllocateParticles", "cuMemcpyHtoD", "cuFGenome", mbDebug);
+        cuCheck( cuMemcpyHtoD( cuFBuf,		&m_Fluid,		sizeof(FBufs)),		"AllocateParticles", "cuMemcpyHtoD", "cuFBuf",		mbDebug);
+        cuCheck( cuMemcpyHtoD( cuFTemp,		&m_FluidTemp,	sizeof(FBufs)),		"AllocateParticles", "cuMemcpyHtoD", "cuFTemp",		mbDebug);
+        cuCheck( cuMemcpyHtoD( cuFParams,	&m_FParams,		sizeof(FParams)),	"AllocateParticles", "cuMemcpyHtoD", "cuFParams",	mbDebug);
+        cuCheck( cuMemcpyHtoD( cuFGenome,	&m_FGenome,		sizeof(FGenome)),	"AllocateParticles", "cuMemcpyHtoD", "cuFGenome",	mbDebug);
         cuCheck(cuCtxSynchronize(), "AllocateParticles", "cuCtxSynchronize", "", mbDebug );
     }
 
@@ -1091,10 +1101,10 @@ void FluidSystem::Run2InnerPhysicalLoop(){
 void FluidSystem::Run2GeneAction(){//NB gene sorting occurs within Run2PhysicalSort()
     																										if(m_FParams.debug>0)std::cout<<"\n####\nRun2GeneAction()start";
     																								time_point_Run2GeneAction[0]	= std::chrono::steady_clock::now();
-    ComputeDiffusionCUDA();
+//    ComputeDiffusionCUDA();
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
     																								time_point_Run2GeneAction[1]	= std::chrono::steady_clock::now();
-    ComputeGenesCUDA(); // NB (i)Epigenetic countdown, (ii) GRN gene regulatory network sensitivity to TransciptionFactors (FCONC)
+//    ComputeGenesCUDA(); // NB (i)Epigenetic countdown, (ii) GRN gene regulatory network sensitivity to TransciptionFactors (FCONC)
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeGenesCUDA", mbDebug);
     																								time_point_Run2GeneAction[2]	= std::chrono::steady_clock::now();
     																										if(m_FParams.debug>1)std::cout<<"\n####\nRun2GeneAction()end";

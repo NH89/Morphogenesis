@@ -769,8 +769,9 @@ void FluidSystem::ReadPointsCSV2 ( const char * relativePath, int gpu_mode, int 
     SetupGrid ( m_Vec[PVOLMIN]/*bottom corner*/, m_Vec[PVOLMAX]/*top corner*/, m_Param[PSIMSCALE], m_Param[PGRIDSIZE]);
     if (gpu_mode != GPU_OFF) {     // create CUDA instance etc.. 
         FluidSetupCUDA ( mMaxPoints, m_GridSrch, *(int3*)& m_GridRes, *(float3*)& m_GridSize, *(float3*)& m_GridDelta, *(float3*)& m_GridMin, *(float3*)& m_GridMax, m_GridTotal, 0 );
-        UpdateParams();            //  sends simulation params to device.
+        UpdateParams();            //  sends simulation params to device.	// ### TODO redundant wrt AllocateParticles(..)
         UpdateGenome();            //  sends genome to device.              // NB need to initialize genome from file, or something.
+        cout<<"\nFluidSystem::ReadPointsCSV2,  called FluidSetupCUDA (..); UpdateParams(); UpdateGenome();  "<<std::flush;
     }
     
 																																										//cout<<"ReadPointsCSV2: AllocateParticles ( "<<mMaxPoints<<", "<<gpu_mode<<", "<<cpu_mode<<" )"<<std::flush;
@@ -830,9 +831,9 @@ if (m_FParams.debug>1) std::cout<<"\n\n ReadPointsCSV2() starting loop: number_o
 																																										if (m_FParams.debug>1) std::cout<<"(line 1263, ret="<<ret<<")\t"<<std::flush;
         ret += std::fscanf(points_file, " \t%u, %u, %u, %u, \t\t", &Particle_ID, &mass, &radius, &NerveIdx);
         Mass_Radius = mass + (radius << 16);                                    // pack two 16bit uint  into one 32bit uint.											if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1266, ret="<<ret<<"),\t"<<std::flush;
-        for(int j=0; j<(BONDS_PER_PARTICLE*2); j+=2) {  ret += std::fscanf(points_file, "%u, %u,, ",  	&Particle_Idx[j], &Particle_Idx[j+1] );  }						if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1270, ret="<<ret<<"),\t"<<std::flush;
-        for(int j=0; j<(NUM_TF); j++)       {    		ret += std::fscanf(points_file, "%f, ",  		&Conc[j] );   } ret += std::fscanf(points_file, "\t");			if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1272, ret="<<ret<<"),\t"<<std::flush;
-        for(int j=0; j<(NUM_GENES); j++)    {    		ret += std::fscanf(points_file, "%u, ",  		&EpiGen[j] ); } ret += std::fscanf(points_file, " \n");			if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1274, ret="<<ret<<"),\t"<<std::flush;
+        for(int j=0; j<(BONDS_PER_PARTICLE*2);	j+=2) { ret += std::fscanf(points_file, "%u, %u,, ",  	&Particle_Idx[j], &Particle_Idx[j+1] );  }						if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1270, ret="<<ret<<"),\t"<<std::flush;
+        for(int j=0; j<(NUM_TF); 				j++)  {	ret += std::fscanf(points_file, "%f, ",  		&Conc[  j] ); } ret += std::fscanf(points_file, "\t");			if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1272, ret="<<ret<<"),\t"<<std::flush;
+        for(int j=0; j<(NUM_GENES); 			j++)  { ret += std::fscanf(points_file, "%u, ",  		&EpiGen[j] ); } ret += std::fscanf(points_file, "\n");			if (m_FParams.debug>1) std::cout<<"(ReadPointsCSV2() line 1274, ret="<<ret<<"),\t"<<std::flush;
 
 		if (ret != (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES) ) {  // 9 + 6*9 + 4 + 6*2 + 16 + 16 = 111
             if (m_FParams.debug>1) std::cout<<"\n ReadPointsCSV2() fail line 1276,  ret="<<ret<<"!= (9 + BOND_DATA + 4 + BONDS_PER_PARTICLE*2 + NUM_TF + NUM_GENES)    Formatting of this .csv file does not match. Try generating a new .csv file with \"make_demo\"\n"<<std::flush;// ret=39
@@ -845,6 +846,7 @@ if (m_FParams.debug>1) std::cout<<"\n\n ReadPointsCSV2() starting loop: number_o
                 || Pos.x > PosMax.x   || Pos.y > PosMax.y || Pos.z > PosMax.z
                 || (Vel.x * Vel.x + Vel.y * Vel.y + Vel.z * Vel.z) > vel_lim * vel_lim )
         {
+        /*
             //if (m_FParams.debug>1) {
             //  std::cout << "\n void FluidSystem::ReadPointsCSV, out of bounds !  particle number = " << i;
             //  std::cout << "\n Pos.x = " << Pos.x << "  Pos.y = " << Pos.y << "  Pos.z = " << Pos.z;
@@ -853,11 +855,10 @@ if (m_FParams.debug>1) std::cout<<"\n\n ReadPointsCSV2() starting loop: number_o
             //  std::cout << "\n velocity = " << sqrt(Vel.x * Vel.x + Vel.y * Vel.y + Vel.z * Vel.z) << "   vel_lim = " << vel_lim;
             //  std::cout << "\n " << std::flush;
             //}
-            /*if (m_FParams.debug>1)*/printf("\nParticle out of bounds, i=%u\t Pos=(%f,%f,%f), PosMin=(%f,%f,%f), PosMax=(%f,%f,%f), Setting Pos=PosMax.",	// ### TODO change particle store location & sorting to be stable to changes of PosMin & PosMax.
-                   i, Pos.x, Pos.y, Pos.z, PosMin.x, PosMin.y, PosMin.z, PosMax.x, PosMax.y, PosMax.z );
+        */
+        	if (m_FParams.debug>1)printf("\nParticle out of bounds, i=%u\t Pos=(%f,%f,%f), PosMin=(%f,%f,%f), PosMax=(%f,%f,%f), Setting Pos=PosMax.",	// ### TODO change particle store location & sorting to be stable to changes of PosMin & PosMax.
+                                                                    i, Pos.x, Pos.y, Pos.z, PosMin.x, PosMin.y, PosMin.z, PosMax.x, PosMax.y, PosMax.z );
             Pos = PosMax;
-            //fflush(points_file); fclose(points_file);
-            //Exit();
         }
         if ( Pos.x < PosMax.x   || Pos.y < PosMax.y || Pos.z < PosMax.z ) mActivePoints++;																				// NB inactive points are stored at Pos.xyz == PosMax.xyz
         AddParticleMorphogenesis2 (&Pos, &Vel, Age, Clr, ElastIdxU, ElastIdxF, Particle_Idx, Particle_ID, Mass_Radius,  NerveIdx, Conc, EpiGen );
