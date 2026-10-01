@@ -59,14 +59,14 @@ int main ( int argc, const char** argv )
 																													<<", \nfluid.launchParams.spacing    = "<<fluid.launchParams.spacing	<<std::flush;
 	//fluid.save_stdout(std::filesystem::path( output_folder),  std::string( "stdout.txt") );	// seriously slows down execution.
 	uint num_particles_start=0;
-    if(fluid.launchParams.loadSim=='y'){												cout <<"\n\n### make_demo2 chk8,  (fluid.launchParams.loadSim=='y') : "<<fluid.launchParams.loadSim<<std::flush;
+    if(fluid.launchParams.loadSim=='y'){												cout <<"\n\n### make_demo2 chk8,  (fluid.launchParams.loadSim =='y') : "<<fluid.launchParams.loadSim<<std::flush;
         fluid.ReadSimParams( 	fluid.launchParams.paramsPath);
         fluid.ReadGenome(		fluid.launchParams.genomePath);
         fluid.ReadPointsCSV2(	fluid.launchParams.pointsPath, GPU_DUAL, CPU_YES);	// int gpu_mode, int cpu_mode
         num_particles_start=	fluid.ActivePoints();
         fluid.SavePointsVTP2(	fluid.launchParams.outPath, 1);
         fluid.SavePointsCSV2(	fluid.launchParams.outPath, 1);
-    }else{																				cout <<"\n\n### make_demo2 chk8,  (fluid.launchParams.loadSim=='y') : "<<fluid.launchParams.loadSim<<std::flush;
+    }else{																				cout <<"\n\n### make_demo2 chk8,  (fluid.launchParams.loadSim !='y') : "<<fluid.launchParams.loadSim<<std::flush;
     	fluid.WriteDemoSimParams(           // Generates the simulation from data previously loaded from SpecificationFile.txt .
         	fluid.launchParams.paramsPath,
         	GPU_DUAL,

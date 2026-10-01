@@ -690,7 +690,7 @@ extern "C" __global__ void computePressure ( int pnum,  int max_pnum )						// n
 	if ( i >= pnum ) return;
 	// Distance and pressure variables
 	float3 dist;
-	float dsq, r, q, b, c, sum = 0.0, sum_p6k = 0.0;
+	float dsq, r, q, b, c, sum	= 0.0, sum_p6k = 0.0;
 	float3 pos = fbuf.bufF3(FPOS) [i];
 
     //// concentration & diffusability of TFs
@@ -699,23 +699,23 @@ extern "C" __global__ void computePressure ( int pnum,  int max_pnum )						// n
     uint diffusability[NUM_TF]	= {0};
     if(max_pnum >0){
     	for (int j = 0; j < NUM_TF; j++){
-    	    currentConc[j] 			= fbuf.bufF(FCONC)[ j*max_pnum +i];
-    	    if(i<5 ){	printf("\nkernel computePressure  Diffusion()_1 i=%i, currentConc[%u]=%f", i, j, currentConc[j]);  }
+    	    currentConc[j]		= fbuf.bufF(FCONC)[ j*max_pnum +i];
+    	   // if(i<5 ){	printf("\nkernel computePressure  Diffusion()_1 i=%i, currentConc[%u]=%f", i, j, currentConc[j]);  }
     	}
     	for (int j = 0; j < NUM_TF; j++){
-    	    diffusability[j]				= fgenome.tf_diffusability[j];
-    	    if(i==10)	printf("\nkernel computeDiffusion()_2 i=%i,  diffusability[%i]=%u", i, j,  diffusability[j] );
+    	    diffusability[j]	= fgenome.tf_diffusability[j];
+    	   // if(i==10)	printf("\nkernel computeDiffusion()_2 i=%i,  diffusability[%i]=%u", i, j,  diffusability[j] );
     	}
     }
 																				// max length in simulation space							//register float d2 = fparam.psimscale * fparam.psimscale;
 	// Get simulation parameters
-	register float r2 = fparam.r2;												// = m_FParams.psmoothradius^2 / m_FParams.psimscale^2		// / d2;
-	register float H  = fparam.H;												// = m_FParams.psmoothradius / m_FParams.psimscale;
-	register float sr = fparam.psmoothradius;
+	register float r2	= fparam.r2;											// = m_FParams.psmoothradius^2 / m_FParams.psimscale^2		// / d2;
+	register float H	= fparam.H;												// = m_FParams.psmoothradius / m_FParams.psimscale;
+	register float sr	= fparam.psmoothradius;
 
 	// Get search cell
-	int nadj	= (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
-	uint gc		= fbuf.bufI(FGCELL) [i];										// get grid cell of the current particle.
+	int nadj			= (1*fparam.gridRes.z + 1)*fparam.gridRes.x + 1;
+	uint gc				= fbuf.bufI(FGCELL) [i];										// get grid cell of the current particle.
 	if ( gc == GRID_UNDEF ) return;												// IF particle not in the simulation
 	gc			-= nadj;
 
@@ -733,18 +733,18 @@ extern "C" __global__ void computePressure ( int pnum,  int max_pnum )						// n
             if(pndx>= pnum){/*printf("\n## computePressure(..) (pndx%i>= pnum%i)", pndx, pnum);*/ break;}
             ///// pressure ///////
 			if ( dsq < r2 && dsq > 0.0) {										// if(in-range && not the same particle) ie unused particles can be stored at one point.	//nb dsq=0 -> sum+=1
-                dsq = (fparam.rd2 - dsq) * fparam.d2;		/*pvt_Range[idx]*//*.w*/
-				sum += dsq * dsq * dsq;
+                dsq 	= (fparam.rd2 - dsq) * fparam.d2;		/*pvt_Range[idx]*//*.w*/
+				sum 	+= dsq * dsq * dsq;
 
                 ///// diffusion //////
                 if(max_pnum >0){
 					// distance falloff, diffusion rate scalar
-            		float c = (r2 - dsq) / r2;
+            		float c = 0.01f * (r2 - dsq) / r2;
             		// chemical loop
             		// for each chemical in this neighbour particle, exchange an amount relative to the diffusion rate with us
             		// get the j'th chemical from this particle and exchange
             		#pragma unroll
-            		for (int j = 0; j < NUM_TF; j++) {
+            		for (int j = NUM_TF/2; j < NUM_TF; j++) {					// ### TODO need a compile timne solution wrt which TFs are diffusable morphogens.
                 		if(diffusability[j]) newConc[j] += diffusability[j] * c * (fbuf.bufF(FCONC)[  j*max_pnum + pndx ] - currentConc[j]);
                 	}
                 }
@@ -792,8 +792,8 @@ extern "C" __global__ void computePressure ( int pnum,  int max_pnum )						// n
     if(max_pnum >0){
     	#pragma unroll
     	for (int j = 0; j < NUM_TF; j++){
-    	    printf("\nkernel computeDiffusion()_4 i=%u,  fgenome.tf_breakdown_rate[%u]=%f,    currentConc[j]=%f,    newConc[j]=%f",\
-    	                                          i,       j,  fgenome.tf_breakdown_rate[j],  currentConc[j],       newConc[j]     );
+    	    // printf("\nkernel computeDiffusion()_4 i=%u,  fgenome.tf_breakdown_rate[%u]=%f,    currentConc[j]=%f,    newConc[j]=%f",\
+    	    //                                       i,       j,  fgenome.tf_breakdown_rate[j],  currentConc[j],       newConc[j]     );
     	    fbuf.bufF(FCONC)[j*max_pnum +i] = fgenome.tf_breakdown_rate[j] * (currentConc[j] + newConc[j]);
     	}
     }

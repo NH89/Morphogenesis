@@ -572,6 +572,8 @@ int FluidSystem::AddParticleMorphogenesis2 (Vector3DF* Pos, Vector3DF* Vel, uint
         uint* EpiGen 					= getEpiGen(j);	// uint* getEpiGen(int gene) { return &m_Fluid.bufI(FEPIGEN)[gene*mMaxPoints];}   //note #define FEPIGEN     17    //# uint[NUM_GENES]   // used in savePoints...
         EpiGen[n]    					= _EpiGen[j];                                   // NB 'n' is particle index, from start of this gene. Data order:  FEPIGEN[gene][particle]
     }
+
+
     mNumPoints++;
     return n;
 }
@@ -648,9 +650,18 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
     uint EpiGen[NUM_GENES]={0};
     Particle_ID = 0;                         // NB Particle_ID=0 means "no particle" in ElastIdx.           
     Vector3DF volV3DF = max-min;    
-    int num_particles_to_make = 8 * int(volV3DF.x*volV3DF.y*volV3DF.z);// 27 * //int(volV3DF.x*volV3DF.y*volV3DF.z / spacing*spacing*spacing);
+    int num_particles_to_make = std::min( mMaxPoints, (8 * int(volV3DF.x*volV3DF.y*volV3DF.z)) );// 27 * //int(volV3DF.x*volV3DF.y*volV3DF.z / spacing*spacing*spacing);
+
     srand((unsigned int)time(NULL));
     if (m_FParams.debug>1)cout<<"\nSetupAddVolumeMorphogenesis2: num_particles_to_make="<<num_particles_to_make<<",   min=("<<min.x<<","<<min.y<<","<<min.z<<"), max=("<<max.x<<","<<max.y<<","<<max.z<<") "<<std::flush;
+
+    ///////////// for demo TF particles
+	int sample_idx[NUM_TF];
+    for(int i=0; i<NUM_TF; i++){
+        sample_idx[i] = floor(num_particles_to_make * i / NUM_TF);
+        //cout<<"\nsample_idx["<<i<<"] = "<<sample_idx[i]<<std::flush;
+    }
+	/////////////
     for (int i=0; i<num_particles_to_make; i++){
         Pos.x =  min.x + (float(rand())/float((RAND_MAX)) * dx) ;
         Pos.y =  min.y + (float(rand())/float((RAND_MAX)) * dy) ;
@@ -669,18 +680,18 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                 // 8bits log modulus + 24bit uid, with fixed length // but for now 16bit modulus and radius
                 uint modulus, length, mod_len;
                 modulus = uint(m_Param [ PINTSTIFF ]) ; // m_Param [ PINTSTIFF ] =		1.0f;
-                length = uint(1000 * m_Param [ PSMOOTHRADIUS ]); // m_Param [ PSMOOTHRADIUS ] =	0.015f;	// m // related to spacing, but also max particle range i.e. ....
+                length  = uint(1000 * m_Param [ PSMOOTHRADIUS ]); // m_Param [ PSMOOTHRADIUS ] =	0.015f;	// m // related to spacing, but also max particle range i.e. ....
                 mod_len = ( modulus <<16 | length ); // NB should mask length to prevent it exceeding 16bits, i.e. 255*255
                 
-                for (int i = 0; i<BONDS_PER_PARTICLE;i++){ 
+                for (int bond_idx = 0; bond_idx<BONDS_PER_PARTICLE;bond_idx++){
                     for (int j = 0; j< DATA_PER_BOND; j++){
-                        ElastIdxU[i*DATA_PER_BOND +j] = UINT_MAX;
-                        ElastIdxF[i*DATA_PER_BOND +j] = 0;
+                        ElastIdxU[bond_idx*DATA_PER_BOND +j] = UINT_MAX;
+                        ElastIdxF[bond_idx*DATA_PER_BOND +j] = 0;
                     }
-                    ElastIdxU[i*DATA_PER_BOND +8] = 0;
+                    ElastIdxU[bond_idx*DATA_PER_BOND +8] = 0;
                 }
                 //NB #define DATA_PER_BOND 6 //6 : [0]current index, [1]elastic limit, [2]restlength, [3]modulus, [4]damping coeff, [5]particle ID, [6]bond index
-                for (int i = 0; i<BONDS_PER_PARTICLE*2;i++) { Particle_Idx[i] = UINT_MAX; }
+                for (int bond_idx_2 = 0; bond_idx_2<BONDS_PER_PARTICLE*2; bond_idx_2++) { Particle_Idx[bond_idx_2] = UINT_MAX; }
                 if (Particle_ID % 10 == 0){NerveIdx = Particle_ID/10;} else {NerveIdx = 0;} // Every 10th particle has nerve connection
                 
                 // Mass & radius of particles
@@ -691,8 +702,8 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                 Mass_Radius =  ( (uint(m_Param[PMASS]*255.0f*255.0f)<<16) | uint(m_Param[PRADIUS]*255.0f*255.0f) ) ; // mass=>13, radius=>975
 
                 // ###   Epigenetics and tissue types
-                for (int i=0; i< NUM_TF; i++)    { Conc[i]   = 0 ;}     // morphogen & transcription factor concentrations
-                for (int i=0; i< NUM_GENES; i++) { EpiGen[i] = 0 ;}     // epigenetic state of each gene in this particle
+                for (int tf_idx  =0; tf_idx  < NUM_TF;    tf_idx++)   { Conc[tf_idx]     = 0 ;}     // morphogen & transcription factor concentrations
+                for (int gene_idx=0; gene_idx< NUM_GENES; gene_idx++) { EpiGen[gene_idx] = 0 ;}     // epigenetic state of each gene in this particle
                 uint fixedActive = INT_MAX;                             // FEPIGEN below INT_MAX will count down to inactivation. Count down is inactivated by adding INT_MAX.
                 EpiGen[0] = fixedActive;                                        // active, i.e. not reserve
                 EpiGen[1] = fixedActive;                                        // solid, i.e. have elastic bonds
@@ -703,7 +714,7 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                     if(Pos.z <= min.z+spacing)                                EpiGen[11]=fixedActive;   // fixed particle
                     if(Pos.z >= max.z-spacing)                                EpiGen[12]=fixedActive;   // external actuation particle 
                     
-                    if(Pos.z >= min.z+5*spacing && Pos.z < min.z+10*spacing)  EpiGen[9] =fixedActive;   // bone
+                    if(Pos.z >= min.z+ 5*spacing && Pos.z < min.z+10*spacing) EpiGen[9] =fixedActive;   // bone
                     if(Pos.z >= min.z+10*spacing && Pos.z < min.z+15*spacing) EpiGen[6] =fixedActive;   // tendon
                     if(Pos.z >= min.z+15*spacing && Pos.z < min.z+20*spacing) EpiGen[7] =fixedActive;   // muscle
                     if(Pos.z >= min.z+20*spacing && Pos.z < min.z+25*spacing) EpiGen[10]=fixedActive;   // elastic tissue
@@ -713,6 +724,15 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
                     EpiGen[2]=1;                                            // living particle NB set gene behaviour
                 }                                                           // => (i) French flag, (ii) polartity, (iii) clock & wave front
                 
+            	/////////////////// set demo TF particles. One for each TF
+                for(int j=0; j<NUM_TF; j++){
+                    if (i==sample_idx[j]){
+                        Conc[j] 				= 1000.0f;
+                        EpiGen[j] 				= 200.0f;					// ### TODO edit to handle when NUM_TF	!= NUM_GENES
+                        cout<<"\ni="<<i<<",    Conc["<<j<<"] =  "<<Conc[j]<<",  EpiGen["<<j<<"]<<EpiGen[j] = "<<std::flush;
+                        break;}
+    			}
+                /////////////////
                 p = AddParticleMorphogenesis2 (
                 /* Vector3DF* */ &Pos, 
                 /* Vector3DF* */ &Vel, 

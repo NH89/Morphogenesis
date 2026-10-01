@@ -532,14 +532,14 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     // FCONC float[NUM_TF].                                                                                     // commented out until Matt's edit FCONC uint->foat is merged
     vtkSmartPointer<vtkFloatArray> fconc[NUM_TF];
     char buf_conc[256];
-    for (int a=0; a<NUM_GENES; a++){ 
+    for (int a=0; a<NUM_TF; a++){
         fconc[a] = vtkSmartPointer<vtkFloatArray>::New();
         fconc[a]->SetNumberOfComponents(1);
         sprintf ( buf_conc, "FCONC_%i",a);
         fconc[a]->SetName(buf_conc);
     }
     float *conc;
-    for ( unsigned int i = 0; i < NUM_GENES; ++i ){
+    for ( unsigned int i = 1; i < NUM_TF; ++i ){
         conc = getConc(i);                   
         for(int j=0; j<num_active_points; j++){
             fconc[i]->InsertNextValue(conc[j]);                              // now have one array for each column of fepigen
@@ -547,6 +547,15 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
         for(int corner=0; corner<8; corner++){
             fconc[i]->InsertNextValue(0);
         }
+    }
+    // sum_conc	saves the sum of morphogen FCONCs to the first tissue factor. ###
+	for(int j=0; j<num_active_points; j++){
+        float sum_conc = 0.0f;
+    	for ( unsigned int i = NUM_TF/2; i < NUM_TF; ++i ){
+			conc		= getConc(i);
+			sum_conc	+= conc[j];
+        }
+        fconc[0]->InsertNextValue(sum_conc);
     }
     																							//if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.7 "<<std::flush;
     // FEPIGEN uint[NUM_GENES] ... make an array of arrays
