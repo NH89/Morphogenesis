@@ -532,6 +532,10 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     // FCONC float[NUM_TF].                                                                                     // commented out until Matt's edit FCONC uint->foat is merged
     vtkSmartPointer<vtkFloatArray> fconc[NUM_TF];
     char buf_conc[256];
+    float *sum_conc ;
+    sum_conc = (float*) calloc( num_active_points, sizeof(float) );								// ################  sum_conc = calloc(...)
+    for(int j=0; j<num_active_points; j++){ sum_conc[j]=0.0f;}
+
     for (int a=0; a<NUM_TF; a++){
         fconc[a] = vtkSmartPointer<vtkFloatArray>::New();
         fconc[a]->SetNumberOfComponents(1);
@@ -539,24 +543,24 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
         fconc[a]->SetName(buf_conc);
     }
     float *conc;
-    for ( unsigned int i = 1; i < NUM_TF; ++i ){
+    for(unsigned int i = 1; i < NUM_TF; ++i ){
         conc = getConc(i);                   
         for(int j=0; j<num_active_points; j++){
-            fconc[i]->InsertNextValue(conc[j]);                              // now have one array for each column of fepigen
+            fconc[i]->InsertNextValue(conc[j]);                              					// now have one array for each column of fepigen
+            sum_conc[j] += conc[j];
         }
         for(int corner=0; corner<8; corner++){
             fconc[i]->InsertNextValue(0);
-        }
+    	}
     }
     // sum_conc	saves the sum of morphogen FCONCs to the first tissue factor. ###
-	for(int j=0; j<num_active_points; j++){
-        float sum_conc = 0.0f;
-    	for ( unsigned int i = NUM_TF/2; i < NUM_TF; ++i ){
-			conc		= getConc(i);
-			sum_conc	+= conc[j];
-        }
-        fconc[0]->InsertNextValue(sum_conc);
+    for(int j=0; j<num_active_points; j++){
+        fconc[0]->InsertNextValue( sum_conc[j] );
     }
+    for(int corner=0; corner<8; corner++){														// inserting the fconc[0] values for the 8 pixels added to mark the corners of the simulation volume.
+        fconc[0]->InsertNextValue(0);
+    }
+	free(sum_conc);																				// ################  free(sum_conc);
     																							//if (m_FParams.debug>1) std::cout<<"\nSavePointsVTP2: chk2.7 "<<std::flush;
     // FEPIGEN uint[NUM_GENES] ... make an array of arrays
     vtkSmartPointer<vtkUnsignedIntArray> fepigen[NUM_GENES];
@@ -571,7 +575,7 @@ void FluidSystem::SavePointsVTP2 ( const char * relativePath, int frame ){// use
     for ( unsigned int i = 0; i < NUM_GENES; ++i ){
         epigen = getEpiGen(i);                   
         for(int j=0; j<num_active_points; j++){    
-            fepigen[i]->InsertNextValue(epigen[j]);                              // now have one array for each column of fepigen
+            fepigen[i]->InsertNextValue(epigen[j]);                              				// now have one array for each column of fepigen
         }
         for(int corner=0; corner<8; corner++){
             fepigen[i]->InsertNextValue(0);
