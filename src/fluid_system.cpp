@@ -1122,9 +1122,9 @@ void FluidSystem::Run2GeneAction(){//NB gene sorting occurs within Run2PhysicalS
     																										if(m_FParams.debug>0)std::cout<<"\n####\nRun2GeneAction()start";
     																								time_point_Run2GeneAction[0]	= std::chrono::steady_clock::now();
 //    ComputeDiffusionCUDA();
-    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
+//    cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeDiffusionCUDA", mbDebug);
     																								time_point_Run2GeneAction[1]	= std::chrono::steady_clock::now();
-//    ComputeGenesCUDA(); // NB (i)Epigenetic countdown, (ii) GRN gene regulatory network sensitivity to TransciptionFactors (FCONC)
+    ComputeGenesCUDA(); // NB (i)Epigenetic countdown, (ii) GRN gene regulatory network sensitivity to TransciptionFactors (FCONC)
     cuCheck(cuCtxSynchronize(), "Run", "cuCtxSynchronize", "After ComputeGenesCUDA", mbDebug);
     																								time_point_Run2GeneAction[2]	= std::chrono::steady_clock::now();
     																										if(m_FParams.debug>1)std::cout<<"\n####\nRun2GeneAction()end";

@@ -642,7 +642,7 @@ extern "C" __device__ float contributePressure ( int i, float3 p, int cell, floa
 	return sum;                                                             // NB a scalar value for pressure contribution, at the current particle, due to particles in this cell.
 }
 			
-extern "C" __global__ void computePressure_ ( int pnum )	// old, not currentlyin use
+extern "C" __global__ void computePressure_ ( int pnum )	// ### old, not currentlyin use,  all in one kernel to avoid fn calls now.
 {
 	uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                 // particle index
 	if ( i >= pnum ) return;
@@ -802,59 +802,67 @@ extern "C" __global__ void computePressure ( int pnum,  int max_pnum )						// n
 
 extern "C" __global__ void computeGeneAction ( int pnum, int gene, uint list_len )  //NB here pnum is for the dense list NB Must zero ftemp.bufI(FEPIGEN) and ftemp.bufI(FCONC) before calling.
 {
-    uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                                         // particle index
+    uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                                         				// particle index
     if ( i >= list_len ) return;
     uint particle_index = fbuf.bufII(FDENSE_LISTS)[gene][i];
-    /*if (particle_index >= pnum){
-        printf("\ncomputeGeneAction: (particle_index >= pnum),  gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u .\t",
-            gene, i, list_len, particle_index, pnum);
-    } */   
-    int delay = (int)fbuf.bufI(FEPIGEN)[gene*fparam.maxPoints + particle_index];                                // Change in _epigenetic_ activation of this particle
+    																								/*if (particle_index >= pnum){
+        																								printf("\ncomputeGeneAction: (particle_index >= pnum),  gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u .\t",
+            																																					gene, i, list_len, particle_index, pnum);
+    																								} */
+	///// delayed spontaneous activation
+    int delay					= (int)fbuf.bufI(FEPIGEN)[gene*fparam.maxPoints + particle_index];                  // Change in _epigenetic_ activation of this particle
     //printf("\nDelay=%i, particle_index=%u\t", delay, particle_index);
-    if (0 < delay && delay < INT_MAX){                                                                           // (FEPIGEN==INT_MAX) => active & not counting down.
-        fbuf.bufI(FEPIGEN)[gene*fparam.maxPoints + particle_index]--;                                           // (FEPIGEN<1) => inactivated @ insertParticles(..)
-        if (delay==1  &&  gene<NUM_GENES && fbuf.bufI(FEPIGEN)[ (gene+1)*fparam.maxPoints + particle_index ] )  // If next gene is active, start count down to inactivate it.
-            fbuf.bufI(FEPIGEN)[(gene+1)*fparam.maxPoints + particle_index] = fgenome.delay[gene+1] ;            // Start countdown to silence next gene.
-    }                                                                                               // (fgenome.delay[gene+1]==INT_MAX) => barrier to spreading inactivation.
-    uint sensitivity[NUM_GENES];                                                                    // TF sensitivities : broadcast to threads
-    #pragma unroll                                                                                  // speed up by eliminating loop logic.
-    for(int j=0;j<NUM_GENES;j++) sensitivity[j]= fgenome.sensitivity[gene][j];                      // for each gene, its sensitivity to each TF or morphogen
-    /*if(i==list_len-1)printf("\ncomputeGeneAction Chk : gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u ,  sensitivity[15]=%u.\t",
-            gene, i, list_len, particle_index, pnum, sensitivity[15]); */                             // debug chk 
-    float activity=0;                                                                               // compute current activity of gene
+    if (0 < delay && delay < INT_MAX){                                                                           	// (FEPIGEN==INT_MAX) => active & not counting down.
+        fbuf.bufI(FEPIGEN)[gene*fparam.maxPoints + particle_index]--;                                           	// (FEPIGEN<1) => inactivated @ insertParticles(..)
+        if (delay==1  &&  gene<NUM_GENES 	&& fbuf.bufI(FEPIGEN)[ (gene+1)*fparam.maxPoints + particle_index ] )  	// If next gene is active, start count down to inactivate it.
+            fbuf.bufI(FEPIGEN)[(gene+1)*fparam.maxPoints + particle_index] 		= fgenome.delay[gene+1] ;           // Start countdown to silence next gene.
+    }                                                                                               				// (fgenome.delay[gene+1]==INT_MAX) => barrier to spreading inactivation.
+
+    ///// compute gene activity from transcription factor concentrations
+	/// sensitivity to each transcription factor
+    uint sensitivity[NUM_GENES];                                                                    				// TF sensitivities : broadcast to threads
+    #pragma unroll                                                                                  				// speed up by eliminating loop logic.
+    for(int tf=0;tf<NUM_TF;tf++) sensitivity[tf]= fgenome.sensitivity[gene][tf];                      				// for each gene, its sensitivity to each TF or morphogen
+    																								/*if(i==list_len-1)printf("\ncomputeGeneAction Chk : gene=%u, i=%u, list_len=%u, particle_index=%u, pnum=%u ,  sensitivity[15]=%u.\t",
+            																																				gene, i, list_len, particle_index, pnum, sensitivity[15]); */                             // debug chk
+	/// activity of this gene due to SUM (tf * sensitivity)
+    float activity				=0;                                                                               	// compute current activity of gene
     #pragma unroll
-    for (int tf=0;tf<NUM_TF;tf++){                                                                  // read FCONC
-        if(sensitivity[tf]!=0){                                                                     // skip reading unused fconc[]
-            activity +=  sensitivity[tf] * fbuf.bufI(FCONC)[particle_index + fparam.maxPoints*tf];
+    for (int tf=0;tf<NUM_TF;tf++){                                                                  				// read FCONC
+        if(sensitivity[tf]!=0){                                                                     				// skip reading unused fconc[]
+            activity 			+=  sensitivity[tf] * fbuf.bufI(FCONC)[particle_index + fparam.maxPoints*tf];
         }                                                           
     }
-    // Compute actions                                             // Non-difusible TFs inc instructions to particle modification kernel wrt behaviour (cell type). 
-    int numTF =  fgenome.secrete[gene][2*NUM_TF];                  // (i) secrete sparse list of TFs  => atomicAdd(ftemp...) to allow async gene kernels.
-    for (int j=0;j<numTF;j++){
-        int tf = fgenome.secrete[gene][j*2];
-        int secretion_rate = fgenome.secrete[gene][j*2 + 1];
-        atomicAdd( &ftemp.bufI(FCONC)[particle_index*NUM_TF +tf], secretion_rate*activity);
+    ////
+    // Compute actions                                             													// Non-difusible TFs inc instructions to particle modification kernel wrt behaviour (cell type).
+    // Transcription factor secretion
+    int numTF					= fgenome.secrete[gene][2*NUM_TF];                  								// (i) secrete sparse list of TFs  => atomicAdd(ftemp...) to allow async gene kernels.
+    for (int tf_=0;tf_<numTF;tf_++){
+        int tf					= fgenome.secrete[gene][tf_*2];
+        int secretion_rate		= fgenome.secrete[gene][tf_*2 + 1];
+        atomicAdd(	&ftemp.bufI(FCONC)[particle_index*NUM_TF +tf],		secretion_rate*activity);
     }
-    int numLRNA = fgenome.activate[gene][2*NUM_GENES];             // (ii) secrete spare list long RNA => activate other genes.  NB threshold.
-    for (int j=0;j<numLRNA;j++){
-        int other_gene = fgenome.activate[gene][j*2];
-        int threshold = fgenome.activate[gene][j*2 + 1];
+    // Long RNA secretion - changes activation state of another gene.,
+    int numLRNA					= fgenome.activate[gene][2*NUM_GENES];             													// (ii) secrete spare list long RNA => activate other genes.  NB threshold.
+    for (int lrna=0;lrna<numLRNA;lrna++){
+        int other_gene			= fgenome.activate[gene][lrna*2];
+        int threshold			= fgenome.activate[gene][lrna*2 + 1];
         if(threshold<activity)
-        atomicAdd( &ftemp.bufI(FEPIGEN)[other_gene*fparam.maxPoints + particle_index], 1);   // what should be the initial state of other_gene when activated ?
+        atomicAdd(	&ftemp.bufI(FEPIGEN)[other_gene*fparam.maxPoints + particle_index], 		1);   				// what should be the initial state of other_gene when activated ?
     }
 }
 
-extern "C" __global__ void tallyGeneAction ( int pnum, int gene, uint list_length ){// called by ComputeGenesCUDA () after computeGeneAction (..) & synchronize().
-    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                            // particle index
-    if ( particle_index >= list_length ) return;                                                    // pnum should be length of list.
+extern "C" __global__ void tallyGeneAction ( int pnum, int gene, uint list_length ){								// called by ComputeGenesCUDA () after computeGeneAction (..) & synchronize().
+    uint particle_index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;                            				// particle index
+    if ( particle_index >= list_length ) return;                                                    				// pnum should be length of list.
     // ## TODO convert i to particle index _iff_ not called for all particles : use a special dense list for "living tissue", made at same time as gene lists
-    uint i = fbuf.bufII(FDENSE_LISTS)[2][particle_index];                                           // call for dense list of living cells (gene'2'living/telomere (has genes))
+    uint i = fbuf.bufII(FDENSE_LISTS)[2][particle_index];                                           				// call for dense list of living cells (gene'2'living/telomere (has genes))
     if ( i >= pnum ) return; 
     
-    float * fbufFCONC = &fbuf.bufF(FCONC)[i*NUM_TF];
-    float * ftempFCONC = &ftemp.bufF(FCONC)[i*NUM_TF];
-    uint * fbufFEPIGEN = &fbuf.bufI(FEPIGEN)[i]; //*NUM_GENES                                             // TODO FEPIGEN is a uint here. May need to pack binaries for spread & stop. See paper.
-    uint * ftempFEPIGEN = &ftemp.bufI(FEPIGEN)[i]; //*NUM_GENES   // ## need to zero ftemp after counting sort full
+    float	* fbufFCONC		= &fbuf.bufF( FCONC)[i*NUM_TF];
+    float	* ftempFCONC	= &ftemp.bufF(FCONC)[i*NUM_TF];
+    uint	* fbufFEPIGEN	= &fbuf.bufI( FEPIGEN)[i]; //*NUM_GENES                                             	// TODO FEPIGEN is a uint here. May need to pack binaries for spread & stop. See paper.
+    uint	* ftempFEPIGEN	= &ftemp.bufI(FEPIGEN)[i]; //*NUM_GENES   												// ## need to zero ftemp after counting sort full
     
     for(int j=0; j<NUM_TF;j++)      fbufFCONC[j] += ftempFCONC[j];  // *fparam.maxPoints
     for(int j=0; j<NUM_GENES;j++) fbufFEPIGEN[j*fparam.maxPoints] += ftempFEPIGEN[j*fparam.maxPoints];
@@ -3157,7 +3165,7 @@ extern "C" __device__ void contributeDiffusion(uint i, float3 p, int cell, const
 }
 
 //! main function to handle calculating diffusion, visits bins, then particles, then chemicals in particles
-extern "C" __global__ void computeDiffusion(int pnum, int max_pnum){
+extern "C" __global__ void computeDiffusion(int pnum, int max_pnum){		// ### not currently ued. Diffusion is now done in the Compute_Pressure kernel ////////////////////////////////////
     // get particle index
     uint i = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
     // if the particle is outside the simulation, quit processing
