@@ -727,8 +727,8 @@ if (m_FParams.debug>1)std::cout << "\n SetupAddVolumeMorphogenesis2 \t" << std::
             	/////////////////// set demo TF particles. One for each TF
                 for(int j=0; j<NUM_TF; j++){
                     if (i==sample_idx[j]){
-                        Conc[j] 				= 1000.0f;
-                        EpiGen[j] 				= 200.0f;					// ### TODO edit to handle when NUM_TF	!= NUM_GENES
+                        Conc[j]					= 1000.0f;
+                        EpiGen[j]				= 200.0f;					// ### TODO edit to handle when NUM_TF	!= NUM_GENES
                         cout<<"\ni="<<i<<",    Conc["<<j<<"] =  "<<Conc[j]<<",  EpiGen["<<j<<"]<<EpiGen[j] = "<<std::flush;
                         break;}
     			}

@@ -230,6 +230,7 @@
         void SetupExampleGenome();
 		void SetupSpacing ();
         void SetupAddVolumeMorphogenesis2(Vector3DF min, Vector3DF max, float spacing, float offs, uint demoType );  // NB ony used in WriteDemoSimParams()
+        void SetupAddVolume_clock_wavefront_hox(/*Vector3DF min, Vector3DF max, float spacing, float offs */);
 		void SetupGrid ( Vector3DF min, Vector3DF max, float sim_scale, float cell_size);		
 		void AllocateGrid ();
         void AllocateGrid(int gpu_mode, int cpu_mode);
@@ -315,6 +316,7 @@
         
         void ReadSpecificationFile(const char* relativePath);
         void WriteExampleSpecificationFile ( const char * relativePath );
+		void Write_clock_wavefront_hox_SpecificationFile();
         void WriteSpecificationFile_fromLaunchParams ( const char * relativePath );
         void WriteResultsCSV ( const char * input_folder, const char * output_folder, uint num_particles_start );
 
