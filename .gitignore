@@ -187,4 +187,5 @@ src/build/*
 
 old-build*
 old-data*
+old*
 src/.make_demo2.cpp.kate-swp
