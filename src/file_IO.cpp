@@ -673,7 +673,7 @@ void FluidSystem::SavePointsCSV2 ( const char * relativePath, int frame ){
     sprintf ( buf, "%s/particles_pos_vel_color%04d.csv", relativePath, frame );
     FILE* fp = fopen ( buf, "w" );
     if (fp == NULL) {
-        if (m_FParams.debug>1) std::cout << "\nvoid FluidSystem::SavePointsCSV ( const char * relativePath, int frame )  Could not open file "<< fp <<"\n"<< std::flush;
+        /*if (m_FParams.debug>1)*/ std::cout << "\nvoid FluidSystem::SavePointsCSV ( const char * relativePath, int frame )  Could not open file "<< buf <<" ,  "<<fp<<"\n"<< std::flush;
         assert(0);
     }
     int numpnt = mMaxPoints;//NumPoints();

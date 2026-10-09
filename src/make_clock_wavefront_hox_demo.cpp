@@ -47,8 +47,8 @@ int main ( int argc, const char** argv ){
 
 	fluid.WriteExampleSpecificationFile("./demo");												// specify path only. File is always called "SpecificationFile.txt"
 */
-    fluid.SavePointsVTP2( "demo", 1 );
-    fluid.SavePointsCSV2( "demo", 1 );
+    fluid.SavePointsVTP2( folder, 1 );
+    fluid.SavePointsCSV2( folder, 1 );
     fluid.Exit_no_CUDA ();
     return 0;
 }
